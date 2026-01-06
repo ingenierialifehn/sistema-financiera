@@ -15,10 +15,10 @@ class Database
     {
         try {
             // Configuración de base de datos (ajustar según InfinityFree o tu hosting)
-            $host = 'localhost:3308';
+            $host = 'localhost:3306';
             $dbname = 'sistema_financiera';
             $username = 'root'; // Ajustar según tu hosting
-            $password = 'root'; // Ajustar según tu hosting
+            $password = '0034'; // Ajustar según tu hosting
 
             $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
 

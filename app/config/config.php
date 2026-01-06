@@ -25,7 +25,7 @@ define('PUBLIC_PATH', BASE_PATH . '/public');
 define('API_PATH', APP_PATH . '/api');
 
 // Configuración de URLs (ajustar según tu dominio)
-define('BASE_URL', 'http://localhost/aplicacionesjfcc/sistema-financiera');
+define('BASE_URL', 'http://localhost/sistema-financiera');
 define('API_URL', BASE_URL . '/app/api');
 
 // Función helper para obtener la URL base automáticamente
