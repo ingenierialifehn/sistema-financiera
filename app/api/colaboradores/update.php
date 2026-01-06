@@ -1,12 +1,13 @@
 <?php
 /**
- * Actualizar colaborador
+ * Actualizar colaborador (Gestión de Personal)
  */
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../core/Response.php';
 require_once __DIR__ . '/../../core/Validator.php';
+require_once __DIR__ . '/../../core/Helpers.php';
 require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
@@ -19,122 +20,151 @@ if ($_SERVER['REQUEST_METHOD'] !== 'PUT') {
 
 $data = getJsonInput();
 
-if (!isset($data['id']) || empty($data['id'])) {
-    Response::error('ID de colaborador requerido', 400);
+if (empty($data['id'])) {
+    Response::error('ID inválido', 400);
 }
 
-$id = intval($data['id']);
+$id = $data['id'];
 
-// Validar que el colaborador existe
-$checkStmt = $db->prepare("SELECT * FROM usuarios WHERE id = :id AND rol = 'colaborador'");
-$checkStmt->execute(['id' => $id]);
-$colaboradorAnterior = $checkStmt->fetch();
+// 1. Validar reglas de negocio antes de actualizar
+// Obtener info actual
+$stmtCurrent = $db->prepare("
+    SELECT c.*, u.id as usuario_id, u.saldo_caja_virtual 
+    FROM colaboradores c 
+    LEFT JOIN usuarios u ON u.id_colaborador = c.id 
+    WHERE c.id = :id
+");
+$stmtCurrent->execute(['id' => $id]);
+$current = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
 
-if (!$colaboradorAnterior) {
-    Response::notFound('Colaborador no encontrado');
+if (!$current) {
+    Response::error('Colaborador no encontrado', 404);
 }
 
-// Validar datos
-$rules = [
-    'nombre_completo' => [
-        'type' => 'string',
-        'required' => true,
-        'min' => 3,
-        'max' => 255,
-        'message' => 'El nombre completo es requerido'
-    ],
-    'email' => [
-        'type' => 'email',
-        'required' => true,
-        'message' => 'Email inválido'
-    ],
-    'password' => [
-        'type' => 'string',
-        'required' => false,
-        'min' => 6,
-        'max' => 255,
-        'message' => 'La contraseña debe tener al menos 6 caracteres'
-    ]
-];
-
-$validation = Validator::validate($data, $rules);
-
-if (!$validation['valid']) {
-    Response::error('Datos inválidos', 400, $validation['errors']);
-}
-
-$validatedData = $validation['data'];
-
-try {
-    // Verificar que el email no esté en uso por otro usuario
-    $emailCheckStmt = $db->prepare("SELECT id FROM usuarios WHERE email = :email AND id != :id");
-    $emailCheckStmt->execute([
-        'email' => $validatedData['email'],
-        'id' => $id
-    ]);
-    
-    if ($emailCheckStmt->fetch()) {
-        Response::error('El email ya está en uso por otro usuario', 400);
-    }
-    
-    // Preparar datos para actualizar
-    $updateFields = [];
-    $params = ['id' => $id];
-    
-    if (isset($validatedData['nombre_completo'])) {
-        $updateFields[] = "nombre_completo = :nombre_completo";
-        $params['nombre_completo'] = $validatedData['nombre_completo'];
-    }
-    
-    if (isset($validatedData['email'])) {
-        $updateFields[] = "email = :email";
-        $params['email'] = $validatedData['email'];
-    }
-    
-    if (isset($validatedData['password']) && !empty($validatedData['password'])) {
-        $updateFields[] = "password = :password";
-        $params['password'] = password_hash($validatedData['password'], PASSWORD_DEFAULT);
-    }
-    
-    if (isset($data['estado'])) {
-        if (in_array($data['estado'], ['activo', 'inactivo'])) {
-            $updateFields[] = "estado = :estado";
-            $params['estado'] = $data['estado'];
+// Validación de Cierre (Saldo Caja)
+if (isset($data['estado_laboral'])) {
+    $newStatus = strtolower($data['estado_laboral']);
+    if (in_array($newStatus, ['despido', 'renuncia'])) {
+        if ($current['usuario_id'] && $current['saldo_caja_virtual'] > 0) {
+            Response::error("No se puede dar de baja (Despido/Renuncia). El usuario tiene un saldo pendiente de L " . number_format($current['saldo_caja_virtual'], 2), 400);
         }
     }
-    
-    if (empty($updateFields)) {
-        Response::error('No hay datos para actualizar', 400);
+}
+
+try {
+    $db->beginTransaction();
+
+    // Actualizar Colaborador
+    $fields = [];
+    $params = ['id' => $id];
+
+    if (!empty($data['dni'])) {
+        $fields[] = "dni = :dni";
+        $params['dni'] = $data['dni'];
     }
-    
-    $updateFields[] = "updated_at = CURRENT_TIMESTAMP";
-    
-    $sql = "UPDATE usuarios SET " . implode(', ', $updateFields) . " WHERE id = :id";
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    
-    // Obtener datos actualizados
-    $getStmt = $db->prepare("
-        SELECT id, usuario, nombre_completo, email, rol, estado, created_at, updated_at
-        FROM usuarios
-        WHERE id = :id
-    ");
-    $getStmt->execute(['id' => $id]);
-    $colaboradorActualizado = $getStmt->fetch();
-    
-    // Registrar actividad
-    Auth::logActivity(
-        $user['id'], 
-        'update', 
-        'colaborador', 
-        "Colaborador actualizado: {$validatedData['nombre_completo']}", 
-        $colaboradorAnterior, 
-        $colaboradorActualizado
-    );
-    
-    Response::success($colaboradorActualizado, 'Colaborador actualizado exitosamente');
-    
+    if (!empty($data['nombre_completo'])) {
+        $fields[] = "nombre_completo = :nombre_completo";
+        $params['nombre_completo'] = $data['nombre_completo'];
+    }
+    if (!empty($data['email'])) {
+        $fields[] = "email = :email";
+        $params['email'] = $data['email'];
+    }
+    if (isset($data['sueldo_base'])) {
+        $fields[] = "sueldo_base = :sueldo_base";
+        $params['sueldo_base'] = $data['sueldo_base'];
+    }
+    if (!empty($data['agencia'])) {
+        $fields[] = "agencia = :agencia";
+        $params['agencia'] = $data['agencia'];
+    }
+    if (!empty($data['puesto'])) {
+        $fields[] = "puesto = :puesto";
+        $params['puesto'] = $data['puesto'];
+    }
+    if (!empty($data['estado_laboral'])) {
+        $fields[] = "estado_laboral = :estado_laboral";
+        $params['estado_laboral'] = $data['estado_laboral'];
+    }
+
+    if (!empty($fields)) {
+        $sql = "UPDATE colaboradores SET " . implode(', ', $fields) . " WHERE id = :id";
+        $db->prepare($sql)->execute($params);
+    }
+
+    // Gestionar Usuario
+    $crearUsuario = isset($data['crear_usuario']) && $data['crear_usuario'] === true; // Si checkbox marcado
+
+    if ($crearUsuario) {
+        // Si ya tenía usuario, actualizarlo
+        if ($current['usuario_id']) {
+            // Update exist
+            $uFields = [];
+            $uParams = ['uid' => $current['usuario_id']];
+
+            if (!empty($data['id_rol'])) {
+                $uFields[] = "id_rol = :id_rol";
+                $uParams['id_rol'] = $data['id_rol'];
+            }
+            // Password solo si se envía
+            if (!empty($data['password'])) {
+                $uFields[] = "password = :password";
+                $uParams['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+            }
+            if (isset($data['id_jefe_directo'])) {
+                $uFields[] = "id_jefe_directo = :id_jefe";
+                $uParams['id_jefe'] = !empty($data['id_jefe_directo']) ? $data['id_jefe_directo'] : null;
+            }
+
+            if (!empty($uFields)) {
+                $sqlU = "UPDATE usuarios SET " . implode(', ', $uFields) . " WHERE id = :uid";
+                $db->prepare($sqlU)->execute($uParams);
+            }
+        } else {
+            // Crear nuevo usuario para este colaborador
+            // Validar requeridos
+            if (empty($data['usuario']) || empty($data['password']) || empty($data['id_rol'])) {
+                throw new Exception("Faltan datos para crear el usuario");
+            }
+
+            // Validar unique usuario
+            $checkU = $db->prepare("SELECT id FROM usuarios WHERE usuario = :u");
+            $checkU->execute(['u' => $data['usuario']]);
+            if ($checkU->fetch())
+                throw new Exception("El usuario ya existe");
+
+            $stmtNewU = $db->prepare("
+               INSERT INTO usuarios (usuario, password, nombre_completo, email, id_rol, id_colaborador, saldo_caja_virtual, estado, created_at, id_jefe_directo)
+               VALUES (:usuario, :password, :nombre, :email, :rol, :colab, 0.00, 'activo', NOW(), :jefe)
+           ");
+            $stmtNewU->execute([
+                'usuario' => $data['usuario'],
+                'password' => password_hash($data['password'], PASSWORD_DEFAULT),
+                'nombre' => $data['nombre_completo'] ?? $current['nombre_completo'],
+                'email' => $data['email'] ?? $current['email'],
+                'rol' => $data['id_rol'],
+                'colab' => $id,
+                'jefe' => !empty($data['id_jefe_directo']) ? $data['id_jefe_directo'] : null
+            ]);
+        }
+    } else {
+        // Si checkbox desmarcado
+        // Opción: ¿Desactivar usuario? ¿Eliminar?
+        // El prompt no especifica qué pasa si se desmarca "Tiene acceso".
+        // Lo lógico es cambiar estado a inactivo si existía.
+        if ($current['usuario_id']) {
+            $db->prepare("UPDATE usuarios SET estado = 'inactivo' WHERE id = :uid")->execute(['uid' => $current['usuario_id']]);
+        }
+    }
+
+    $db->commit();
+
+    Auth::logActivity($user['id'], 'update', 'colaborador', "Colaborador actualizado ID: $id", $current, $data);
+    Response::success(['id' => $id], 'Actualizado correctamente');
+
 } catch (Exception $e) {
-    error_log("Error al actualizar colaborador: " . $e->getMessage());
-    Response::serverError('Error al actualizar colaborador');
+    if ($db->inTransaction())
+        $db->rollBack();
+    error_log("Error update colaborador: " . $e->getMessage());
+    Response::error($e->getMessage(), 400);
 }

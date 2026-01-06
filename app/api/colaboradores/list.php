@@ -1,6 +1,6 @@
 <?php
 /**
- * Listar colaboradores
+ * Listar colaboradores (Gestión de Personal)
  */
 
 require_once __DIR__ . '/../../config/config.php';
@@ -17,72 +17,83 @@ try {
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
     $limit = isset($_GET['limit']) ? max(1, min(100, intval($_GET['limit']))) : 20;
     $offset = ($page - 1) * $limit;
-    
-    // Búsqueda
+
+    // Filtros
     $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+    $agencia = isset($_GET['agencia']) ? trim($_GET['agencia']) : '';
+    $puesto = isset($_GET['puesto']) ? trim($_GET['puesto']) : '';
     $estado = isset($_GET['estado']) ? trim($_GET['estado']) : '';
-    
-    // Construir query - Buscamos 'colaborador'
-    $where = ["rol = 'colaborador'"];
+
+    // Construir query base
+    $where = ["1=1"];
     $params = [];
-    
+
     if (!empty($search)) {
-        $where[] = "(usuario LIKE :search OR nombre_completo LIKE :search2 OR email LIKE :search3)";
+        // Buscamos por nombre, DNI o email
+        $where[] = "(c.nombre_completo LIKE :search OR c.dni LIKE :search2 OR c.email LIKE :search3)";
         $searchParam = '%' . $search . '%';
         $params['search'] = $searchParam;
         $params['search2'] = $searchParam;
         $params['search3'] = $searchParam;
     }
-    
-    if (!empty($estado)) {
-        $where[] = "estado = :estado";
+
+    if (!empty($agencia)) {
+        $where[] = "c.agencia = :agencia";
+        $params['agencia'] = $agencia;
+    }
+
+    if (!empty($puesto)) {
+        $where[] = "c.puesto = :puesto";
+        $params['puesto'] = $puesto;
+    }
+
+    if (!empty($estado)) { // estado_laboral
+        $where[] = "c.estado_laboral = :estado";
         $params['estado'] = $estado;
     }
-    
+
     $whereClause = implode(' AND ', $where);
-    
+
     // Contar total
-    $countStmt = $db->prepare("SELECT COUNT(*) as total FROM usuarios WHERE $whereClause");
+    $countStmt = $db->prepare("SELECT COUNT(*) as total FROM colaboradores c WHERE $whereClause");
     $countStmt->execute($params);
     $total = $countStmt->fetch()['total'];
-    
-    // Obtener colaboradores
+
+    // Obtener colaboradores con info de usuario si existe
     $sql = "
         SELECT 
-            u.id,
-            u.usuario,
-            u.nombre_completo,
-            u.email,
-            u.rol,
-            u.estado,
-            u.created_at
-        FROM usuarios u
+            c.*,
+            u.id as usuario_id,
+            u.usuario as usuario_nombre,
+            u.estado as usuario_estado
+        FROM colaboradores c
+        LEFT JOIN usuarios u ON u.id_colaborador = c.id
         WHERE $whereClause
-        ORDER BY u.nombre_completo ASC
+        ORDER BY c.nombre_completo ASC
         LIMIT :limit OFFSET :offset
     ";
-    
+
     $stmt = $db->prepare($sql);
-    
+
     foreach ($params as $key => $value) {
         $stmt->bindValue(':' . $key, $value);
     }
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    
+
     $stmt->execute();
     $colaboradores = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     Response::success([
         'colaboradores' => $colaboradores,
         'pagination' => [
             'page' => $page,
             'limit' => $limit,
-            'total' => (int)$total,
+            'total' => (int) $total,
             'total_pages' => ceil($total / $limit)
         ]
     ]);
-    
+
 } catch (Exception $e) {
     error_log("Error en listar colaboradores: " . $e->getMessage());
     Response::serverError('Error al listar colaboradores');

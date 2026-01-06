@@ -1,6 +1,6 @@
 <?php
 /**
- * Crear nuevo colaborador
+ * Crear nuevo colaborador (Gestión de Personal)
  */
 
 require_once __DIR__ . '/../../config/config.php';
@@ -20,96 +20,109 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $data = getJsonInput();
 
-// Validar datos
-$rules = [
-    'usuario' => [
-        'type' => 'string',
-        'required' => true,
-        'min' => 3,
-        'max' => 50,
-        'message' => 'El usuario debe tener entre 3 y 50 caracteres'
-    ],
-    'password' => [
-        'type' => 'string',
-        'required' => true,
-        'min' => 6,
-        'max' => 255,
-        'message' => 'La contraseña debe tener al menos 6 caracteres'
-    ],
-    'nombre_completo' => [
-        'type' => 'string',
-        'required' => true,
-        'min' => 3,
-        'max' => 255,
-        'message' => 'El nombre completo es requerido'
-    ],
-    'email' => [
-        'type' => 'email',
-        'required' => true,
-        'message' => 'Email inválido'
-    ]
+// 1. Validar datos del Colaborador
+$rulesColaborador = [
+    'dni' => ['required' => true, 'min' => 5, 'max' => 20],
+    'nombre_completo' => ['required' => true, 'min' => 3],
+    'email' => ['type' => 'email', 'required' => true],
+    'sueldo_base' => ['type' => 'numeric', 'required' => true],
+    'agencia' => ['required' => true],
+    'puesto' => ['required' => true],
+    'estado_laboral' => ['required' => true] // 'activo', 'inactivo', etc.
 ];
 
-$validation = Validator::validate($data, $rules);
+$validationColab = Validator::validate($data, $rulesColaborador);
 
-if (!$validation['valid']) {
-    Response::error('Datos inválidos', 400, $validation['errors']);
+if (!$validationColab['valid']) {
+    Response::error('Datos de colaborador inválidos', 400, $validationColab['errors']);
 }
 
-$validatedData = $validation['data'];
+// 2. Validar datos del Usuario (si aplica)
+$crearUsuario = isset($data['crear_usuario']) && $data['crear_usuario'] === true;
+
+if ($crearUsuario) {
+    if (empty($data['usuario']) || empty($data['password']) || empty($data['id_rol'])) {
+        Response::error('Faltan datos de usuario (usuario, password, rol)', 400);
+    }
+    // Validar longitud
+    if (strlen($data['usuario']) < 3)
+        Response::error('Usuario muy corto', 400);
+    if (strlen($data['password']) < 6)
+        Response::error('Contraseña muy corta', 400);
+}
 
 try {
-    // Verificar que el usuario no exista
-    $checkStmt = $db->prepare("SELECT id FROM usuarios WHERE usuario = :usuario OR email = :email");
+    $db->beginTransaction();
+
+    // Verificar duplicados (DNI o Email en colaboradores)
+    $checkStmt = $db->prepare("SELECT id FROM colaboradores WHERE dni = :dni OR email = :email");
     $checkStmt->execute([
-        'usuario' => $validatedData['usuario'],
-        'email' => $validatedData['email']
+        'dni' => $data['dni'],
+        'email' => $data['email']
     ]);
-    
     if ($checkStmt->fetch()) {
-        Response::error('El usuario o email ya existe', 400);
+        throw new Exception('El DNI o Email ya existe registrado en colaboradores', 400);
     }
-    
-    // Hash de contraseña
-    $passwordHash = password_hash($validatedData['password'], PASSWORD_DEFAULT);
-    
-    // Crear colaborador
-    // NOTA: Se asume que el ENUM 'rol' ya incluye 'colaborador' como se hizo en pasos previos.
-    $stmt = $db->prepare("
-        INSERT INTO usuarios (usuario, password, nombre_completo, email, rol, estado)
-        VALUES (:usuario, :password, :nombre_completo, :email, 'colaborador', :estado)
+
+    // Insertar Colaborador
+    $stmtColab = $db->prepare("
+        INSERT INTO colaboradores (dni, nombre_completo, email, sueldo_base, agencia, puesto, estado_laboral, created_at)
+        VALUES (:dni, :nombre_completo, :email, :sueldo_base, :agencia, :puesto, :estado_laboral, NOW())
     ");
-    
-    $estado = $data['estado'] ?? 'activo';
-    if (!in_array($estado, ['activo', 'inactivo'])) {
-        $estado = 'activo';
-    }
-    
-    $stmt->execute([
-        'usuario' => $validatedData['usuario'],
-        'password' => $passwordHash,
-        'nombre_completo' => $validatedData['nombre_completo'],
-        'email' => $validatedData['email'],
-        'estado' => $estado
+
+    $stmtColab->execute([
+        'dni' => $data['dni'],
+        'nombre_completo' => $data['nombre_completo'],
+        'email' => $data['email'],
+        'sueldo_base' => $data['sueldo_base'],
+        'agencia' => $data['agencia'],
+        'puesto' => $data['puesto'],
+        'estado_laboral' => $data['estado_laboral']
     ]);
-    
+
     $colaboradorId = $db->lastInsertId();
-    
-    // Registrar actividad
-    Auth::logActivity($user['id'], 'create', 'colaborador', "Colaborador creado: {$validatedData['nombre_completo']}", null, $validatedData);
-    
-    // Obtener colaborador creado
-    $getStmt = $db->prepare("
-        SELECT id, usuario, nombre_completo, email, rol, estado, created_at
-        FROM usuarios
-        WHERE id = :id
-    ");
-    $getStmt->execute(['id' => $colaboradorId]);
-    $colaborador = $getStmt->fetch();
-    
-    Response::success($colaborador, 'Colaborador creado exitosamente');
-    
+
+    // Insertar Usuario si aplica
+    if ($crearUsuario) {
+        // Verificar duplicidad de username
+        $checkUser = $db->prepare("SELECT id FROM usuarios WHERE usuario = :usuario");
+        $checkUser->execute(['usuario' => $data['usuario']]);
+        if ($checkUser->fetch()) {
+            throw new Exception('El nombre de usuario ya está en uso', 400);
+        }
+
+        $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
+
+        $stmtUser = $db->prepare("
+            INSERT INTO usuarios (usuario, password, nombre_completo, email, id_rol, id_colaborador, saldo_caja_virtual, estado, created_at, id_jefe_directo)
+            VALUES (:usuario, :password, :nombre, :email, :id_rol, :id_colaborador, 0.00, 'activo', NOW(), :id_jefe)
+        ");
+
+        $idJefe = !empty($data['id_jefe_directo']) ? $data['id_jefe_directo'] : null;
+
+        $stmtUser->execute([
+            'usuario' => $data['usuario'],
+            'password' => $passwordHash,
+            'nombre' => $data['nombre_completo'],
+            'email' => $data['email'],
+            'id_rol' => $data['id_rol'],
+            'id_colaborador' => $colaboradorId,
+            'id_jefe' => $idJefe
+        ]);
+    }
+
+    $db->commit();
+
+    // Log
+    Auth::logActivity($user['id'], 'create', 'colaborador', "Colaborador creado: {$data['nombre_completo']}", null, ['id' => $colaboradorId]);
+
+    Response::success(['id' => $colaboradorId], 'Colaborador guardado exitosamente');
+
 } catch (Exception $e) {
-    error_log("Error al crear colaborador: " . $e->getMessage());
-    Response::serverError('Error al crear colaborador');
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    $code = $e->getCode() === 400 ? 400 : 500;
+    error_log("Error crear colaborador: " . $e->getMessage());
+    Response::error($e->getMessage(), $code);
 }
