@@ -10,7 +10,7 @@ require_once __DIR__ . '/includes/layout.php';
 <div class="mb-6">
     <div class="flex justify-between items-center">
         <div>
-            <h2 class="text-2xl font-bold text-gray-800">Usuarios</h2>
+            <h2 class="text-2xl font-bold text-gray-800">Usuarios Holahoalhagafasdf</h2>
             <p class="text-gray-600">Gestiona los usuarios del sistema</p>
         </div>
         <button id="btnNuevoUsuario"
