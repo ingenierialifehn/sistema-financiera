@@ -73,10 +73,17 @@ if (empty($baseUrl)) {
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
+        .bg-login {
+            background-image: url('assets/img/login_bg.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+<body class="bg-login">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-black bg-opacity-30">
         <div class="max-w-md w-full space-y-8">
             <!-- Logo/Header -->
             <div class="text-center">
