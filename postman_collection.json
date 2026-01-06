@@ -1,0 +1,255 @@
+{
+  "info": {
+    "name": "Sistema Financiero - API Auth",
+    "description": "Colección de endpoints de autenticación para el Sistema Financiero",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "sistema-financiera"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/sistema-financiera",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+                  "        console.log('Token guardado: ' + jsonData.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"admin\",\n    \"password\": \"admin123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            },
+            "description": "Iniciar sesión con usuario y contraseña. También acepta email como usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Login con Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"admin@sistema.com\",\n    \"password\": \"admin123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            },
+            "description": "Ejemplo de login usando email en lugar de nombre de usuario"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/logout.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "logout.php"]
+            },
+            "description": "Cerrar sesión e invalidar token"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout (Cookie/Session)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/public/logout.php",
+              "host": ["{{base_url}}"],
+              "path": ["public", "logout.php"]
+            },
+            "description": "Cerrar sesión desde página web (usa cookies/sesión PHP)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints de autenticación"
+    },
+    {
+      "name": "Ejemplos de Errores",
+      "item": [
+        {
+          "name": "Login - Usuario incorrecto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"usuario_inexistente\",\n    \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            },
+            "description": "Ejemplo de respuesta de error cuando el usuario no existe"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Contraseña incorrecta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"admin\",\n    \"password\": \"password_incorrecta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            },
+            "description": "Ejemplo de respuesta de error cuando la contraseña es incorrecta"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Validación (campos vacíos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"\",\n    \"password\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            },
+            "description": "Ejemplo de respuesta de validación cuando faltan campos requeridos"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout - Sin token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/logout.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "logout.php"]
+            },
+            "description": "Ejemplo de logout sin token (debe funcionar igual)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Ejemplos de respuestas de error y validación"
+    }
+  ]
+}
+

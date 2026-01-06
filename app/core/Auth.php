@@ -1,0 +1,372 @@
+<?php
+/**
+ * Clase Auth - Manejo de autenticación y autorización
+ */
+
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/Response.php';
+
+class Auth {
+    
+    /**
+     * Generar token de sesión
+     */
+    private static function generateToken($length = 64) {
+        return bin2hex(random_bytes($length / 2));
+    }
+    
+    /**
+     * Iniciar sesión (acepta usuario o email)
+     */
+    public static function login($usuarioOrEmail, $password) {
+        $db = getDB();
+        
+        try {
+            // Buscar por usuario o email
+            // Nota: PDO requiere que los parámetros con el mismo nombre se pasen dos veces
+            // o usar parámetros diferentes para cada uso
+            $stmt = $db->prepare("
+                SELECT id, usuario, password, nombre_completo, email, rol, estado 
+                FROM usuarios 
+                WHERE (usuario = :identificador OR email = :identificador2) 
+                AND estado = 'activo'
+            ");
+            $stmt->execute([
+                'identificador' => $usuarioOrEmail,
+                'identificador2' => $usuarioOrEmail
+            ]);
+            $user = $stmt->fetch();
+            
+            if (!$user) {
+                // Registrar intento fallido en log (sin interrumpir si falla)
+                try {
+                    self::logActivity(null, 'login_failed', 'auth', 'Intento de login fallido: ' . $usuarioOrEmail);
+                } catch (Exception $e) {
+                    error_log("Error al registrar log: " . $e->getMessage());
+                }
+                return Response::error('Usuario o contraseña incorrectos', 401);
+            }
+            
+            // Verificar contraseña
+            if (!password_verify($password, $user['password'])) {
+                // Registrar intento fallido en log (sin interrumpir si falla)
+                try {
+                    self::logActivity($user['id'], 'login_failed', 'auth', 'Contraseña incorrecta');
+                } catch (Exception $e) {
+                    error_log("Error al registrar log: " . $e->getMessage());
+                }
+                return Response::error('Usuario o contraseña incorrectos', 401);
+            }
+            
+            // Generar token de sesión
+            $token = self::generateToken();
+            $tokenExpiration = date('Y-m-d H:i:s', time() + TOKEN_EXPIRATION);
+            
+            // Actualizar token en base de datos
+            $stmt = $db->prepare("
+                UPDATE usuarios 
+                SET token_sesion = :token, 
+                    token_expiracion = :expiration,
+                    ultimo_acceso = NOW()
+                WHERE id = :id
+            ");
+            $stmt->execute([
+                'token' => $token,
+                'expiration' => $tokenExpiration,
+                'id' => $user['id']
+            ]);
+            
+            // Registrar log exitoso (antes de iniciar sesión para evitar problemas con headers)
+            try {
+                self::logActivity($user['id'], 'login', 'auth', 'Inicio de sesión exitoso');
+            } catch (Exception $logError) {
+                // Si falla el log, no interrumpir el login
+                error_log("Error al registrar log de login: " . $logError->getMessage());
+            }
+            
+            // Iniciar sesión PHP (para uso web)
+            // Solo si no se han enviado headers todavía
+            if (!headers_sent() && session_status() === PHP_SESSION_NONE) {
+                session_start();
+                
+                // Regenerar ID de sesión para prevenir session fixation
+                session_regenerate_id(true);
+                
+                // Guardar datos en sesión PHP
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_token'] = $token;
+                $_SESSION['user_role'] = $user['rol'];
+                $_SESSION['user_nombre'] = $user['nombre_completo'];
+            }
+            
+            // Retornar datos del usuario sin password
+            unset($user['password']);
+            
+            return Response::success([
+                'user' => $user,
+                'token' => $token,
+                'expires_at' => $tokenExpiration
+            ], 'Login exitoso');
+            
+        } catch (Exception $e) {
+            error_log("Error en login: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // En desarrollo, mostrar el error real
+            if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+                return Response::error('Error en login: ' . $e->getMessage(), 500);
+            } else {
+                return Response::serverError('Error al iniciar sesión');
+            }
+        }
+    }
+    
+    /**
+     * Verificar token de sesión
+     */
+    public static function verifyToken($token) {
+        if (empty($token)) {
+            return null;
+        }
+        
+        $db = getDB();
+        
+        try {
+            $stmt = $db->prepare("
+                SELECT id, usuario, nombre_completo, email, rol, estado 
+                FROM usuarios 
+                WHERE token_sesion = :token 
+                AND token_expiracion > NOW() 
+                AND estado = 'activo'
+            ");
+            $stmt->execute(['token' => $token]);
+            $user = $stmt->fetch();
+            
+            if ($user) {
+                // Actualizar último acceso
+                $db->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = :id")
+                   ->execute(['id' => $user['id']]);
+            }
+            
+            return $user;
+            
+        } catch (Exception $e) {
+            error_log("Error verificando token: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Obtener usuario actual
+     */
+    public static function getCurrentUser() {
+        $token = self::getTokenFromRequest();
+        return self::verifyToken($token);
+    }
+    
+    /**
+     * Requerir autenticación
+     */
+    public static function requireAuth() {
+        $user = self::getCurrentUser();
+        
+        if (!$user) {
+            Response::unauthorized('Token de sesión inválido o expirado');
+        }
+        
+        return $user;
+    }
+    
+    /**
+     * Requerir rol específico
+     */
+    public static function requireRole($roles) {
+        $user = self::requireAuth();
+        
+        if (is_string($roles)) {
+            $roles = [$roles];
+        }
+        
+        if (!in_array($user['rol'], $roles)) {
+            Response::forbidden('No tiene permisos para esta acción');
+        }
+        
+        return $user;
+    }
+    
+    /**
+     * Obtener token del request (prioridad: header > session > cookie > GET/POST)
+     */
+    private static function getTokenFromRequest() {
+        // 1. Buscar en header Authorization (para API)
+        $headers = getallheaders();
+        if (isset($headers['Authorization'])) {
+            $auth = $headers['Authorization'];
+            if (preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
+                return $matches[1];
+            }
+        }
+        
+        // 2. Buscar en header personalizado
+        if (isset($headers['X-Auth-Token'])) {
+            return $headers['X-Auth-Token'];
+        }
+        
+        // 3. Buscar en sesión PHP (para uso web)
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        if (isset($_SESSION['user_token'])) {
+            return $_SESSION['user_token'];
+        }
+        
+        // 4. Buscar en cookie
+        if (isset($_COOKIE['auth_token'])) {
+            return $_COOKIE['auth_token'];
+        }
+        
+        // 5. Buscar en GET o POST
+        if (isset($_GET['token'])) {
+            return $_GET['token'];
+        }
+        
+        if (isset($_POST['token'])) {
+            return $_POST['token'];
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Verificar autenticación desde sesión PHP (para uso web)
+     */
+    public static function checkSession() {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_token'])) {
+            return null;
+        }
+        
+        // Verificar que el token de sesión sea válido
+        $user = self::verifyToken($_SESSION['user_token']);
+        
+        if (!$user) {
+            // Token inválido, limpiar sesión
+            self::destroySession();
+            return null;
+        }
+        
+        return $user;
+    }
+    
+    /**
+     * Destruir sesión PHP
+     */
+    public static function destroySession() {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        // Limpiar variables de sesión
+        $_SESSION = array();
+        
+        // Destruir cookie de sesión
+        if (isset($_COOKIE[session_name()])) {
+            setcookie(session_name(), '', time() - 3600, '/');
+        }
+        
+        // Destruir cookie de autenticación
+        if (isset($_COOKIE['auth_token'])) {
+            setcookie('auth_token', '', time() - 3600, '/');
+        }
+        
+        // Destruir sesión
+        session_destroy();
+    }
+    
+    /**
+     * Cerrar sesión
+     */
+    public static function logout($token = null) {
+        if ($token === null) {
+            $token = self::getTokenFromRequest();
+        }
+        
+        $userId = null;
+        
+        if ($token) {
+            $db = getDB();
+            try {
+                // Obtener usuario antes de eliminar token para el log
+                $stmt = $db->prepare("SELECT id FROM usuarios WHERE token_sesion = :token");
+                $stmt->execute(['token' => $token]);
+                $user = $stmt->fetch();
+                $userId = $user['id'] ?? null;
+                
+                // Invalidar token en base de datos
+                $db->prepare("UPDATE usuarios SET token_sesion = NULL, token_expiracion = NULL WHERE token_sesion = :token")
+                   ->execute(['token' => $token]);
+                
+            } catch (Exception $e) {
+                error_log("Error en logout: " . $e->getMessage());
+            }
+        }
+        
+        // Destruir sesión PHP
+        self::destroySession();
+        
+        // Registrar log
+        if ($userId) {
+            self::logActivity($userId, 'logout', 'auth', 'Cierre de sesión');
+        }
+        
+        return Response::success(null, 'Sesión cerrada exitosamente');
+    }
+    
+    /**
+     * Registrar actividad en log
+     */
+    public static function logActivity($usuarioId, $accion, $modulo, $descripcion = '', $datosAnteriores = null, $datosNuevos = null) {
+        $db = getDB();
+        
+        try {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            // Convertir a JSON si es necesario
+            $datosAnterioresJson = null;
+            $datosNuevosJson = null;
+            
+            if ($datosAnteriores !== null) {
+                $datosAnterioresJson = is_string($datosAnteriores) ? $datosAnteriores : json_encode($datosAnteriores);
+            }
+            
+            if ($datosNuevos !== null) {
+                $datosNuevosJson = is_string($datosNuevos) ? $datosNuevos : json_encode($datosNuevos);
+            }
+            
+            $stmt = $db->prepare("
+                INSERT INTO logs_actividad 
+                (usuario_id, accion, modulo, descripcion, ip_address, user_agent, datos_anteriores, datos_nuevos)
+                VALUES (:usuario_id, :accion, :modulo, :descripcion, :ip_address, :user_agent, :datos_anteriores, :datos_nuevos)
+            ");
+            
+            $stmt->execute([
+                'usuario_id' => $usuarioId,
+                'accion' => $accion,
+                'modulo' => $modulo,
+                'descripcion' => $descripcion,
+                'ip_address' => $ip,
+                'user_agent' => $userAgent,
+                'datos_anteriores' => $datosAnterioresJson,
+                'datos_nuevos' => $datosNuevosJson
+            ]);
+        } catch (Exception $e) {
+            error_log("Error al registrar log: " . $e->getMessage());
+            // No lanzar excepción para no interrumpir el flujo principal
+        }
+    }
+}
+

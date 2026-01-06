@@ -1,0 +1,12 @@
+# Protección de directorio API
+<FilesMatch "\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Prevenir acceso directo a archivos sensibles
+<FilesMatch "^(config|database|\.env)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+

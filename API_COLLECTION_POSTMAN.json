@@ -1,0 +1,393 @@
+{
+  "info": {
+    "name": "Sistema Financiero - API Completa",
+    "description": "Colección completa de endpoints REST para el Sistema Financiero",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/AplicacionesJFCC/sistema-financiera",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usuario\": \"admin\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/login.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "login.php"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/auth/logout.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "auth", "logout.php"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Listar Clientes",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/clientes/list.php?page=1&limit=20&search=",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "clientes", "list.php"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "search", "value": ""}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Cliente",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/clientes/get.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "clientes", "get.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        },
+        {
+          "name": "Crear Cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nombre_completo\": \"Juan Pérez\",\n    \"tipo_documento\": \"DNI\",\n    \"numero_documento\": \"12345678\",\n    \"telefono\": \"987654321\",\n    \"email\": \"juan@example.com\",\n    \"direccion\": \"Calle 123\",\n    \"fecha_nacimiento\": \"1990-01-01\",\n    \"ocupacion\": \"Comerciante\",\n    \"cobrador_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/clientes/create.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "clientes", "create.php"]
+            }
+          }
+        },
+        {
+          "name": "Actualizar Cliente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"nombre_completo\": \"Juan Pérez Actualizado\",\n    \"telefono\": \"987654322\",\n    \"estado\": \"activo\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/clientes/update.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "clientes", "update.php"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/clientes/delete.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "clientes", "delete.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Préstamos",
+      "item": [
+        {
+          "name": "Listar Préstamos",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/list.php?page=1&limit=20&estado=activo",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "list.php"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "estado", "value": "activo"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Préstamo",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/get.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "get.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        },
+        {
+          "name": "Crear Préstamo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cliente_id\": 1,\n    \"monto_prestado\": 5000.00,\n    \"tasa_interes\": 5.0,\n    \"periodo_meses\": 12,\n    \"fecha_desembolso\": \"2025-01-01\",\n    \"dia_pago\": 15,\n    \"observaciones\": \"Préstamo personal\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/create.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "create.php"]
+            }
+          }
+        },
+        {
+          "name": "Obtener Cuotas",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/cuotas.php?prestamo_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "cuotas.php"],
+              "query": [{"key": "prestamo_id", "value": "1"}]
+            }
+          }
+        },
+        {
+          "name": "Actualizar Préstamo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"estado\": \"activo\",\n    \"observaciones\": \"Actualizado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/update.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "update.php"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Préstamo",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/prestamos/delete.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "prestamos", "delete.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pagos",
+      "item": [
+        {
+          "name": "Listar Pagos",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/pagos/list.php?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "pagos", "list.php"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Pago",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/pagos/get.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "pagos", "get.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        },
+        {
+          "name": "Crear Pago",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cuota_id\": 1,\n    \"monto_pagado\": 450.00,\n    \"fecha_pago\": \"2025-01-15\",\n    \"metodo_pago\": \"efectivo\",\n    \"comprobante_url\": \"https://cloudinary.com/image.jpg\",\n    \"observaciones\": \"Pago en efectivo\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/pagos/create.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "pagos", "create.php"]
+            }
+          }
+        },
+        {
+          "name": "Actualizar Pago",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{auth_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1,\n    \"estado\": \"confirmado\",\n    \"comprobante_url\": \"https://cloudinary.com/nueva.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/app/api/pagos/update.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "pagos", "update.php"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Pago",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/pagos/delete.php?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "pagos", "delete.php"],
+              "query": [{"key": "id", "value": "1"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        {
+          "name": "Resumen de Métricas",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/admin/summary.php",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "admin", "summary.php"]
+            }
+          }
+        },
+        {
+          "name": "Gráfica de Pagos",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/admin/chart_payments.php?days=30",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "admin", "chart_payments.php"],
+              "query": [{"key": "days", "value": "30"}]
+            }
+          }
+        },
+        {
+          "name": "Últimos Pagos",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{auth_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/app/api/admin/latest_payments.php?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["app", "api", "admin", "latest_payments.php"],
+              "query": [{"key": "limit", "value": "20"}]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

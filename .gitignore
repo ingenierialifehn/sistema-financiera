@@ -1,0 +1,41 @@
+# Archivos de configuración sensibles
+/app/config/local_config.php
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+error_log
+
+# Archivos temporales
+*.tmp
+*.cache
+*.swp
+*.swo
+*~
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de PHP
+vendor/
+composer.lock
+
+# Archivos subidos
+/uploads/*
+!/uploads/.gitkeep
+
+# Archivos de backup
+*.sql.gz
+*.sql.bak
+backup/
+
