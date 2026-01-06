@@ -289,7 +289,7 @@ class Auth {
     /**
      * Cerrar sesión
      */
-    public static function logout($token = null) {
+    public static function logout($token = null, $sendResponse = true) {
         if ($token === null) {
             $token = self::getTokenFromRequest();
         }
@@ -322,7 +322,11 @@ class Auth {
             self::logActivity($userId, 'logout', 'auth', 'Cierre de sesión');
         }
         
-        return Response::success(null, 'Sesión cerrada exitosamente');
+        if ($sendResponse) {
+            return Response::success(null, 'Sesión cerrada exitosamente');
+        }
+
+        return true;
     }
     
     /**

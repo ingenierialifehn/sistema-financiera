@@ -21,7 +21,7 @@ if (isset($_SESSION['user_token'])) {
 
 // Cerrar sesión
 if ($token) {
-    Auth::logout($token);
+    Auth::logout($token, false);
 }
 
 // Limpiar localStorage si es una petición AJAX
