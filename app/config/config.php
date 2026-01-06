@@ -25,40 +25,42 @@ define('PUBLIC_PATH', BASE_PATH . '/public');
 define('API_PATH', APP_PATH . '/api');
 
 // Configuración de URLs (ajustar según tu dominio)
-define('BASE_URL', 'http://localhost/AplicacionesJFCC/sistema-financiera');
+define('BASE_URL', 'http://localhost/sistema-financiera');
 define('API_URL', BASE_URL . '/app/api');
 
 // Función helper para obtener la URL base automáticamente
 if (!function_exists('getBaseUrl')) {
-    function getBaseUrl() {
+    function getBaseUrl()
+    {
         // Si BASE_URL está definido, usarlo directamente
         if (defined('BASE_URL') && strpos(BASE_URL, 'http') === 0) {
             return rtrim(BASE_URL, '/');
         }
-        
+
         // Si no, construir desde el script actual
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'];
         $script = $_SERVER['SCRIPT_NAME'];
-        
+
         // Si el script está en /public/, remover /public
         // Si está en /app/, remover /app
         $path = dirname($script);
-        
+
         // Remover subdirectorios comunes (public, app, etc.)
         $path = str_replace('/public', '', $path);
         $path = str_replace('/app', '', $path);
-        
+
         // Si el path termina en /, removerlo
         $path = rtrim($path, '/');
-        
+
         return $protocol . '://' . $host . $path;
     }
 }
 
 // Función helper para generar URLs relativas al proyecto
 if (!function_exists('base_url')) {
-    function base_url($path = '') {
+    function base_url($path = '')
+    {
         $base = getBaseUrl();
         $path = ltrim($path, '/');
         return $base . ($path ? '/' . $path : '');
@@ -99,7 +101,7 @@ if ($isApiRequest) {
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
     header('Content-Type: application/json; charset=utf-8');
-    
+
     // Manejo de preflight OPTIONS
     if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
         http_response_code(200);
