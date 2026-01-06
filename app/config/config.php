@@ -75,6 +75,8 @@ define('CLOUDINARY_API_KEY', '');
 define('CLOUDINARY_API_SECRET', '');
 define('CLOUDINARY_UPLOAD_PRESET', '');
 
+
+
 // Configuración de seguridad
 define('PASSWORD_MIN_LENGTH', 6);
 define('TOKEN_SECRET', 'cambiar_esta_clave_secreta_en_produccion_123456789');

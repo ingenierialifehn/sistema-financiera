@@ -50,6 +50,13 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <i class="fas fa-user-tie w-5"></i>
                 <span>Cobradores</span>
             </a>
+
+            <!-- Colaboradores -->
+            <a href="<?php echo base_url('public/admin/colaboradores.php'); ?>" 
+               class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
+                <i class="fas fa-users-cog w-5"></i>
+                <span>Colaboradores</span>
+            </a>
             
             <!-- Reportes -->
             <a href="<?php echo base_url('public/admin/reportes.php'); ?>" 

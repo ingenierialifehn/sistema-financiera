@@ -31,7 +31,8 @@ class Database {
             
         } catch (PDOException $e) {
             error_log("Error de conexión a la base de datos: " . $e->getMessage());
-            throw new Exception("Error al conectar con la base de datos");
+            // Mensaje más descriptivo si falla
+            throw new Exception("Error al conectar con la base de datos (Verifique drivers de PgSQL y credenciales)");
         }
     }
     

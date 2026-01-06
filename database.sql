@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre_completo VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     telefono VARCHAR(20),
-    rol ENUM('admin', 'cobrador', 'cliente') NOT NULL DEFAULT 'cliente',
+    rol ENUM('admin', 'cobrador', 'cliente', 'colaborador') NOT NULL DEFAULT 'cliente',
     estado ENUM('activo', 'inactivo', 'bloqueado') NOT NULL DEFAULT 'activo',
     token_sesion VARCHAR(255) NULL,
     token_expiracion DATETIME NULL,
