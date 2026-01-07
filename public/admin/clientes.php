@@ -3,15 +3,13 @@
  * Módulo de Gestión de Clientes
  */
 
-require_once __DIR__ . '/../../app/config/config.php';
-require_once __DIR__ . '/../../app/middleware/AuthMiddleware.php';
-require_once __DIR__ . '/../../app/core/Auth.php';
-
-AuthMiddleware::requireAuth();
-
 $pageTitle = 'Gestión de Clientes';
-$currentUser = Auth::getCurrentUser();
-$userAgenciaId = $currentUser['id_agencia'] ?? null;
+require_once __DIR__ . '/../auth_check.php';
+requireViewPermission('clientes');
+
+// Obtener información del usuario actual
+$userAgenciaId = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? null;
+$currentUser = $user ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -136,7 +134,7 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
 
             <!-- Contenido del Modal -->
             <div class="overflow-y-auto max-h-[calc(90vh-140px)]">
-                <form id="formCliente" class="p-6">
+                <form id="formCliente" class="p-6" novalidate>
                     <input type="hidden" id="clienteId" name="id">
 
                     <!-- Pestañas -->
@@ -289,6 +287,29 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Punto de Referencia
+                                </label>
+                                <textarea id="punto_referencia" name="punto_referencia" rows="2"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: Frente al parque central, al lado de la farmacia"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Tipo de Vivienda
+                                </label>
+                                <select id="tipo_vivienda" name="tipo_vivienda"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="Propia">Propia</option>
+                                    <option value="Alquilada">Alquilada</option>
+                                    <option value="Familiar">Familiar</option>
+                                    <option value="Pagándola">Pagándola</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <i class="fas fa-map-marker-alt text-red-500 mr-1"></i>
                                     Coordenadas GPS
                                 </label>
@@ -348,14 +369,14 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
                             </div>
 
                             <!-- DNI Reverso -->
-                            <div class="upload-zone" data-field="foto_dni_reverso">
+                            <div class="upload-zone" data-field="foto_dni_posterior">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <i class="fas fa-id-card mr-1"></i>DNI - Reverso <span class="text-red-500">*</span>
                                 </label>
                                 <div
                                     class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
                                     <input type="file" class="file-input hidden" accept="image/*"
-                                        data-field="foto_dni_reverso">
+                                        data-field="foto_dni_posterior">
                                     <div class="preview-container">
                                         <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
                                         <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
@@ -383,14 +404,14 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
                             </div>
 
                             <!-- Foto Casa -->
-                            <div class="upload-zone" data-field="foto_casa">
+                            <div class="upload-zone" data-field="foto_fachada_casa">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <i class="fas fa-home mr-1"></i>Foto de Casa <span class="text-red-500">*</span>
                                 </label>
                                 <div
                                     class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
                                     <input type="file" class="file-input hidden" accept="image/*"
-                                        data-field="foto_casa">
+                                        data-field="foto_fachada_casa">
                                     <div class="preview-container">
                                         <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
                                         <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
@@ -400,7 +421,7 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
                             </div>
 
                             <!-- Recibo Servicio -->
-                            <div class="upload-zone" data-field="foto_recibo">
+                            <div class="upload-zone" data-field="foto_recibo_servicio">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     <i class="fas fa-file-invoice mr-1"></i>Recibo de Servicio <span
                                         class="text-red-500">*</span>
@@ -408,7 +429,7 @@ $userAgenciaId = $currentUser['id_agencia'] ?? null;
                                 <div
                                     class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
                                     <input type="file" class="file-input hidden" accept="image/*"
-                                        data-field="foto_recibo">
+                                        data-field="foto_recibo_servicio">
                                     <div class="preview-container">
                                         <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
                                         <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>

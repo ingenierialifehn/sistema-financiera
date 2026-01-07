@@ -20,9 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     // Requerir autenticación (solo admin puede crear clientes)
     $user = AuthMiddleware::requireAdmin();
-    
+
     $input = getJsonInput();
-    
+
     // Validar datos
     $validation = Validator::validate($input, [
         'nombre_completo' => [
@@ -75,33 +75,33 @@ try {
             'message' => 'ID de cobrador inválido'
         ]
     ]);
-    
+
     if (!$validation['valid']) {
         Response::validationError($validation['errors']);
     }
-    
+
     $data = $validation['data'];
-    
+
     // Validar tipo de documento
     if (!in_array($data['tipo_documento'], ['DNI', 'RUC', 'CE'])) {
         Response::error('Tipo de documento inválido', 400);
     }
-    
+
     // Validar número de documento según tipo
     $documentoValidado = Validator::documento($data['numero_documento'], $data['tipo_documento']);
     if ($documentoValidado === false) {
         Response::error('Número de documento inválido para el tipo seleccionado', 400);
     }
-    
+
     $db = getDB();
-    
+
     // Verificar que el documento no exista
     $stmt = $db->prepare("SELECT id FROM clientes WHERE numero_documento = :documento");
     $stmt->execute(['documento' => $documentoValidado]);
     if ($stmt->fetch()) {
         Response::error('Ya existe un cliente con este número de documento', 409);
     }
-    
+
     // Verificar cobrador si se especificó
     if (!empty($data['cobrador_id'])) {
         $stmt = $db->prepare("SELECT id FROM usuarios WHERE id = :id AND rol = 'cobrador' AND estado = 'activo'");
@@ -110,10 +110,10 @@ try {
             Response::error('Cobrador no válido', 400);
         }
     }
-    
+
     // Generar código de cliente único
     $codigoCliente = generateClienteCode();
-    
+
     // Verificar que el código sea único
     $stmt = $db->prepare("SELECT id FROM clientes WHERE codigo_cliente = :codigo");
     $stmt->execute(['codigo' => $codigoCliente]);
@@ -123,7 +123,7 @@ try {
         $stmt->execute(['codigo' => $codigoCliente]);
         $intentos++;
     }
-    
+
     // Insertar cliente
     $stmt = $db->prepare("
         INSERT INTO clientes (
@@ -136,7 +136,7 @@ try {
             :cobrador_id, 'activo'
         )
     ");
-    
+
     $stmt->execute([
         'codigo_cliente' => $codigoCliente,
         'nombre_completo' => Validator::sanitize($data['nombre_completo']),
@@ -149,9 +149,9 @@ try {
         'ocupacion' => !empty($data['ocupacion']) ? Validator::sanitize($data['ocupacion']) : null,
         'cobrador_id' => !empty($data['cobrador_id']) ? intval($data['cobrador_id']) : null
     ]);
-    
+
     $clienteId = $db->lastInsertId();
-    
+
     // Obtener cliente creado
     $stmt = $db->prepare("
         SELECT c.*, u.nombre_completo as cobrador_nombre 
@@ -161,12 +161,12 @@ try {
     ");
     $stmt->execute(['id' => $clienteId]);
     $cliente = $stmt->fetch();
-    
+
     // Registrar log
-    Auth::logActivity($user['id'], 'create', 'clientes', "Cliente creado: {$data['nombre_completo']}", null, $cliente);
-    
+    Auth::logActivity($user['id_usuario'], 'create', 'clientes', "Cliente creado: {$data['nombre_completo']}", null, $cliente);
+
     Response::success($cliente, 'Cliente creado exitosamente', 201);
-    
+
 } catch (Exception $e) {
     error_log("Error en clientes/create.php: " . $e->getMessage());
     Response::serverError('Error al crear cliente');

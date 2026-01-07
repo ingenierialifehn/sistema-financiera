@@ -27,7 +27,8 @@ try {
     }
 
     // Validar datos básicos
-    $requiredFields = ['nombre_completo', 'tipo_documento', 'numero_documento', 'telefono'];
+    // Solo Nombre y Documento son estrictamente obligatorios para crear el registro inicial
+    $requiredFields = ['nombre_completo', 'numero_documento'];
     foreach ($requiredFields as $field) {
         if (empty($_POST[$field])) {
             Response::error("El campo {$field} es requerido", 400);
@@ -59,8 +60,7 @@ try {
         $intentos++;
     }
 
-    // Procesar archivo de documento (solo uno por ahora)
-    $fotoDocumento = null;
+    // Procesar archivos de imágenes del expediente digital
     $uploadDir = __DIR__ . '/../../../uploads/documentos/';
 
     // Crear directorio si no existe
@@ -68,8 +68,18 @@ try {
         mkdir($uploadDir, 0755, true);
     }
 
-    // Buscar cualquier archivo de imagen subido
-    $imageFields = ['foto_dni_frontal', 'foto_dni_reverso', 'foto_perfil', 'foto_casa', 'foto_recibo', 'foto_documento'];
+    // Array para almacenar las rutas de las fotos
+    $fotosExpediente = [
+        'foto_dni_frontal' => null,
+        'foto_dni_posterior' => null,
+        'foto_perfil' => null,
+        'foto_fachada_casa' => null,
+        'foto_recibo_servicio' => null
+    ];
+
+    // Procesar cada tipo de foto
+    $imageFields = ['foto_dni_frontal', 'foto_dni_posterior', 'foto_perfil', 'foto_fachada_casa', 'foto_recibo_servicio'];
+
     foreach ($imageFields as $field) {
         if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
             $file = $_FILES[$field];
@@ -77,25 +87,47 @@ try {
             // Validar tipo de archivo
             $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
             if (!in_array($file['type'], $allowedTypes)) {
-                continue; // Saltar si no es imagen válida
+                Response::error("El archivo {$field} debe ser una imagen JPG o PNG", 400);
             }
 
             // Validar tamaño (5MB)
             if ($file['size'] > 5 * 1024 * 1024) {
-                continue; // Saltar si es muy grande
+                Response::error("El archivo {$field} no debe superar 5MB", 400);
             }
 
-            // Generar nombre de archivo
+            // Generar nombre de archivo único
             $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
             $nombreCliente = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_completo']);
             $dni = $_POST['numero_documento'];
-            $fileName = "{$dni}_{$nombreCliente}_{$field}.{$extension}";
+            $timestamp = time();
+            $fileName = "{$dni}_{$nombreCliente}_{$field}_{$timestamp}.{$extension}";
             $filePath = $uploadDir . $fileName;
 
             // Mover archivo
             if (move_uploaded_file($file['tmp_name'], $filePath)) {
+                $fotosExpediente[$field] = $fileName;
+            } else {
+                Response::error("Error al subir el archivo {$field}", 500);
+            }
+        }
+    }
+
+    // También procesar foto_documento para compatibilidad con versiones anteriores
+    $fotoDocumento = null;
+    if (isset($_FILES['foto_documento']) && $_FILES['foto_documento']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['foto_documento'];
+        $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+
+        if (in_array($file['type'], $allowedTypes) && $file['size'] <= 5 * 1024 * 1024) {
+            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $nombreCliente = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_completo']);
+            $dni = $_POST['numero_documento'];
+            $timestamp = time();
+            $fileName = "{$dni}_{$nombreCliente}_documento_{$timestamp}.{$extension}";
+            $filePath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($file['tmp_name'], $filePath)) {
                 $fotoDocumento = $fileName;
-                break; // Solo guardar el primer archivo válido
             }
         }
     }
@@ -104,23 +136,27 @@ try {
     $db->beginTransaction();
 
     try {
-        // Insertar cliente con las columnas que existen
+        // Insertar cliente con todas las columnas del expediente digital
         $stmt = $db->prepare("
             INSERT INTO clientes (
                 usuario_id, codigo_cliente, nombre_completo, tipo_documento, numero_documento,
-                email, telefono, direccion, fecha_nacimiento, ocupacion,
+                email, telefono, direccion, departamento, municipio, barrio, punto_referencia,
+                tipo_vivienda, gps_coordenadas, fecha_nacimiento, genero, ocupacion,
                 referencia_personal, telefono_referencia, foto_documento,
+                foto_dni_frontal, foto_dni_posterior, foto_perfil, foto_fachada_casa, foto_recibo_servicio,
                 id_agencia, estado, created_at
             ) VALUES (
                 :usuario_id, :codigo_cliente, :nombre_completo, :tipo_documento, :numero_documento,
-                :email, :telefono, :direccion, :fecha_nacimiento, :ocupacion,
+                :email, :telefono, :direccion, :departamento, :municipio, :barrio, :punto_referencia,
+                :tipo_vivienda, :gps_coordenadas, :fecha_nacimiento, :genero, :ocupacion,
                 :referencia_personal, :telefono_referencia, :foto_documento,
+                :foto_dni_frontal, :foto_dni_posterior, :foto_perfil, :foto_fachada_casa, :foto_recibo_servicio,
                 :id_agencia, 'activo', NOW()
             )
         ");
 
         $stmt->execute([
-            'usuario_id' => $user['id'],
+            'usuario_id' => $user['id_usuario'],
             'codigo_cliente' => $codigoCliente,
             'nombre_completo' => Validator::sanitize($_POST['nombre_completo']),
             'tipo_documento' => $_POST['tipo_documento'],
@@ -128,11 +164,23 @@ try {
             'email' => !empty($_POST['email']) ? Validator::sanitize($_POST['email']) : null,
             'telefono' => $_POST['telefono'],
             'direccion' => !empty($_POST['direccion']) ? Validator::sanitize($_POST['direccion']) : null,
+            'departamento' => !empty($_POST['departamento']) ? Validator::sanitize($_POST['departamento']) : null,
+            'municipio' => !empty($_POST['municipio']) ? Validator::sanitize($_POST['municipio']) : null,
+            'barrio' => !empty($_POST['barrio']) ? Validator::sanitize($_POST['barrio']) : null,
+            'punto_referencia' => !empty($_POST['punto_referencia']) ? Validator::sanitize($_POST['punto_referencia']) : null,
+            'tipo_vivienda' => !empty($_POST['tipo_vivienda']) ? $_POST['tipo_vivienda'] : null,
+            'gps_coordenadas' => !empty($_POST['gps_coordenadas']) ? $_POST['gps_coordenadas'] : null,
             'fecha_nacimiento' => !empty($_POST['fecha_nacimiento']) ? $_POST['fecha_nacimiento'] : null,
+            'genero' => !empty($_POST['genero']) ? $_POST['genero'] : null,
             'ocupacion' => !empty($_POST['ocupacion']) ? Validator::sanitize($_POST['ocupacion']) : null,
             'referencia_personal' => !empty($_POST['referencia_personal']) ? Validator::sanitize($_POST['referencia_personal']) : null,
             'telefono_referencia' => !empty($_POST['telefono_referencia']) ? $_POST['telefono_referencia'] : null,
             'foto_documento' => $fotoDocumento,
+            'foto_dni_frontal' => $fotosExpediente['foto_dni_frontal'],
+            'foto_dni_posterior' => $fotosExpediente['foto_dni_posterior'],
+            'foto_perfil' => $fotosExpediente['foto_perfil'],
+            'foto_fachada_casa' => $fotosExpediente['foto_fachada_casa'],
+            'foto_recibo_servicio' => $fotosExpediente['foto_recibo_servicio'],
             'id_agencia' => !empty($_POST['id_agencia']) ? intval($_POST['id_agencia']) : null
         ]);
 
@@ -147,18 +195,27 @@ try {
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
 
         // Registrar log
-        Auth::logActivity($user['id'], 'create', 'clientes', "Cliente creado: {$_POST['nombre_completo']}", null, $cliente);
+        Auth::logActivity($user['id_usuario'], 'create', 'clientes', "Cliente creado: {$_POST['nombre_completo']}", null, $cliente);
 
         Response::success($cliente, 'Cliente creado exitosamente', 201);
 
     } catch (Exception $e) {
         $db->rollBack();
 
-        // Eliminar archivo subido si hay error
+        // Eliminar todos los archivos subidos si hay error
         if ($fotoDocumento) {
             $filePath = $uploadDir . $fotoDocumento;
             if (file_exists($filePath)) {
                 unlink($filePath);
+            }
+        }
+
+        foreach ($fotosExpediente as $foto) {
+            if ($foto) {
+                $filePath = $uploadDir . $foto;
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
             }
         }
 

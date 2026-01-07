@@ -32,21 +32,22 @@ try {
     $sql = "
         SELECT 
             c.*,
-            a.nombre as agencia_nombre,
-            u.id as cobrador_id,
-            u.nombre_completo as cobrador_nombre
+            a.nombre_agencia as agencia_nombre,
+            u.id_usuario as cobrador_id,
+            col.nombre_completo as cobrador_nombre
         FROM clientes c
-        LEFT JOIN usuarios u ON c.cobrador_id = u.id
-        LEFT JOIN agencias a ON c.id_agencia = a.id
+        LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
+        LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
+        LEFT JOIN agencias a ON c.id_agencia = a.id_agencia
         WHERE c.id = :id
     ";
 
     $params = ['id' => $id];
 
     // Si es cobrador, solo puede ver sus clientes
-    if ($user['rol'] === 'cobrador') {
+    if (isset($user['rol_nombre']) && $user['rol_nombre'] === 'cobrador') {
         $sql .= " AND c.cobrador_id = :cobrador_id";
-        $params['cobrador_id'] = $user['id'];
+        $params['cobrador_id'] = $user['id_usuario'];
     }
 
     $stmt = $db->prepare($sql);

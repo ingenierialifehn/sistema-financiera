@@ -27,6 +27,16 @@ function initializeModule() {
     initializeEventHandlers();
     initializeGPS();
     initializeDNIValidation();
+
+    // Check for edit parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    if (editId) {
+        setTimeout(() => {
+            editarCliente(editId);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }, 500);
+    }
 }
 
 // ============================================================================
@@ -61,7 +71,9 @@ function initializeDragAndDrop() {
 
         // Click para abrir selector
         dropzone.on('click', function (e) {
-            if (!$(e.target).hasClass('btn-remove-image')) {
+            // Solo abrir el selector si NO se hizo clic en el botón de eliminar
+            // y NO se hizo clic en el input mismo (para evitar bucle)
+            if (!$(e.target).hasClass('btn-remove-image') && !$(e.target).is('input[type="file"]')) {
                 input.click();
             }
         });
@@ -246,7 +258,7 @@ function loadClientes() {
 
     $.get(BASE_URL + '/app/api/clientes/list.php', { search: search, estado: estado, agencia: agencia }, function (response) {
         if (response.success) {
-            renderClientes(response.data);
+            renderClientes(response.data.clientes);
         } else {
             $('#clientesTableBody').html(`
                 <tr>
@@ -321,11 +333,8 @@ function renderClientes(clientes) {
                     <button onclick="verFicha(${cliente.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Ver Ficha">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button onclick="editarCliente(${cliente.id})" class="text-indigo-600 hover:text-indigo-900 mr-3" title="Editar">
+                    <button onclick="editarCliente(${cliente.id})" class="text-indigo-600 hover:text-indigo-900" title="Editar">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button onclick="eliminarCliente(${cliente.id})" class="text-red-600 hover:text-red-900" title="Eliminar">
-                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -342,7 +351,7 @@ function loadAgencias() {
             let options = '<option value="">Todas las agencias</option>';
 
             response.data.forEach(function (agencia) {
-                options += '<option value="' + agencia.id + '">' + agencia.nombre + '</option>';
+                options += '<option value="' + agencia.id_agencia + '">' + agencia.nombre_agencia + '</option>';
             });
 
             $('#filterAgencia').html(options);
@@ -415,17 +424,54 @@ function loadClienteData(id) {
             $('#telefono').val(cliente.telefono);
             $('#email').val(cliente.email);
             $('#ocupacion').val(cliente.ocupacion);
-            $('#id_agencia').val(cliente.id_agencia);
+            // $('#id_agencia').val(cliente.id_agencia); // Campo no existe en el formulario
             $('#direccion').val(cliente.direccion);
             $('#departamento').val(cliente.departamento);
             $('#municipio').val(cliente.municipio);
             $('#barrio').val(cliente.barrio);
+            $('#punto_referencia').val(cliente.punto_referencia);
+            $('#tipo_vivienda').val(cliente.tipo_vivienda);
             $('#gps_coordenadas').val(cliente.gps_coordenadas);
 
             if (cliente.gps_coordenadas) {
                 $('#coordenadasDisplay').text(cliente.gps_coordenadas);
                 $('#mapPreview').removeClass('hidden');
             }
+
+            // Cargar imágenes existentes
+            const imageFields = ['foto_dni_frontal', 'foto_dni_posterior', 'foto_perfil', 'foto_fachada_casa', 'foto_recibo_servicio'];
+
+            imageFields.forEach(field => {
+                if (cliente[field]) {
+                    const dropzone = $(`.file-input[data-field="${field}"]`).closest('.dropzone');
+                    const imageUrl = BASE_URL + '/uploads/documentos/' + cliente[field];
+
+                    const preview = `
+                        <div class="relative">
+                            <img src="${imageUrl}" class="max-h-48 mx-auto rounded-lg shadow-md">
+                            <button type="button" class="btn-remove-existing absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg" data-field="${field}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            <p class="text-xs text-green-600 mt-2">
+                                <i class="fas fa-check-circle mr-1"></i>Imagen cargada
+                            </p>
+                        </div>
+                    `;
+                    dropzone.find('.preview-container').html(preview);
+
+                    // Evento para remover imagen existente (solo visualmente para permitir nueva carga)
+                    // Nota: Si el usuario guarda el formulario sin cargar una nueva, se mantendrá la anterior en DB
+                    dropzone.find('.btn-remove-existing').off('click').on('click', function (e) {
+                        e.stopPropagation();
+                        // Resetear dropzone
+                        dropzone.find('.preview-container').html(`
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                            <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                        `);
+                    });
+                }
+            });
         }
     }).fail(function () {
         Swal.fire('Error', 'No se pudo cargar la información del cliente', 'error');
@@ -438,6 +484,28 @@ function loadClienteData(id) {
 
 $('#formCliente').on('submit', function (e) {
     e.preventDefault();
+
+    // Validar campos requeridos manualmente
+    // Solo validamos lo esencial para permitir guardar borradores
+    const requiredFields = [
+        { id: 'nombre_completo', label: 'Nombre Completo', tab: 'datos-personales' },
+        { id: 'numero_documento', label: 'Número de Documento', tab: 'datos-personales' }
+    ];
+
+    for (const field of requiredFields) {
+        if (!$('#' + field.id).val()) {
+            Swal.fire({
+                title: 'Error',
+                text: `El campo ${field.label} es obligatorio`,
+                icon: 'error'
+            }).then(() => {
+                // Cambiar a la pestaña correspondiente
+                $(`.tab-button[data-tab="${field.tab.replace('tab-', '')}"]`).click();
+                setTimeout(() => $('#' + field.id).focus(), 300);
+            });
+            return;
+        }
+    }
 
     // Validar DNI duplicado
     if ($('#dniError').is(':visible')) {
@@ -470,7 +538,7 @@ $('#formCliente').on('submit', function (e) {
     const campos = [
         'nombre_completo', 'tipo_documento', 'numero_documento', 'fecha_nacimiento',
         'genero', 'telefono', 'email', 'ocupacion', 'id_agencia', 'direccion',
-        'departamento', 'municipio', 'barrio', 'gps_coordenadas'
+        'departamento', 'municipio', 'barrio', 'punto_referencia', 'tipo_vivienda', 'gps_coordenadas'
     ];
 
     campos.forEach(function (campo) {

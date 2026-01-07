@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../core/Response.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 AuthMiddleware::requireAuth();
-Auth::requirePermission('agencias');
+// Auth::requirePermission('agencias'); // Comentado para permitir que todos los usuarios vean agencias en el combobox
 
 $db = getDB();
 

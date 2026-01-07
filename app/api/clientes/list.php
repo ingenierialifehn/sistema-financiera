@@ -34,9 +34,9 @@ try {
     $params = [];
 
     // Si es cobrador, solo mostrar sus clientes asignados
-    if (isset($user['rol']) && $user['rol'] === 'cobrador') {
+    if (isset($user['rol_nombre']) && $user['rol_nombre'] === 'cobrador') {
         $where[] = "c.cobrador_id = :cobrador_id";
-        $params['cobrador_id'] = $user['id'];
+        $params['cobrador_id'] = $user['id_usuario'];
     }
 
     // Búsqueda
