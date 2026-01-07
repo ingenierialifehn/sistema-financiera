@@ -247,20 +247,47 @@ class Auth
         if (!$user)
             return false;
 
+        $permisos = json_decode($user['permisos'], true);
+
+        // Special: 'readonly' must be explicitly set, never inherited by Admin or 'todos'
+        if ($permissionKey === 'readonly') {
+            return isset($permisos['readonly']) && $permisos['readonly'] === true;
+        }
+
         // Si es Admin, tiene todo (o verificamos el flag 'todos')
         if ($user['rol_nombre'] === 'Administrador' || $user['rol_nombre'] === 'admin') {
             return true;
         }
 
-        $permisos = json_decode($user['permisos'], true);
+
 
         // Verificar flag 'todos'
         if (isset($permisos['todos']) && $permisos['todos'] === true) {
             return true;
         }
 
-        // Verificar permiso específico
-        return isset($permisos[$permissionKey]) && $permisos[$permissionKey] === true;
+        // 1. Direct match or Matrix 'view' check
+        if (isset($permisos[$permissionKey])) {
+            $p = $permisos[$permissionKey];
+            if ($p === true)
+                return true; // Legacy boolean
+            if (is_array($p) && isset($p['view']) && $p['view'] === true)
+                return true; // Matrix view
+        }
+
+        // 2. Dot notation (module.action)
+        if (strpos($permissionKey, '.') !== false) {
+            list($module, $action) = explode('.', $permissionKey, 2);
+            if (isset($permisos[$module])) {
+                $p = $permisos[$module];
+                if ($p === true)
+                    return true; // Full access implies specific action
+                if (is_array($p) && isset($p[$action]) && $p[$action] === true)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -91,46 +91,88 @@ if (!Auth::hasPermission('seguridad')) {
                                     </div>
                                 </div>
 
-                                <div class="mb-4">
-                                    <div class="flex justify-between items-center mb-2">
-                                        <h4 class="text-sm font-medium text-gray-700">Permisos del Sistema</h4>
-                                        <button type="button" onclick="toggleAllPermisos()"
-                                            class="text-xs text-indigo-600 hover:text-indigo-800">
-                                            <i class="fas fa-check-double mr-1"></i>Seleccionar Todos
-                                        </button>
-                                    </div>
-                                    <div
-                                        class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto border border-gray-200 p-4 rounded-lg bg-gray-50">
-                                        <?php
-                                        $modules = [
-                                            'dashboard' => ['label' => 'Ver Dashboard', 'icon' => 'fa-chart-line'],
-                                            'clientes' => ['label' => 'Gestión de Clientes', 'icon' => 'fa-users'],
-                                            'prestamos' => ['label' => 'Gestión de Préstamos', 'icon' => 'fa-hand-holding-usd'],
-                                            'pagos' => ['label' => 'Gestión de Pagos', 'icon' => 'fa-money-bill-wave'],
-                                            'cobradores' => ['label' => 'Gestión de Cobradores', 'icon' => 'fa-user-tie'],
-                                            'usuarios' => ['label' => 'Gestión de Personal', 'icon' => 'fa-users-cog'],
-                                            'reportes' => ['label' => 'Ver Reportes', 'icon' => 'fa-file-alt'],
-                                            'configuracion' => ['label' => 'Configuración del Sistema', 'icon' => 'fa-cog'],
-                                            'seguridad' => ['label' => 'Seguridad y Roles', 'icon' => 'fa-shield-alt']
-                                        ];
-                                        foreach ($modules as $key => $module): ?>
+                                <div class="mb-4 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="text-sm font-bold text-gray-800">Modo Solo Lectura</h4>
+                                            <p class="text-xs text-gray-600">Si está activo, se ocultarán los botones de
+                                                guardar, editar y eliminar en todo el sistema.</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="readonly_toggle" class="sr-only peer">
                                             <div
-                                                class="flex items-center justify-between p-3 bg-white rounded-md border border-gray-200 hover:border-indigo-300 transition">
-                                                <span class="flex items-center flex-grow">
-                                                    <i class="fas <?php echo $module['icon']; ?> text-gray-400 mr-2"></i>
-                                                    <span
-                                                        class="text-sm font-medium text-gray-900"><?php echo $module['label']; ?></span>
-                                                </span>
-                                                <label class="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" name="permisos[<?php echo $key; ?>]" value="true"
-                                                        class="sr-only peer permiso-checkbox">
-                                                    <div
-                                                        class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
-                                                    </div>
-                                                </label>
+                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500">
                                             </div>
-                                        <?php endforeach; ?>
+                                        </label>
                                     </div>
+                                </div>
+
+                                <div class="mb-2 flex justify-between items-center">
+                                    <h4 class="text-sm font-medium text-gray-700">Matriz de Permisos</h4>
+                                    <button type="button" onclick="toggleAllView()"
+                                        class="text-xs text-indigo-600 hover:text-indigo-800">
+                                        <i class="fas fa-eye mr-1"></i>Habilitar Todo Ver
+                                    </button>
+                                </div>
+
+                                <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50 sticky top-0 z-10">
+                                            <tr>
+                                                <th
+                                                    class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                    Módulo</th>
+                                                <th
+                                                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                                    Ver</th>
+                                                <th
+                                                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                                    Crear</th>
+                                                <th
+                                                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                                    Editar</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <?php
+                                            $modules = [
+                                                'dashboard' => 'Dashboard',
+                                                'tesoreria' => 'Tesorería y Bancos',
+                                                'colaboradores' => 'Colaboradores (Usuarios)',
+                                                'agencias' => 'Agencias',
+                                                'clientes' => 'Clientes',
+                                                'prestamos' => 'Préstamos',
+                                                'pagos' => 'Pagos',
+                                                'cobradores' => 'Cobradores',
+                                                'reportes' => 'Reportes',
+                                                'configuracion' => 'Configuración',
+                                                'seguridad' => 'Seguridad (Roles)'
+                                            ];
+
+                                            foreach ($modules as $key => $label): ?>
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-4 py-2 text-sm font-medium text-gray-900">
+                                                        <?php echo $label; ?>
+                                                    </td>
+                                                    <td class="px-2 py-2 text-center">
+                                                        <input type="checkbox" data-module="<?php echo $key; ?>"
+                                                            data-action="view"
+                                                            class="permiso-check rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                                                    </td>
+                                                    <td class="px-2 py-2 text-center">
+                                                        <input type="checkbox" data-module="<?php echo $key; ?>"
+                                                            data-action="create"
+                                                            class="permiso-check rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                                                    </td>
+                                                    <td class="px-2 py-2 text-center">
+                                                        <input type="checkbox" data-module="<?php echo $key; ?>"
+                                                            data-action="edit"
+                                                            class="permiso-check rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </form>
                         </div>
@@ -139,7 +181,7 @@ if (!Auth::hasPermission('seguridad')) {
             </div>
             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button type="button" onclick="saveRole()"
-                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm btn-save">
                     <i class="fas fa-save mr-2"></i>Guardar
                 </button>
                 <button type="button" onclick="closeModal()"
@@ -252,22 +294,30 @@ if (!Auth::hasPermission('seguridad')) {
     function renderRolesTable(roles) {
         let html = '';
         roles.forEach(role => {
-            let permisosBadges = '';
-            let permisosCount = 0;
+            let permisosHtml = '';
 
+            // Check for legacy/admin full access
             if (role.permisos.todos) {
-                permisosBadges = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Acceso Total</span>';
+                permisosHtml = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Acceso Total</span>';
             } else {
+                // Count modules with at least 'view' access
+                let activeModules = 0;
+                let isReadOnly = role.permisos.readonly === true;
+
                 for (let key in role.permisos) {
-                    if (role.permisos[key] && permisosCount < 3) {
-                        permisosBadges += `<span class="px-2 mr-1 mb-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800 capitalize">${key}</span>`;
-                        permisosCount++;
+                    if (key === 'readonly') continue;
+
+                    // Legacy support (boolean true) or Matrix support (object with view=true)
+                    if (role.permisos[key] === true || (typeof role.permisos[key] === 'object' && role.permisos[key].view)) {
+                        activeModules++;
                     }
                 }
-                let totalPermisos = Object.keys(role.permisos).filter(k => role.permisos[k]).length;
-                if (totalPermisos > 3) {
-                    permisosBadges += `<span class="text-xs text-gray-500">+${totalPermisos - 3} más</span>`;
+
+                if (isReadOnly) {
+                    permisosHtml += '<span class="px-2 mr-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800"><i class="fas fa-lock mr-1"></i>Solo Lectura</span>';
                 }
+
+                permisosHtml += `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">${activeModules} Módulos Activos</span>`;
             }
 
             html += `
@@ -282,7 +332,7 @@ if (!Auth::hasPermission('seguridad')) {
                         <div class="text-sm text-gray-500">${role.descripcion || '-'}</div>
                     </td>
                     <td class="px-6 py-4">
-                        <div class="flex flex-wrap">${permisosBadges}</div>
+                        <div class="flex flex-wrap gap-1">${permisosHtml}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${role.estado === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
@@ -290,11 +340,8 @@ if (!Auth::hasPermission('seguridad')) {
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button onclick="editRole(${role.id_rol})" class="text-indigo-600 hover:text-indigo-900 mr-3">
+                        <button onclick="editRole(${role.id_rol})" class="text-indigo-600 hover:text-indigo-900 mr-3 btn-edit">
                             <i class="fas fa-edit mr-1"></i>Editar
-                        </button>
-                        <button onclick="deleteRole(${role.id_rol}, '${role.nombre_rol}')" class="text-red-600 hover:text-red-900">
-                            <i class="fas fa-trash mr-1"></i>Eliminar
                         </button>
                     </td>
                 </tr>
@@ -304,7 +351,9 @@ if (!Auth::hasPermission('seguridad')) {
     }
 
     function openModal(isEdit = false) {
-        editingRoleId = null;
+        if (!isEdit) {
+            editingRoleId = null;
+        }
         $('#modal-title').text(isEdit ? 'Editar Rol' : 'Nuevo Rol');
         $('#roleModal').removeClass('hidden');
     }
@@ -312,13 +361,16 @@ if (!Auth::hasPermission('seguridad')) {
     function closeModal() {
         $('#roleModal').addClass('hidden');
         $('#roleForm')[0].reset();
+        $('.permiso-check').prop('checked', false); // Reset matrix
+        $('#readonly_toggle').prop('checked', false);
         editingRoleId = null;
     }
 
-    function toggleAllPermisos() {
-        const checkboxes = $('.permiso-checkbox');
-        const allChecked = checkboxes.filter(':checked').length === checkboxes.length;
-        checkboxes.prop('checked', !allChecked);
+    function toggleAllView() {
+        // Toggle all 'view' checkboxes
+        const viewCheckboxes = $('input[data-action="view"]');
+        const allChecked = viewCheckboxes.filter(':checked').length === viewCheckboxes.length;
+        viewCheckboxes.prop('checked', !allChecked);
     }
 
     function editRole(idRol) {
@@ -331,11 +383,32 @@ if (!Auth::hasPermission('seguridad')) {
                 $('#nombre_rol').val(role.nombre_rol);
                 $('#descripcion').val(role.descripcion || '');
 
-                // Marcar permisos
-                $('.permiso-checkbox').prop('checked', false);
-                for (let key in role.permisos) {
-                    if (role.permisos[key]) {
-                        $(`input[name="permisos[${key}]"]`).prop('checked', true);
+                // Reset inputs
+                $('.permiso-check').prop('checked', false);
+                $('#readonly_toggle').prop('checked', false);
+
+                // Populate permissions
+                if (role.permisos) {
+                    if (role.permisos.readonly) {
+                        $('#readonly_toggle').prop('checked', true);
+                    }
+
+                    for (let module in role.permisos) {
+                        if (module === 'readonly' || module === 'todos') continue;
+
+                        const val = role.permisos[module];
+
+                        if (val === true) {
+                            // Legacy: true means all permissions for this module
+                            $(`input[data-module="${module}"]`).prop('checked', true);
+                        } else if (typeof val === 'object') {
+                            // Matrix: check specific actions
+                            for (let action in val) {
+                                if (val[action] === true) {
+                                    $(`input[data-module="${module}"][data-action="${action}"]`).prop('checked', true);
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -349,20 +422,30 @@ if (!Auth::hasPermission('seguridad')) {
     function saveRole() {
         const nombre = $('#nombre_rol').val().trim();
         const descripcion = $('#descripcion').val().trim();
-        const permisos = {};
 
         if (!nombre) {
             Swal.fire('Error', 'El nombre del rol es requerido', 'error');
             return;
         }
 
-        $('input[name^="permisos"]:checked').each(function () {
-            const name = $(this).attr('name');
-            const key = name.match(/\[(.*?)\]/)[1];
-            permisos[key] = true;
+        // Build Permissions Object
+        const permissions = {};
+
+        if ($('#readonly_toggle').is(':checked')) {
+            permissions.readonly = true;
+        }
+
+        $('.permiso-check:checked').each(function () {
+            const module = $(this).data('module');
+            const action = $(this).data('action');
+
+            if (!permissions[module]) {
+                permissions[module] = {};
+            }
+            permissions[module][action] = true;
         });
 
-        if (Object.keys(permisos).length === 0) {
+        if (Object.keys(permissions).length === 0) {
             Swal.fire('Error', 'Debe seleccionar al menos un permiso', 'error');
             return;
         }
@@ -370,7 +453,7 @@ if (!Auth::hasPermission('seguridad')) {
         const data = {
             nombre_rol: nombre,
             descripcion: descripcion,
-            permisos: permisos
+            permisos: permissions
         };
 
         let url = '<?php echo base_url("app/api/roles/create.php"); ?>';
@@ -402,39 +485,7 @@ if (!Auth::hasPermission('seguridad')) {
         });
     }
 
-    function deleteRole(idRol, nombreRol) {
-        Swal.fire({
-            title: '¿Está seguro?',
-            text: `¿Desea eliminar el rol "${nombreRol}"? Esta acción no se puede deshacer.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $.ajax({
-                    url: '<?php echo base_url("app/api/roles/delete.php"); ?>',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ id_rol: idRol }),
-                    success: function (response) {
-                        if (response.success) {
-                            Swal.fire('Eliminado', response.message, 'success');
-                            loadRoles();
-                        } else {
-                            Swal.fire('Error', response.message, 'error');
-                        }
-                    },
-                    error: function (xhr) {
-                        const msg = xhr.responseJSON?.message || 'Error al eliminar el rol';
-                        Swal.fire('Error', msg, 'error');
-                    }
-                });
-            }
-        });
-    }
+
 
     // --- Lógica de Gestión de Puestos ---
 

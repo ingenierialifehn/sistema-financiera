@@ -4,6 +4,8 @@
  */
 
 $pageTitle = 'Gestión de Personal';
+require_once __DIR__ . '/../auth_check.php';
+requireViewPermission('colaboradores');
 require_once __DIR__ . '/includes/layout.php';
 ?>
 
@@ -13,11 +15,13 @@ require_once __DIR__ . '/includes/layout.php';
             <h2 class="text-2xl font-bold text-gray-800">Gestión de Personal</h2>
             <p class="text-gray-600">Administra colaboradores y sus accesos al sistema</p>
         </div>
-        <button id="btnNuevoColaborador"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-            <i class="fas fa-plus"></i>
-            <span>Nuevo Colaborador</span>
-        </button>
+        <?php if (tienePermiso('colaboradores', 'crear')): ?>
+            <button id="btnNuevoColaborador"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <i class="fas fa-plus"></i>
+                <span>Nuevo Colaborador</span>
+            </button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -346,10 +350,12 @@ require_once __DIR__ . '/includes/layout.php';
                         <i class="fas fa-exchange-alt mr-2"></i> Traspaso Rápido
                     </button>
                 </div>
-                <button type="submit" form="colaboradorForm"
-                    class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition shadow-md flex items-center">
-                    <i class="fas fa-save mr-2"></i> Guardar Registro
-                </button>
+                <?php if (tienePermiso('colaboradores', 'crear') || tienePermiso('colaboradores', 'editar')): ?>
+                    <button type="submit" form="colaboradorForm"
+                        class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition shadow-md flex items-center">
+                        <i class="fas fa-save mr-2"></i> Guardar Registro
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
     </div>

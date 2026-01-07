@@ -38,7 +38,7 @@ try {
         entidad_destino_id INT NULL,
         fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (banco_id) REFERENCES bancos(id) ON DELETE CASCADE,
-        FOREIGN KEY (realizado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
+        FOREIGN KEY (realizado_por) REFERENCES usuarios(id_usuario) ON DELETE RESTRICT,
         INDEX idx_banco (banco_id),
         INDEX idx_fecha (fecha_hora)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

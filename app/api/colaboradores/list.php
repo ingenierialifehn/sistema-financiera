@@ -8,7 +8,8 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../core/Response.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
-AuthMiddleware::requireAdmin();
+AuthMiddleware::requireAuth(); // Ensure user is logged in
+Auth::requirePermission('colaboradores'); // Check for specific permission
 
 $db = getDB();
 

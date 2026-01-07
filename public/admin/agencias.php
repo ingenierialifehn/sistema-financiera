@@ -4,6 +4,8 @@
  */
 
 $pageTitle = 'Gestión de Agencias';
+require_once __DIR__ . '/../auth_check.php';
+requireViewPermission('agencias');
 require_once __DIR__ . '/includes/layout.php';
 ?>
 
@@ -13,11 +15,13 @@ require_once __DIR__ . '/includes/layout.php';
             <h2 class="text-2xl font-bold text-gray-800">Gestión de Agencias</h2>
             <p class="text-gray-600">Administra las sucursales y sus ubicaciones</p>
         </div>
-        <button id="btnNuevaAgencia"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-            <i class="fas fa-plus"></i>
-            <span>Nueva Agencia</span>
-        </button>
+        <?php if (tienePermiso('agencias', 'crear')): ?>
+            <button id="btnNuevaAgencia"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <i class="fas fa-plus"></i>
+                <span>Nueva Agencia</span>
+            </button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -123,10 +127,12 @@ require_once __DIR__ . '/includes/layout.php';
                 class="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition shadow-sm">
                 Cancelar
             </button>
-            <button type="submit" form="agenciaForm"
-                class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition shadow-md flex items-center">
-                <i class="fas fa-save mr-2"></i> Guardar
-            </button>
+            <?php if (tienePermiso('agencias', 'crear') || tienePermiso('agencias', 'editar')): ?>
+                <button type="submit" form="agenciaForm"
+                    class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition shadow-md flex items-center">
+                    <i class="fas fa-save mr-2"></i> Guardar
+                </button>
+            <?php endif; ?>
         </div>
     </div>
 </div>

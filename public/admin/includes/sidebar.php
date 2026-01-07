@@ -37,31 +37,49 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
 
 
             <!-- Cobradores -->
-            <a href="<?php echo base_url('public/admin/cobradores.php'); ?>"
-                class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'cobradores.php' ? 'bg-indigo-600' : ''; ?>">
-                <i class="fas fa-user-tie w-5"></i>
-                <span>Cobradores</span>
-            </a>
+            <?php if (Auth::hasPermission('cobradores')): ?>
+                <a href="<?php echo base_url('public/admin/cobradores.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'cobradores.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-user-tie w-5"></i>
+                    <span>Cobradores</span>
+                </a>
+            <?php endif; ?>
 
             <!-- Colaboradores -->
             <!-- Gestión de Personal (Colaboradores y Usuarios) -->
-            <?php if (Auth::hasPermission('usuarios')): ?>
+            <?php if (Auth::hasPermission('colaboradores') || Auth::hasPermission('agencias')): ?>
                 <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Gestión de Personal
                 </div>
 
                 <!-- Colaboradores -->
-                <a href="<?php echo base_url('public/admin/colaboradores.php'); ?>"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-users-cog w-5"></i>
-                    <span>Colaboradores</span>
-                </a>
+                <?php if (Auth::hasPermission('colaboradores')): ?>
+                    <a href="<?php echo base_url('public/admin/colaboradores.php'); ?>"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-users-cog w-5"></i>
+                        <span>Colaboradores</span>
+                    </a>
+                <?php endif; ?>
 
                 <!-- Agencias -->
-                <a href="<?php echo base_url('public/admin/agencias.php'); ?>"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-building w-5"></i>
-                    <span>Agencias</span>
+                <?php if (Auth::hasPermission('agencias')): ?>
+                    <a href="<?php echo base_url('public/admin/agencias.php'); ?>"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-building w-5"></i>
+                        <span>Agencias</span>
+                    </a>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- Finanzas -->
+            <?php if (Auth::hasPermission('tesoreria')): ?>
+                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Finanzas
+                </div>
+                <a href="<?php echo base_url('public/admin/tesoreria.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-university w-5"></i>
+                    <span>Tesorería y Bancos</span>
                 </a>
             <?php endif; ?>
 

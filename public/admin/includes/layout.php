@@ -5,7 +5,7 @@
  */
 
 require_once __DIR__ . '/../../auth_check.php';
-requireAdmin();
+
 
 // Obtener datos del usuario
 $user = $GLOBALS['current_user'] ?? Auth::checkSession();
@@ -18,6 +18,7 @@ if (empty($baseUrl)) {
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,24 +35,41 @@ if (empty($baseUrl)) {
             #sidebar.translate-x-0 {
                 transform: translateX(0);
             }
+
             #sidebar-overlay.hidden {
                 display: none;
             }
+
             #sidebar-overlay:not(.hidden) {
                 display: block;
             }
         }
+
+        <?php if (Auth::hasPermission('readonly')): ?>
+            /* Modo Solo Lectura */
+            .btn-save,
+            .btn-edit,
+            .btn-delete,
+            button[type="submit"]:not(.ignore-readonly),
+            .action-edit,
+            .action-delete {
+                display: none !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+
+        <?php endif; ?>
     </style>
 </head>
+
 <body class="bg-gray-100">
     <!-- Sidebar -->
     <?php include __DIR__ . '/sidebar.php'; ?>
-    
+
     <!-- Main Content -->
     <div class="lg:ml-64">
         <!-- Header -->
         <?php include __DIR__ . '/header.php'; ?>
-        
+
         <!-- Page Content -->
         <main class="p-4 lg:p-6">
-
