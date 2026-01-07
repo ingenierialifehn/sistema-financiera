@@ -38,12 +38,12 @@ try {
     }
 
     if (!empty($agencia)) {
-        $where[] = "c.agencia = :agencia";
+        $where[] = "c.id_agencia = :agencia";
         $params['agencia'] = $agencia;
     }
 
     if (!empty($puesto)) {
-        $where[] = "c.puesto = :puesto";
+        $where[] = "c.puesto_cargo = :puesto";
         $params['puesto'] = $puesto;
     }
 
@@ -62,12 +62,21 @@ try {
     // Obtener colaboradores con info de usuario si existe
     $sql = "
         SELECT 
-            c.*,
-            u.id as usuario_id,
-            u.usuario as usuario_nombre,
+            c.id_colaborador as id,
+            c.dni,
+            c.nombre_completo,
+            c.email,
+            c.puesto_cargo as puesto,
+            c.id_agencia,
+            a.nombre_agencia as agencia,
+            c.estado_laboral as estado,
+            c.estado_laboral,
+            u.id_usuario as usuario_id,
+            u.username as usuario_nombre,
             u.estado as usuario_estado
         FROM colaboradores c
-        LEFT JOIN usuarios u ON u.id_colaborador = c.id
+        LEFT JOIN agencias a ON c.id_agencia = a.id_agencia
+        LEFT JOIN usuarios u ON u.id_colaborador = c.id_colaborador
         WHERE $whereClause
         ORDER BY c.nombre_completo ASC
         LIMIT :limit OFFSET :offset

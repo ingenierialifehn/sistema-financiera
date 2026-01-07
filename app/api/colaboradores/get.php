@@ -22,15 +22,15 @@ try {
     $sql = "
         SELECT 
             c.*,
-            u.id as usuario_id,
-            u.usuario as user_username,
+            u.id_usuario as usuario_id,
+            u.username as user_username,
             u.id_rol as user_rol,
             u.estado as user_estado,
             u.saldo_caja_virtual,
             u.id_jefe_directo
         FROM colaboradores c
-        LEFT JOIN usuarios u ON u.id_colaborador = c.id
-        WHERE c.id = :id
+        LEFT JOIN usuarios u ON u.id_colaborador = c.id_colaborador
+        WHERE c.id_colaborador = :id
     ";
 
     $stmt = $db->prepare($sql);
@@ -43,15 +43,25 @@ try {
 
     // Formatear respuesta
     $colaborador = [
-        'id' => $data['id'],
+        'id' => $data['id_colaborador'],
         'dni' => $data['dni'],
         'nombre_completo' => $data['nombre_completo'],
         'email' => $data['email'],
+        'fecha_nacimiento' => $data['fecha_nacimiento'],
+        'genero' => $data['genero'],
+        'telefono' => $data['telefono'],
+        'direccion_residencia' => $data['direccion_residencia'],
+        'fecha_ingreso' => $data['fecha_ingreso'],
         'sueldo_base' => $data['sueldo_base'],
-        'agencia' => $data['agencia'],
-        'puesto' => $data['puesto'],
+        'id_agencia' => $data['id_agencia'], // Ensure ID is sent
+        'puesto_cargo' => $data['puesto_cargo'],
         'estado_laboral' => $data['estado_laboral'],
-        'created_at' => $data['created_at'],
+        'rtn_personal' => $data['rtn_personal'],
+        'numero_seguro_social' => $data['numero_seguro_social'],
+        'banco_receptor' => $data['banco_receptor'],
+        'tipo_cuenta' => $data['tipo_cuenta'],
+        'numero_cuenta_bancaria' => $data['numero_cuenta_bancaria'],
+        'created_at' => $data['created_at'] ?? null,
         'usuario_vinculado' => null
     ];
 

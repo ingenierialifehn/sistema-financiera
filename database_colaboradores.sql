@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS sistema_financiera.colaboradores (
     -- Datos de Pago (Bancarios)
     numero_cuenta_bancaria VARCHAR(50),
     banco_receptor VARCHAR(100),
-    tipo_cuenta ENUM('Ahorro', 'Cheques', 'Otro') DEFAULT 'Ahorro',
+    tipo_cuenta ENUM('Ahorro', 'Cheques', 'Nomina', 'Otro') DEFAULT 'Ahorro',
     
     -- Seguridad Social y Legal
     numero_seguro_social VARCHAR(50), -- IHSS o equivalente

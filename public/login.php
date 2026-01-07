@@ -13,25 +13,27 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['user_token'])) {
     // Verificar que el token sea válido
     require_once __DIR__ . '/../app/config/database.php';
     require_once __DIR__ . '/../app/core/Auth.php';
-    
+
     $user = Auth::checkSession();
-    
+
     if ($user) {
         $rol = $user['rol'] ?? 'cliente';
         $redirectUrl = '';
-        
-        switch ($rol) {
-            case 'admin':
-                $redirectUrl = getBaseUrl() . '/public/admin/dashboard.php';
-                break;
-            case 'cobrador':
-                $redirectUrl = getBaseUrl() . '/public/cobrador/home.php';
-                break;
-            case 'cliente':
-                $redirectUrl = getBaseUrl() . '/public/cliente/index.php';
-                break;
+
+        // Obtener rol y permisos para redirección inteligente
+        $rolNombre = $user['rol_nombre'] ?? $user['rol'] ?? 'cliente';
+
+        // Lógica de redirección basada en permisos o roles
+        if (Auth::hasPermission('dashboard') || in_array($rolNombre, ['Administrador', 'admin', 'Supervisor', 'Gerente', 'Cajero', 'Asesor'])) {
+            // Todos los roles administrativos van al dashboard admin
+            $redirectUrl = getBaseUrl() . '/public/admin/dashboard.php';
+        } elseif ($rolNombre === 'cobrador' || $rolNombre === 'Cobrador') {
+            $redirectUrl = getBaseUrl() . '/public/cobrador/home.php';
+        } else {
+            // Cliente por defecto
+            $redirectUrl = getBaseUrl() . '/public/cliente/index.php';
         }
-        
+
         if ($redirectUrl) {
             // Verificar que la URL sea válida antes de redirigir
             if (strpos($redirectUrl, 'http') === 0) {
@@ -58,6 +60,7 @@ if (empty($baseUrl)) {
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,10 +72,12 @@ if (empty($baseUrl)) {
         .bg-gradient {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+
         .input-focus:focus {
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
+
         .bg-login {
             background-image: url('assets/img/login_bg.png');
             background-size: cover;
@@ -82,6 +87,7 @@ if (empty($baseUrl)) {
         }
     </style>
 </head>
+
 <body class="bg-login">
     <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-black bg-opacity-30">
         <div class="max-w-md w-full space-y-8">
@@ -106,7 +112,8 @@ if (empty($baseUrl)) {
                             <p id="alertText" class="text-sm font-medium"></p>
                         </div>
                         <div class="ml-auto pl-3">
-                            <button type="button" onclick="closeAlert()" class="inline-flex text-gray-400 hover:text-gray-500">
+                            <button type="button" onclick="closeAlert()"
+                                class="inline-flex text-gray-400 hover:text-gray-500">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -123,15 +130,9 @@ if (empty($baseUrl)) {
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-user text-gray-400"></i>
                             </div>
-                            <input 
-                                id="usuario" 
-                                name="usuario" 
-                                type="text" 
-                                autocomplete="username" 
-                                required 
-                                class="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 input-focus focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                                placeholder="Ingrese su usuario o email"
-                            >
+                            <input id="usuario" name="usuario" type="text" autocomplete="username" required
+                                class="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 input-focus focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                placeholder="Ingrese su usuario o email">
                         </div>
                         <p class="mt-1 text-xs text-gray-500" id="usuarioError"></p>
                     </div>
@@ -144,20 +145,12 @@ if (empty($baseUrl)) {
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-lock text-gray-400"></i>
                             </div>
-                            <input 
-                                id="password" 
-                                name="password" 
-                                type="password" 
-                                autocomplete="current-password" 
-                                required 
-                                class="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md placeholder-gray-400 input-focus focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                                placeholder="Ingrese su contraseña"
-                            >
-                            <button 
-                                type="button" 
-                                onclick="togglePassword()" 
-                                class="absolute inset-y-0 right-0 pr-3 flex items-center"
-                            >
+                            <input id="password" name="password" type="password" autocomplete="current-password"
+                                required
+                                class="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md placeholder-gray-400 input-focus focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                placeholder="Ingrese su contraseña">
+                            <button type="button" onclick="togglePassword()"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center">
                                 <i id="passwordIcon" class="fas fa-eye text-gray-400 hover:text-gray-600"></i>
                             </button>
                         </div>
@@ -168,12 +161,8 @@ if (empty($baseUrl)) {
                 <!-- Recordar sesión -->
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
-                        <input 
-                            id="remember" 
-                            name="remember" 
-                            type="checkbox" 
-                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        >
+                        <input id="remember" name="remember" type="checkbox"
+                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
                         <label for="remember" class="ml-2 block text-sm text-gray-900">
                             Recordar sesión
                         </label>
@@ -182,11 +171,8 @@ if (empty($baseUrl)) {
 
                 <!-- Botón de envío -->
                 <div>
-                    <button 
-                        type="submit" 
-                        id="submitBtn"
-                        class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out"
-                    >
+                    <button type="submit" id="submitBtn"
+                        class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
                         <span class="absolute left-0 inset-y-0 flex items-center pl-3">
                             <i class="fas fa-sign-in-alt text-indigo-500 group-hover:text-indigo-400"></i>
                         </span>
@@ -207,57 +193,57 @@ if (empty($baseUrl)) {
 
     <script>
         // Manejar envío del formulario
-        $('#loginForm').on('submit', function(e) {
+        $('#loginForm').on('submit', function (e) {
             e.preventDefault();
-            
+
             // Limpiar errores anteriores
             clearErrors();
             closeAlert();
-            
+
             // Obtener datos del formulario
             const usuario = $('#usuario').val().trim();
             const password = $('#password').val();
             const remember = $('#remember').is(':checked');
-            
+
             // Validación básica
             let isValid = true;
-            
+
             if (!usuario || usuario.length < 3) {
                 showFieldError('usuario', 'Usuario o email es requerido (mínimo 3 caracteres)');
                 isValid = false;
             }
-            
+
             if (!password || password.length < 6) {
                 showFieldError('password', 'Contraseña es requerida (mínimo 6 caracteres)');
                 isValid = false;
             }
-            
+
             if (!isValid) {
                 return;
             }
-            
+
             // Deshabilitar botón y mostrar spinner
             const $submitBtn = $('#submitBtn');
             const $submitText = $('#submitText');
             const $submitSpinner = $('#submitSpinner');
-            
+
             $submitBtn.prop('disabled', true);
             $submitText.text('Iniciando sesión...');
             $submitSpinner.removeClass('hidden');
-            
+
             // Realizar petición AJAX
             const baseUrl = '<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>';
-            
+
             // Debug: verificar baseUrl
             console.log('Base URL:', baseUrl);
-            
+
             // Validar que baseUrl no esté vacío
             if (!baseUrl || baseUrl.trim() === '') {
                 console.error('Error: baseUrl está vacío');
                 alert('Error de configuración: URL base no definida');
                 return;
             }
-            
+
             $.ajax({
                 url: baseUrl + '/app/api/auth/login.php',
                 method: 'POST',
@@ -266,48 +252,48 @@ if (empty($baseUrl)) {
                     usuario: usuario,
                     password: password
                 }),
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         // Guardar token en localStorage
                         localStorage.setItem('auth_token', response.data.token);
                         localStorage.setItem('user_data', JSON.stringify(response.data.user));
-                        
+
                         // Si se marcó "Recordar", guardar en cookie
                         if (remember) {
                             const expires = new Date();
                             expires.setTime(expires.getTime() + (24 * 60 * 60 * 1000)); // 24 horas
                             document.cookie = `auth_token=${response.data.token}; expires=${expires.toUTCString()}; path=/`;
                         }
-                        
+
                         // Mostrar mensaje de éxito
                         showAlert('success', 'Inicio de sesión exitoso. Redirigiendo...');
-                        
+
                         // Redirigir según rol
                         // Guardar baseUrl en una variable local para asegurar que esté disponible
                         const currentBaseUrl = baseUrl;
-                        const userRole = response.data.user.rol;
-                        
-                        setTimeout(function() {
+                        const userRole = response.data.user.rol_nombre || response.data.user.rol;
+
+                        setTimeout(function () {
                             let redirectUrl = '';
-                            
-                            switch(userRole) {
-                                case 'admin':
-                                    redirectUrl = currentBaseUrl + '/public/admin/dashboard.php';
-                                    break;
-                                case 'cobrador':
-                                    redirectUrl = currentBaseUrl + '/public/cobrador/home.php';
-                                    break;
-                                case 'cliente':
-                                    redirectUrl = currentBaseUrl + '/public/cliente/index.php';
-                                    break;
-                                default:
-                                    redirectUrl = currentBaseUrl + '/public/login.php';
+
+                            // Lógica mejorada de redirección en JS
+                            if (['admin', 'Administrador', 'Supervisor', 'Gerente', 'Cajero', 'Asesor'].includes(userRole)) {
+                                redirectUrl = currentBaseUrl + '/public/admin/dashboard.php';
+                            } else if (['cobrador', 'Cobrador'].includes(userRole)) {
+                                redirectUrl = currentBaseUrl + '/public/cobrador/home.php';
+                            } else if (['cliente', 'Cliente'].includes(userRole)) {
+                                redirectUrl = currentBaseUrl + '/public/cliente/index.php';
+                            } else {
+                                // Fallback inteligente o error
+                                console.warn('Rol no reconocido para redirección automática:', userRole);
+                                // Intentar admin por defecto si tiene permisos de dashboard (no podemos verificar permisos aquí fácilmente, asumimos login)
+                                redirectUrl = currentBaseUrl + '/public/admin/dashboard.php';
                             }
-                            
+
                             console.log('Base URL usada:', currentBaseUrl);
                             console.log('Rol del usuario:', userRole);
                             console.log('Redirigiendo a:', redirectUrl);
-                            
+
                             // Verificar que la URL sea válida antes de redirigir
                             if (redirectUrl && redirectUrl.startsWith('http')) {
                                 window.location.href = redirectUrl;
@@ -316,40 +302,40 @@ if (empty($baseUrl)) {
                                 alert('Error: URL de redirección inválida');
                             }
                         }, 1000);
-                        
+
                     } else {
                         showAlert('error', response.message || 'Error al iniciar sesión');
                         resetSubmitButton();
                     }
                 },
-                error: function(xhr) {
+                error: function (xhr) {
                     let message = 'Error al conectar con el servidor';
-                    
+
                     if (xhr.responseJSON) {
                         message = xhr.responseJSON.message || message;
-                        
+
                         // Mostrar errores de validación
                         if (xhr.responseJSON.errors) {
-                            Object.keys(xhr.responseJSON.errors).forEach(function(field) {
+                            Object.keys(xhr.responseJSON.errors).forEach(function (field) {
                                 showFieldError(field, xhr.responseJSON.errors[field]);
                             });
                         }
                     }
-                    
+
                     showAlert('error', message);
                     resetSubmitButton();
                 }
             });
         });
-        
+
         // Funciones auxiliares
         function showAlert(type, message) {
             const $alert = $('#alertMessage');
             const $icon = $('#alertIcon');
             const $text = $('#alertText');
-            
+
             $alert.removeClass('hidden');
-            
+
             if (type === 'success') {
                 $alert.removeClass('bg-red-50').addClass('bg-green-50');
                 $icon.removeClass('fa-exclamation-circle text-red-400').addClass('fa-check-circle text-green-400');
@@ -359,34 +345,34 @@ if (empty($baseUrl)) {
                 $icon.removeClass('fa-check-circle text-green-400').addClass('fa-exclamation-circle text-red-400');
                 $text.removeClass('text-green-800').addClass('text-red-800');
             }
-            
+
             $text.text(message);
         }
-        
+
         function closeAlert() {
             $('#alertMessage').addClass('hidden');
         }
-        
+
         function showFieldError(field, message) {
             $(`#${field}Error`).text(message).addClass('text-red-600');
             $(`#${field}`).addClass('border-red-500');
         }
-        
+
         function clearErrors() {
             $('.text-red-600').text('').removeClass('text-red-600');
             $('.border-red-500').removeClass('border-red-500');
         }
-        
+
         function resetSubmitButton() {
             $('#submitBtn').prop('disabled', false);
             $('#submitText').text('Iniciar Sesión');
             $('#submitSpinner').addClass('hidden');
         }
-        
+
         function togglePassword() {
             const $password = $('#password');
             const $icon = $('#passwordIcon');
-            
+
             if ($password.attr('type') === 'password') {
                 $password.attr('type', 'text');
                 $icon.removeClass('fa-eye').addClass('fa-eye-slash');
@@ -395,14 +381,14 @@ if (empty($baseUrl)) {
                 $icon.removeClass('fa-eye-slash').addClass('fa-eye');
             }
         }
-        
+
         // Permitir envío con Enter
-        $('#usuario, #password').on('keypress', function(e) {
+        $('#usuario, #password').on('keypress', function (e) {
             if (e.which === 13) {
                 $('#loginForm').submit();
             }
         });
     </script>
 </body>
-</html>
 
+</html>

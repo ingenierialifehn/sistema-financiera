@@ -29,10 +29,12 @@ class Auth
             // Nota: PDO requiere que los parámetros con el mismo nombre se pasen dos veces
             // o usar parámetros diferentes para cada uso
             $stmt = $db->prepare("
-                SELECT u.id_usuario, u.username, u.password_hash, c.nombre_completo, c.email, u.rol, u.estado, c.id_agencia,
-                       u.id_jefe_directo, u.token_autorizacion, c.id_colaborador 
+                SELECT u.id_usuario, u.username, u.password_hash, c.nombre_completo, c.email, 
+                       r.nombre_rol as rol_nombre, r.id_rol, r.permisos,
+                       u.estado, c.id_agencia, u.id_jefe_directo, u.token_autorizacion, c.id_colaborador 
                 FROM usuarios u
                 INNER JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                LEFT JOIN roles r ON u.id_rol = r.id_rol
                 WHERE (u.username = :identificador OR c.email = :identificador2) 
                 AND u.estado = 'Activo'
             ");
@@ -102,18 +104,20 @@ class Auth
                 // Guardar datos en sesión PHP
                 $_SESSION['user_id'] = $user['id_usuario'];
                 $_SESSION['user_token'] = $token;
-                $_SESSION['user_role'] = $user['rol'];
-                $_SESSION['user_nombre'] = $user['nombre_completo'];
-
                 // Variables solicitadas específicamente
                 $_SESSION['id_usuario'] = $user['id_usuario'];
-                $_SESSION['id_rol'] = $user['rol'];
+                $_SESSION['id_rol'] = $user['id_rol']; // Ahora es el ID de la tabla roles
+                $_SESSION['rol_nombre'] = $user['rol_nombre']; // Nombre del rol
+                $_SESSION['permisos'] = json_decode($user['permisos'], true); // Permisos decodificados
                 $_SESSION['id_agencia'] = $user['id_agencia'];
                 $_SESSION['nombre_completo'] = $user['nombre_completo'];
                 $_SESSION['id_colaborador'] = $user['id_colaborador'];
 
+                // Compatibilidad con código anterior que usa 'user_role'
+                $_SESSION['user_role'] = $user['rol_nombre'];
+
                 // Token de autorización para Supervisor/Gerente
-                if (in_array($user['rol'], ['Supervisor', 'Gerente'])) {
+                if (in_array($user['rol_nombre'], ['Supervisor', 'Gerente'])) {
                     if (!empty($user['token_autorizacion'])) {
                         $_SESSION['token_autorizacion'] = $user['token_autorizacion'];
                     }
@@ -126,6 +130,9 @@ class Auth
             // pero lo eliminamos si se considera sensible para exponer en la respuesta JSON.
             // Para seguridad, no lo enviamos al frontend a menos que sea necesario.
             unset($user['token_autorizacion']);
+
+            // Decodificar permisos para la respuesta API
+            $user['permisos'] = json_decode($user['permisos'], true);
 
             return Response::success([
                 'user' => $user,
@@ -159,10 +166,12 @@ class Auth
 
         try {
             $stmt = $db->prepare("
-                SELECT u.id_usuario, u.username, c.nombre_completo, c.email, u.rol, u.estado, c.id_agencia,
-                       u.id_jefe_directo, u.token_autorizacion, c.id_colaborador 
+                SELECT u.id_usuario, u.username, c.nombre_completo, c.email, 
+                       r.nombre_rol as rol_nombre, r.id_rol, r.permisos,
+                       u.estado, c.id_agencia, u.id_jefe_directo, u.token_autorizacion, c.id_colaborador 
                 FROM usuarios u
                 INNER JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                LEFT JOIN roles r ON u.id_rol = r.id_rol
                 WHERE u.token_sesion = :token 
                 AND u.token_expiracion > NOW() 
                 AND u.estado = 'Activo'
@@ -218,11 +227,50 @@ class Auth
             $roles = [$roles];
         }
 
-        if (!in_array($user['rol'], $roles)) {
+        // Verificar usando el nombre del rol (desde la nueva tabla)
+        // Nota: $user viene de verifyToken, ver columnas select
+        $userRole = $user['rol_nombre'] ?? '';
+
+        if (!in_array($userRole, $roles)) {
             Response::forbidden('No tiene permisos para esta acción');
         }
 
         return $user;
+    }
+
+    /**
+     * Verificar si tiene permiso específico (Nueva función)
+     */
+    public static function hasPermission($permissionKey)
+    {
+        $user = self::getCurrentUser();
+        if (!$user)
+            return false;
+
+        // Si es Admin, tiene todo (o verificamos el flag 'todos')
+        if ($user['rol_nombre'] === 'Administrador' || $user['rol_nombre'] === 'admin') {
+            return true;
+        }
+
+        $permisos = json_decode($user['permisos'], true);
+
+        // Verificar flag 'todos'
+        if (isset($permisos['todos']) && $permisos['todos'] === true) {
+            return true;
+        }
+
+        // Verificar permiso específico
+        return isset($permisos[$permissionKey]) && $permisos[$permissionKey] === true;
+    }
+
+    /**
+     * Requerir permiso específico
+     */
+    public static function requirePermission($permissionKey)
+    {
+        if (!self::hasPermission($permissionKey)) {
+            Response::forbidden('No tiene permiso para realizar esta acción');
+        }
     }
 
     /**

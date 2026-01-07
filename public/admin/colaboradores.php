@@ -39,9 +39,6 @@ require_once __DIR__ . '/includes/layout.php';
             <select id="filterAgencia"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white">
                 <option value="">Todas</option>
-                <!-- Opciones dinámicas o estáticas -->
-                <option value="Agencia Principal">Agencia Principal</option>
-                <option value="Agencia Norte">Agencia Norte</option>
             </select>
         </div>
         <div>
@@ -49,10 +46,6 @@ require_once __DIR__ . '/includes/layout.php';
             <select id="filterPuesto"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white">
                 <option value="">Todos</option>
-                <option value="Gerente">Gerente</option>
-                <option value="Cajero">Cajero</option>
-                <option value="Asesor">Asesor</option>
-                <option value="Seguridad">Seguridad</option>
             </select>
         </div>
         <div class="flex items-end">
@@ -103,7 +96,7 @@ require_once __DIR__ . '/includes/layout.php';
 <div id="colaboradorModal"
     class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900 bg-opacity-60 backdrop-blur-sm transition-opacity">
     <div
-        class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden transform transition-all scale-100">
+        class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] flex flex-col overflow-hidden transform transition-all scale-100">
         <!-- Header Modal -->
         <div
             class="bg-gradient-to-r from-indigo-600 to-indigo-800 px-6 py-4 flex justify-between items-center shadow-md shrink-0">
@@ -131,33 +124,54 @@ require_once __DIR__ . '/includes/layout.php';
                         Información Personal y Laboral
                     </h4>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">DNI *</label>
                             <input type="text" id="dni" required
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
-                        <div class="md:col-span-2">
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label>
                             <input type="text" id="nombreCompleto" required
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
 
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento *</label>
+                            <input type="date" id="fechaNacimiento" required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Género *</label>
+                            <select id="genero" required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="Masculino">Masculino</option>
+                                <option value="Femenino">Femenino</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <input type="tel" id="telefono"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                             <input type="email" id="email" required
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección Residencia</label>
+                            <input type="text" id="direccionResidencia"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Sueldo Base *</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">L</span>
-                                <input type="number" id="sueldoBase" step="0.01" required
-                                    class="w-full pl-8 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
-                            </div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Ingreso</label>
+                            <input type="date" id="fechaIngreso"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Estado Laboral</label>
                             <select id="estadoLaboral"
@@ -173,95 +187,144 @@ require_once __DIR__ . '/includes/layout.php';
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Agencia *</label>
                             <select id="agencia" required
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Seleccione...</option>
-                                <option value="Agencia Principal">Agencia Principal</option>
-                                <option value="Agencia Norte">Agencia Norte</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Puesto *</label>
                             <select id="puesto" required
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Seleccione...</option>
-                                <option value="Gerente">Gerente</option>
-                                <option value="Cajero">Cajero</option>
-                                <option value="Asesor">Asesor</option>
-                                <option value="Seguridad">Seguridad</option>
-                                <option value="IT">IT</option>
                             </select>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Toggle Acceso Sistema -->
-                <div class="flex items-center">
-                    <input type="checkbox" id="tieneAcceso"
-                        class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 transition cursor-pointer">
-                    <label for="tieneAcceso"
-                        class="ml-2 block text-sm font-semibold text-gray-800 cursor-pointer select-none">
-                        ¿Tiene acceso al sistema? (Crear Usuario Vinculado)
-                    </label>
-                </div>
-
-                <!-- SECCIÓN B: Datos del Usuario -->
-                <div id="seccionUsuario"
-                    class="bg-indigo-50 p-5 rounded-xl shadow-inner border border-indigo-100 hidden transition-all duration-300">
-                    <h4
-                        class="text-lg font-semibold text-indigo-800 mb-4 flex items-center border-b border-indigo-200 pb-2">
-                        <span
-                            class="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm">2</span>
-                        Credenciales de Acceso
-                    </h4>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">Nombre de Usuario *</label>
-                            <input type="text" id="usuario"
-                                class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <div class="md:col-span-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Sueldo Base *</label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">L</span>
+                                    <input type="number" id="sueldoBase" step="0.01" required
+                                        class="w-full pl-8 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                </div>
+                            </div>
                         </div>
 
+                        <!-- Nuevos Campos Legales y Bancarios -->
                         <div>
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">Rol en Sistema *</label>
-                            <select id="idRol"
-                                class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white">
-                                <option value="">Seleccione Rol...</option>
-                                <option value="1">Administrador</option>
-                                <option value="2">Cajero</option>
-                                <option value="3">Asesor</option>
-                            </select>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">RTN Personal</label>
+                            <input type="text" id="rtnPersonal"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
-
                         <div>
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">Contraseña *</label>
-                            <input type="password" id="password"
-                                class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">No. Seguro Social</label>
+                            <input type="text" id="numeroSeguroSocial"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">Confirmar Contraseña</label>
-                            <input type="password" id="confirmPassword"
-                                class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">Jefe Directo
-                                (Opcional)</label>
-                            <select id="idJefeDirecto"
-                                class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white">
-                                <option value="">Ninguno</option>
-                                <!-- Se llenará dinámicamente con JS -->
-                            </select>
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <div class="flex items-center p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
-                                <i class="fas fa-exclamation-triangle mr-2"></i>
-                                El saldo de la Caja Virtual se inicializará automáticamente en L 0.00.
+                        <div class="md:col-span-2 border-t border-gray-100 pt-4 mt-2">
+                            <h5 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                                <i class="fas fa-university mr-2 text-indigo-500"></i>
+                                Información Bancaria
+                            </h5>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Banco
+                                        Receptor</label>
+                                    <input type="text" id="bancoReceptor" placeholder="Ej: Atlántida, BAC..."
+                                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de
+                                        Cuenta</label>
+                                    <select id="tipoCuenta"
+                                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                        <option value="Ahorro">Ahorro</option>
+                                        <option value="Cheques">Cheques</option>
+                                        <option value="Nomina">Nómina</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">No. Cuenta
+                                        Bancaria</label>
+                                    <input type="text" id="numeroCuentaBancaria"
+                                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+
+                    <!-- Toggle Acceso Sistema -->
+                    <div class="flex items-center">
+                        <input type="checkbox" id="tieneAcceso"
+                            class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 transition cursor-pointer">
+                        <label for="tieneAcceso"
+                            class="ml-2 block text-sm font-semibold text-gray-800 cursor-pointer select-none">
+                            ¿Tiene acceso al sistema? (Crear Usuario Vinculado)
+                        </label>
+                    </div>
+
+                    <!-- SECCIÓN B: Datos del Usuario -->
+                    <div id="seccionUsuario"
+                        class="bg-indigo-50 p-5 rounded-xl shadow-inner border border-indigo-100 hidden transition-all duration-300">
+                        <h4
+                            class="text-lg font-semibold text-indigo-800 mb-4 flex items-center border-b border-indigo-200 pb-2">
+                            <span
+                                class="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm">2</span>
+                            Credenciales de Acceso
+                        </h4>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-indigo-900 mb-1">Nombre de Usuario
+                                    *</label>
+                                <input type="text" id="usuario"
+                                    class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-indigo-900 mb-1">Rol en Sistema
+                                    *</label>
+                                <select id="idRol"
+                                    class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="">Seleccione Rol...</option>
+                                    <option value="1">Administrador</option>
+                                    <option value="2">Cajero</option>
+                                    <option value="3">Asesor</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-indigo-900 mb-1">Contraseña *</label>
+                                <input type="password" id="password"
+                                    class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-indigo-900 mb-1">Confirmar
+                                    Contraseña</label>
+                                <input type="password" id="confirmPassword"
+                                    class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-indigo-900 mb-1">Jefe Directo
+                                    (Opcional)</label>
+                                <select id="idJefeDirecto"
+                                    class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="">Ninguno</option>
+                                    <!-- Se llenará dinámicamente con JS -->
+                                </select>
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <div class="flex items-center p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    El saldo de la Caja Virtual se inicializará automáticamente en L 0.00.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
             </form>
         </div>

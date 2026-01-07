@@ -29,10 +29,10 @@ $id = $data['id'];
 // 1. Validar reglas de negocio antes de actualizar
 // Obtener info actual
 $stmtCurrent = $db->prepare("
-    SELECT c.*, u.id as usuario_id, u.saldo_caja_virtual 
+    SELECT c.*, u.id_usuario as usuario_id, u.saldo_caja_virtual 
     FROM colaboradores c 
-    LEFT JOIN usuarios u ON u.id_colaborador = c.id 
-    WHERE c.id = :id
+    LEFT JOIN usuarios u ON u.id_colaborador = c.id_colaborador 
+    WHERE c.id_colaborador = :id
 ");
 $stmtCurrent->execute(['id' => $id]);
 $current = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
@@ -58,6 +58,12 @@ try {
     $fields = [];
     $params = ['id' => $id];
 
+    // Validar campos obligatorios que no deben quedar vacíos si se envían
+    if (isset($data['fecha_nacimiento']) && empty($data['fecha_nacimiento'])) {
+        throw new Exception("La fecha de nacimiento es obligatoria");
+    }
+
+    // Mapeo campos
     if (!empty($data['dni'])) {
         $fields[] = "dni = :dni";
         $params['dni'] = $data['dni'];
@@ -70,25 +76,67 @@ try {
         $fields[] = "email = :email";
         $params['email'] = $data['email'];
     }
+    if (!empty($data['fecha_nacimiento'])) {
+        $fields[] = "fecha_nacimiento = :fecha_nacimiento";
+        $params['fecha_nacimiento'] = $data['fecha_nacimiento'];
+    }
+    if (!empty($data['genero'])) {
+        $fields[] = "genero = :genero";
+        $params['genero'] = $data['genero'];
+    }
+    if (isset($data['telefono'])) { // Permite borrar si envía ""? No, usually phones are kept. If explicitly null needed, change logic.
+        $fields[] = "telefono = :telefono";
+        $params['telefono'] = !empty($data['telefono']) ? $data['telefono'] : null;
+    }
+    if (isset($data['direccion_residencia'])) {
+        $fields[] = "direccion_residencia = :direccion_residencia";
+        $params['direccion_residencia'] = !empty($data['direccion_residencia']) ? $data['direccion_residencia'] : null;
+    }
+    if (!empty($data['fecha_ingreso'])) {
+        $fields[] = "fecha_ingreso = :fecha_ingreso";
+        $params['fecha_ingreso'] = $data['fecha_ingreso'];
+    }
     if (isset($data['sueldo_base'])) {
         $fields[] = "sueldo_base = :sueldo_base";
         $params['sueldo_base'] = $data['sueldo_base'];
     }
-    if (!empty($data['agencia'])) {
-        $fields[] = "agencia = :agencia";
-        $params['agencia'] = $data['agencia'];
+    if (!empty($data['id_agencia'])) {
+        $fields[] = "id_agencia = :id_agencia";
+        $params['id_agencia'] = $data['id_agencia'];
     }
-    if (!empty($data['puesto'])) {
-        $fields[] = "puesto = :puesto";
-        $params['puesto'] = $data['puesto'];
+    if (!empty($data['puesto_cargo'])) {
+        $fields[] = "puesto_cargo = :puesto_cargo";
+        $params['puesto_cargo'] = $data['puesto_cargo'];
     }
     if (!empty($data['estado_laboral'])) {
         $fields[] = "estado_laboral = :estado_laboral";
         $params['estado_laboral'] = $data['estado_laboral'];
     }
 
+    // Nuevos campos (Bank/Legal)
+    if (isset($data['rtn_personal'])) {
+        $fields[] = "rtn_personal = :rtn_personal";
+        $params['rtn_personal'] = !empty($data['rtn_personal']) ? $data['rtn_personal'] : null;
+    }
+    if (isset($data['numero_seguro_social'])) {
+        $fields[] = "numero_seguro_social = :numero_seguro_social";
+        $params['numero_seguro_social'] = !empty($data['numero_seguro_social']) ? $data['numero_seguro_social'] : null;
+    }
+    if (isset($data['banco_receptor'])) {
+        $fields[] = "banco_receptor = :banco_receptor";
+        $params['banco_receptor'] = !empty($data['banco_receptor']) ? $data['banco_receptor'] : null;
+    }
+    if (isset($data['tipo_cuenta'])) {
+        $fields[] = "tipo_cuenta = :tipo_cuenta";
+        $params['tipo_cuenta'] = !empty($data['tipo_cuenta']) ? $data['tipo_cuenta'] : 'Ahorro';
+    }
+    if (isset($data['numero_cuenta_bancaria'])) {
+        $fields[] = "numero_cuenta_bancaria = :numero_cuenta_bancaria";
+        $params['numero_cuenta_bancaria'] = !empty($data['numero_cuenta_bancaria']) ? $data['numero_cuenta_bancaria'] : null;
+    }
+
     if (!empty($fields)) {
-        $sql = "UPDATE colaboradores SET " . implode(', ', $fields) . " WHERE id = :id";
+        $sql = "UPDATE colaboradores SET " . implode(', ', $fields) . " WHERE id_colaborador = :id";
         $db->prepare($sql)->execute($params);
     }
 
@@ -108,7 +156,7 @@ try {
             }
             // Password solo si se envía
             if (!empty($data['password'])) {
-                $uFields[] = "password = :password";
+                $uFields[] = "password_hash = :password";
                 $uParams['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
             }
             if (isset($data['id_jefe_directo'])) {
@@ -117,31 +165,29 @@ try {
             }
 
             if (!empty($uFields)) {
-                $sqlU = "UPDATE usuarios SET " . implode(', ', $uFields) . " WHERE id = :uid";
+                $sqlU = "UPDATE usuarios SET " . implode(', ', $uFields) . " WHERE id_usuario = :uid";
                 $db->prepare($sqlU)->execute($uParams);
             }
         } else {
             // Crear nuevo usuario para este colaborador
             // Validar requeridos
-            if (empty($data['usuario']) || empty($data['password']) || empty($data['id_rol'])) {
+            if (empty($data['username']) || empty($data['password']) || empty($data['id_rol'])) {
                 throw new Exception("Faltan datos para crear el usuario");
             }
 
             // Validar unique usuario
-            $checkU = $db->prepare("SELECT id FROM usuarios WHERE usuario = :u");
-            $checkU->execute(['u' => $data['usuario']]);
+            $checkU = $db->prepare("SELECT id_usuario FROM usuarios WHERE username = :u");
+            $checkU->execute(['u' => $data['username']]);
             if ($checkU->fetch())
                 throw new Exception("El usuario ya existe");
 
             $stmtNewU = $db->prepare("
-               INSERT INTO usuarios (usuario, password, nombre_completo, email, id_rol, id_colaborador, saldo_caja_virtual, estado, created_at, id_jefe_directo)
-               VALUES (:usuario, :password, :nombre, :email, :rol, :colab, 0.00, 'activo', NOW(), :jefe)
+               INSERT INTO usuarios (username, password_hash, id_rol, id_colaborador, saldo_caja_virtual, estado, id_jefe_directo)
+               VALUES (:usuario, :password, :rol, :colab, 0.00, 'Activo', :jefe)
            ");
             $stmtNewU->execute([
-                'usuario' => $data['usuario'],
+                'usuario' => $data['username'],
                 'password' => password_hash($data['password'], PASSWORD_DEFAULT),
-                'nombre' => $data['nombre_completo'] ?? $current['nombre_completo'],
-                'email' => $data['email'] ?? $current['email'],
                 'rol' => $data['id_rol'],
                 'colab' => $id,
                 'jefe' => !empty($data['id_jefe_directo']) ? $data['id_jefe_directo'] : null
@@ -153,13 +199,13 @@ try {
         // El prompt no especifica qué pasa si se desmarca "Tiene acceso".
         // Lo lógico es cambiar estado a inactivo si existía.
         if ($current['usuario_id']) {
-            $db->prepare("UPDATE usuarios SET estado = 'inactivo' WHERE id = :uid")->execute(['uid' => $current['usuario_id']]);
+            $db->prepare("UPDATE usuarios SET estado = 'Inactivo' WHERE id_usuario = :uid")->execute(['uid' => $current['usuario_id']]);
         }
     }
 
     $db->commit();
 
-    Auth::logActivity($user['id'], 'update', 'colaborador', "Colaborador actualizado ID: $id", $current, $data);
+    Auth::logActivity($user['id_usuario'] ?? 0, 'update', 'colaborador', "Colaborador actualizado ID: $id", $current, $data);
     Response::success(['id' => $id], 'Actualizado correctamente');
 
 } catch (Exception $e) {
