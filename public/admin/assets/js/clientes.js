@@ -1,521 +1,608 @@
 /**
- * Clientes JavaScript - Gestión de clientes
+ * Gestión de Clientes - JavaScript
+ * Incluye: Drag & Drop, Validación DNI, GPS, Tabs
  */
 
-let currentPage = 1;
-let currentSearch = '';
-let currentEstado = '';
+let uploadedFiles = {};
+let isEditMode = false;
 
-// Inicializar
-$(document).ready(function() {
+// Esperar a que el DOM y jQuery estén listos
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('Clientes.js cargado');
+
+    // Verificar que jQuery esté disponible
+    if (typeof jQuery === 'undefined') {
+        console.error('jQuery no está cargado');
+        return;
+    }
+
+    initializeModule();
+});
+
+function initializeModule() {
     loadClientes();
-    
-    // Eventos
-    $('#btnNuevoCliente').on('click', function() {
-        openModal();
-    });
-    
-    $('#btnBuscar').on('click', function() {
-        currentPage = 1;
-        currentSearch = $('#searchInput').val();
-        currentEstado = $('#filterEstado').val();
-        loadClientes();
-    });
-    
-    $('#searchInput').on('keypress', function(e) {
-        if (e.which === 13) {
-            $('#btnBuscar').click();
-        }
+    loadAgencias();
+    initializeTabs();
+    initializeDragAndDrop();
+    initializeEventHandlers();
+    initializeGPS();
+    initializeDNIValidation();
+}
 
-// Exponer funciones al ámbito global para uso en onclick en HTML generado
-window.saveClienteUbicacion = saveClienteUbicacion;
-window.openReferenciasModal = openReferenciasModal;
-window.closeReferenciasModal = closeReferenciasModal;
-window.editReferencia = editReferencia;
-window.deleteReferencia = deleteReferencia;
+// ============================================================================
+// TABS
+// ============================================================================
 
-// Guardar geolocalización del cliente
-function saveClienteUbicacion(clienteId) {
-    if (!navigator.geolocation) {
-        showAlert('error', 'Geolocalización no soportada por el navegador');
+function initializeTabs() {
+    $('.tab-button').on('click', function () {
+        const tabId = $(this).data('tab');
+
+        // Actualizar botones
+        $('.tab-button').removeClass('active border-blue-600 text-blue-600')
+            .addClass('border-transparent text-gray-500');
+        $(this).addClass('active border-blue-600 text-blue-600')
+            .removeClass('border-transparent text-gray-500');
+
+        // Mostrar contenido
+        $('.tab-content').addClass('hidden');
+        $('#tab-' + tabId).removeClass('hidden');
+    });
+}
+
+// ============================================================================
+// DRAG AND DROP
+// ============================================================================
+
+function initializeDragAndDrop() {
+    $('.dropzone').each(function () {
+        const dropzone = $(this);
+        const input = dropzone.find('.file-input');
+        const field = input.data('field');
+
+        // Click para abrir selector
+        dropzone.on('click', function (e) {
+            if (!$(e.target).hasClass('btn-remove-image')) {
+                input.click();
+            }
+        });
+
+        // Cambio de archivo
+        input.on('change', function (e) {
+            if (e.target.files && e.target.files[0]) {
+                handleFileSelect(e.target.files[0], field, dropzone);
+            }
+        });
+
+        // Drag & Drop
+        dropzone.on('dragover', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).addClass('border-blue-500 bg-blue-50');
+        });
+
+        dropzone.on('dragleave', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('border-blue-500 bg-blue-50');
+        });
+
+        dropzone.on('drop', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('border-blue-500 bg-blue-50');
+
+            const files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0], field, dropzone);
+            }
+        });
+    });
+}
+
+function handleFileSelect(file, field, dropzone) {
+    // Validar tipo
+    if (!file.type.match('image.*')) {
+        Swal.fire('Error', 'Solo se permiten imágenes', 'error');
         return;
     }
-    navigator.geolocation.getCurrentPosition(function(pos){
-        const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-        const data = {
-            cliente_id: clienteId,
-            latitud: pos.coords.latitude,
-            longitud: pos.coords.longitude
-        };
-        $.ajax({
-            url: `${BASE_URL}/app/api/clientes/update_location.php`,
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-            data: JSON.stringify(data),
-            success: function(){ showAlert('success', 'Ubicación del cliente guardada'); },
-            error: function(xhr){ showAlert('error', (xhr.responseJSON && xhr.responseJSON.message) || 'No se pudo guardar la ubicación'); }
-        });
-    }, function(err){
-        const msg = err && err.message ? err.message : 'No se pudo obtener la ubicación';
-        showAlert('error', msg);
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-}
 
-// Referencias personales
-let refClienteId = null;
-let refClienteNombre = '';
-let refsPage = 1;
-
-// Bind de referencias (usar un ready separado o incluir en el principal)
-$(function(){
-    $('#btnNuevaReferencia').on('click', function(){ resetReferenciaForm(); $('#refFormTitle').text('Nueva referencia'); });
-    $('#referenciaForm').on('submit', function(e){ e.preventDefault(); submitReferencia(); });
-});
-
-function openReferenciasModal(clienteId, clienteNombre) {
-    refClienteId = clienteId;
-    refClienteNombre = clienteNombre || '';
-    $('#refClienteId').val(refClienteId);
-    $('#refClienteNombre').text(refClienteNombre);
-    $('#referenciasModal').removeClass('hidden').addClass('flex');
-    loadReferencias(1);
-}
-function closeReferenciasModal() {
-    $('#referenciasModal').addClass('hidden').removeClass('flex');
-}
-function resetReferenciaForm() {
-    $('#referenciaId').val('');
-    $('#refNombre').val('');
-    $('#refTelefono').val('');
-    $('#refRelacion').val('');
-    $('#refDireccion').val('');
-}
-function loadReferencias(page = 1) {
-    refsPage = page;
-    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    const tbody = $('#referenciasTableBody');
-    tbody.html('<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>');
-    $.ajax({
-        url: `${BASE_URL}/app/api/referencias/list.php?cliente_id=${refClienteId}&page=${page}&limit=10`,
-        method: 'GET',
-        headers: { 'Authorization': 'Bearer ' + token },
-        success: function(resp){
-            if (!resp.success) { tbody.html('<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No se pudieron cargar las referencias</td></tr>'); return; }
-            const items = resp.data.referencias || resp.data.items || [];
-            if (items.length === 0) { tbody.html('<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Sin referencias</td></tr>'); renderRefsPagination(resp.data.pagination); return; }
-            let html = '';
-            items.forEach(function(r){
-                html += `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-3 text-sm">${escapeHtml(r.nombre || '')}</td>
-                        <td class="px-6 py-3 text-sm">${escapeHtml(r.telefono || '')}</td>
-                        <td class="px-6 py-3 text-sm">${escapeHtml(r.relacion || '')}</td>
-                        <td class="px-6 py-3 text-sm">${escapeHtml(r.direccion || '')}</td>
-                        <td class="px-6 py-3 text-sm">
-                            <button class="text-blue-600 hover:text-blue-900 mr-3" title="Editar" onclick="editReferencia(${r.id}, '${encodeURIComponent(r.nombre || '')}', '${encodeURIComponent(r.telefono || '')}', '${encodeURIComponent(r.relacion || '')}', '${encodeURIComponent(r.direccion || '')}')"><i class="fas fa-edit"></i></button>
-                            <button class="text-red-600 hover:text-red-900" title="Eliminar" onclick="deleteReferencia(${r.id})"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-            tbody.html(html);
-            renderRefsPagination(resp.data.pagination);
-        },
-        error: function(){ tbody.html('<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Error al cargar</td></tr>'); }
-    });
-}
-function renderRefsPagination(pagination) {
-    const container = $('#referenciasPagination');
-    if (!pagination || pagination.total_pages <= 1) { container.html(''); return; }
-    let html = '<div class="flex items-center justify-between">';
-    html += `<div class=\"text-sm text-gray-700\">Mostrando ${((pagination.page - 1) * pagination.limit) + 1} a ${Math.min(pagination.page * pagination.limit, pagination.total)} de ${pagination.total}</div>`;
-    html += '<div class="flex space-x-2">';
-    if (pagination.page > 1) html += `<button onclick=\"loadReferencias(${pagination.page - 1})\" class=\"px-3 py-1 border rounded hover:bg-gray-100\">Anterior</button>`;
-    for (let i=1;i<=pagination.total_pages;i++) {
-        if (i === pagination.page) html += `<button class=\"px-3 py-1 bg-indigo-600 text-white rounded\">${i}</button>`;
-        else if (i===1 || i===pagination.total_pages || (i>=pagination.page-1 && i<=pagination.page+1)) html += `<button onclick=\"loadReferencias(${i})\" class=\"px-3 py-1 border rounded hover:bg-gray-100\">${i}</button>`;
+    // Validar tamaño (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        Swal.fire('Error', 'La imagen no debe superar 5MB', 'error');
+        return;
     }
-    if (pagination.page < pagination.total_pages) html += `<button onclick=\"loadReferencias(${pagination.page + 1})\" class=\"px-3 py-1 border rounded hover:bg-gray-100\">Siguiente</button>`;
-    html += '</div></div>';
-    container.html(html);
-}
-function editReferencia(id, nombreEnc, telefonoEnc, relacionEnc, direccionEnc) {
-    $('#referenciaId').val(id);
-    $('#refNombre').val(decodeURIComponent(nombreEnc));
-    $('#refTelefono').val(decodeURIComponent(telefonoEnc));
-    $('#refRelacion').val(decodeURIComponent(relacionEnc));
-    $('#refDireccion').val(decodeURIComponent(direccionEnc));
-    $('#refFormTitle').text('Editar referencia');
-}
-function submitReferencia() {
-    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    const id = $('#referenciaId').val();
-    const data = {
-        cliente_id: refClienteId,
-        nombre: $('#refNombre').val(),
-        telefono: $('#refTelefono').val(),
-        relacion: $('#refRelacion').val(),
-        direccion: $('#refDireccion').val()
+
+    // Guardar archivo
+    uploadedFiles[field] = file;
+
+    // Mostrar preview
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const preview = `
+            <div class="relative">
+                <img src="${e.target.result}" class="max-h-48 mx-auto rounded-lg shadow-md">
+                <button type="button" class="btn-remove-image absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+                <p class="text-xs text-green-600 mt-2">
+                    <i class="fas fa-check-circle mr-1"></i>${file.name}
+                </p>
+            </div>
+        `;
+        dropzone.find('.preview-container').html(preview);
+
+        // Evento para remover
+        dropzone.find('.btn-remove-image').on('click', function (e) {
+            e.stopPropagation();
+            removeFile(field, dropzone);
+        });
     };
-    const url = id ? `${BASE_URL}/app/api/referencias/update.php` : `${BASE_URL}/app/api/referencias/create.php`;
-    if (id) data.id = parseInt(id);
-    $.ajax({
-        url: url,
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        data: JSON.stringify(data),
-        success: function(){
-            showAlert('success', id ? 'Referencia actualizada' : 'Referencia creada');
-            resetReferenciaForm();
-            $('#refFormTitle').text('Nueva referencia');
-            loadReferencias(refsPage);
-        },
-        error: function(xhr){ showAlert('error', (xhr.responseJSON && xhr.responseJSON.message) || 'Error al guardar referencia'); }
-    });
+    reader.readAsDataURL(file);
 }
-function deleteReferencia(id) {
-    Swal.fire({ title: '¿Eliminar referencia?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' }).then((res)=>{
-        if (!res.isConfirmed) return;
-        const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-        $.ajax({
-            url: `${BASE_URL}/app/api/referencias/delete.php`,
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-            data: JSON.stringify({ id: id }),
-            success: function(){ showAlert('success', 'Referencia eliminada'); loadReferencias(refsPage); },
-            error: function(xhr){ showAlert('error', (xhr.responseJSON && xhr.responseJSON.message) || 'Error al eliminar referencia'); }
-        });
-    });
-}
-    });
-    
-    $('#clienteForm').on('submit', function(e) {
-        e.preventDefault();
-        saveCliente();
-    });
-    
-    $('#btnCerrarModal, #btnCancelar').on('click', function() {
-        closeModal();
-    });
-    
-    $('#clienteModal').on('click', function(e) {
-        if (e.target === this) {
-            closeModal();
-        }
-    });
-});
 
-// Cargar clientes
-function loadClientes(page = 1) {
-    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
-    let url = `${BASE_URL}/app/api/clientes/list.php?page=${page}&limit=20`;
-    if (currentSearch) {
-        url += `&search=${encodeURIComponent(currentSearch)}`;
-    }
-    
-    $.ajax({
-        url: url,
-        method: 'GET',
-        headers: {
-            'Authorization': 'Bearer ' + token
-        },
-        success: function(response) {
-            if (response.success) {
-                renderClientes(response.data.clientes);
-                renderPagination(response.data.pagination);
-            }
-        },
-        error: function(xhr) {
-            if (xhr.status === 401 || xhr.status === 403) {
-                window.location.href = BASE_URL + '/public/login.php';
-            } else {
-                showAlert('error', 'Error al cargar clientes');
-            }
+function removeFile(field, dropzone) {
+    delete uploadedFiles[field];
+    dropzone.find('.preview-container').html(`
+        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+    `);
+}
+
+// ============================================================================
+// GPS
+// ============================================================================
+
+function initializeGPS() {
+    $('#btnObtenerGPS').on('click', function () {
+        const btn = $(this);
+
+        if (!navigator.geolocation) {
+            Swal.fire('Error', 'Tu navegador no soporta geolocalización', 'error');
+            return;
         }
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Obteniendo...');
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                const lat = position.coords.latitude.toFixed(6);
+                const lng = position.coords.longitude.toFixed(6);
+                const coords = lat + ', ' + lng;
+
+                $('#gps_coordenadas').val(coords);
+                $('#coordenadasDisplay').text('Latitud: ' + lat + ', Longitud: ' + lng);
+                $('#mapPreview').removeClass('hidden');
+
+                btn.prop('disabled', false).html('<i class="fas fa-check mr-2"></i>Ubicación Obtenida');
+
+                setTimeout(function () {
+                    btn.html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+                }, 3000);
+            },
+            function (error) {
+                let mensaje = 'No se pudo obtener la ubicación';
+                if (error.code === 1) {
+                    mensaje = 'Permiso denegado. Permite el acceso a tu ubicación.';
+                }
+                Swal.fire('Error', mensaje, 'error');
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
     });
 }
 
-// Renderizar tabla de clientes
+// ============================================================================
+// VALIDACIÓN DNI
+// ============================================================================
+
+let dniCheckTimeout;
+
+function initializeDNIValidation() {
+    $('#numero_documento').on('input', function () {
+        const dni = $(this).val().trim();
+        const clienteId = $('#clienteId').val();
+
+        if (dni.length < 8) {
+            $('#dniError').addClass('hidden');
+            $('#numero_documento').removeClass('border-red-500');
+            return;
+        }
+
+        clearTimeout(dniCheckTimeout);
+        dniCheckTimeout = setTimeout(function () {
+            checkDniDuplicate(dni, clienteId);
+        }, 500);
+    });
+}
+
+function checkDniDuplicate(dni, clienteId) {
+    $.get(BASE_URL + '/app/api/clientes/check_dni.php', { dni: dni, id: clienteId }, function (response) {
+        if (response.exists) {
+            $('#dniError').removeClass('hidden');
+            $('#numero_documento').addClass('border-red-500');
+        } else {
+            $('#dniError').addClass('hidden');
+            $('#numero_documento').removeClass('border-red-500');
+        }
+    }).fail(function () {
+        console.error('Error al verificar DNI');
+    });
+}
+
+// ============================================================================
+// CARGAR DATOS
+// ============================================================================
+
+function loadClientes() {
+    const search = $('#searchInput').val() || '';
+    const estado = $('#filterEstado').val() || '';
+    const agencia = $('#filterAgencia').val() || '';
+
+    $.get(BASE_URL + '/app/api/clientes/list.php', { search: search, estado: estado, agencia: agencia }, function (response) {
+        if (response.success) {
+            renderClientes(response.data);
+        } else {
+            $('#clientesTableBody').html(`
+                <tr>
+                    <td colspan="7" class="px-6 py-4 text-center text-red-500">
+                        Error al cargar clientes
+                    </td>
+                </tr>
+            `);
+        }
+    }).fail(function () {
+        $('#clientesTableBody').html(`
+            <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-red-500">
+                    Error de conexión
+                </td>
+            </tr>
+        `);
+    });
+}
+
 function renderClientes(clientes) {
-    const tbody = $('#clientesTableBody');
-    
     if (!clientes || clientes.length === 0) {
-        tbody.html('<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No hay clientes registrados</td></tr>');
+        $('#clientesTableBody').html(`
+            <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                    <i class="fas fa-inbox text-4xl text-gray-300 mb-2"></i>
+                    <p>No se encontraron clientes</p>
+                </td>
+            </tr>
+        `);
         return;
     }
-    
+
     let html = '';
-    clientes.forEach(function(cliente) {
-        const estadoClass = getEstadoClass(cliente.estado);
-        
+    clientes.forEach(function (cliente) {
+        const estadoBadge = cliente.estado === 'activo'
+            ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Activo</span>'
+            : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Inactivo</span>';
+
+        const fotoHtml = cliente.foto_perfil
+            ? '<img class="h-10 w-10 rounded-full object-cover" src="' + BASE_URL + '/uploads/documentos/' + cliente.foto_perfil + '" alt="' + cliente.nombre_completo + '">'
+            : '<div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center"><i class="fas fa-user text-blue-600"></i></div>';
+
         html += `
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${escapeHtml(cliente.codigo_cliente || '')}
+                    ${cliente.codigo_cliente || '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">${escapeHtml(cliente.nombre_completo || '')}</div>
-                    ${cliente.email ? `<div class="text-sm text-gray-500">${escapeHtml(cliente.email)}</div>` : ''}
+                    <div class="flex items-center">
+                        <div class="h-10 w-10 flex-shrink-0">
+                            ${fotoHtml}
+                        </div>
+                        <div class="ml-4">
+                            <div class="text-sm font-medium text-gray-900">${cliente.nombre_completo}</div>
+                        </div>
+                    </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${escapeHtml(cliente.tipo_documento || '')}: ${escapeHtml(cliente.numero_documento || '')}
+                    ${cliente.numero_documento}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${escapeHtml(cliente.telefono || '')}
+                    ${cliente.telefono || '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${escapeHtml(cliente.cobrador_nombre || 'Sin asignar')}
+                    ${cliente.agencia_nombre || '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${estadoClass}">
-                        ${escapeHtml(cliente.estado || '')}
-                    </span>
+                    ${estadoBadge}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onclick="openReferenciasModal(${cliente.id}, '${escapeHtml(cliente.nombre_completo || '')}')" class="text-purple-600 hover:text-purple-900 mr-3" title="Referencias">
-                        <i class="fas fa-user-friends"></i>
+                    <button onclick="verFicha(${cliente.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Ver Ficha">
+                        <i class="fas fa-eye"></i>
                     </button>
-                    <button onclick="saveClienteUbicacion(${cliente.id})" class="text-green-600 hover:text-green-900 mr-3" title="Guardar ubicación">
-                        <i class="fas fa-map-marker-alt"></i>
-                    </button>
-                    <button onclick="editCliente(${cliente.id})" class="text-indigo-600 hover:text-indigo-900 mr-3">
+                    <button onclick="editarCliente(${cliente.id})" class="text-indigo-600 hover:text-indigo-900 mr-3" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button onclick="deleteCliente(${cliente.id})" class="text-red-600 hover:text-red-900">
+                    <button onclick="eliminarCliente(${cliente.id})" class="text-red-600 hover:text-red-900" title="Eliminar">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
         `;
     });
-    
-    tbody.html(html);
+
+    $('#clientesTableBody').html(html);
 }
 
-// Renderizar paginación
-function renderPagination(pagination) {
-    const container = $('#pagination');
-    
-    if (pagination.total_pages <= 1) {
-        container.html('');
+function loadAgencias() {
+    // Cargar agencias solo para el filtro
+    $.get(BASE_URL + '/app/api/agencias/list.php', function (response) {
+        if (response.success) {
+            let options = '<option value="">Todas las agencias</option>';
+
+            response.data.forEach(function (agencia) {
+                options += '<option value="' + agencia.id + '">' + agencia.nombre + '</option>';
+            });
+
+            $('#filterAgencia').html(options);
+        }
+    }).fail(function () {
+        console.error('Error al cargar agencias');
+    });
+}
+
+// ============================================================================
+// MODAL
+// ============================================================================
+
+function openModal(clienteId) {
+    isEditMode = !!clienteId;
+    $('#modalTitle').text(isEditMode ? 'Editar Cliente' : 'Nuevo Cliente');
+
+    // Resetear formulario usando jQuery
+    try {
+        if ($('#formCliente').length > 0) {
+            $('#formCliente')[0].reset();
+        }
+    } catch (e) {
+        console.log('No se pudo resetear el formulario:', e);
+    }
+
+    $('#clienteId').val('');
+    uploadedFiles = {};
+
+    // Resetear previews
+    $('.dropzone').each(function () {
+        const dropzone = $(this);
+        dropzone.find('.preview-container').html(`
+            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+            <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+        `);
+    });
+
+    $('#mapPreview').addClass('hidden');
+    $('#dniError').addClass('hidden');
+    $('#numero_documento').removeClass('border-red-500');
+
+    // Activar primera pestaña
+    $('.tab-button').first().click();
+
+    if (isEditMode) {
+        loadClienteData(clienteId);
+    }
+
+    $('#modalCliente').removeClass('hidden').addClass('flex');
+}
+
+function closeModal() {
+    $('#modalCliente').removeClass('flex').addClass('hidden');
+}
+
+function loadClienteData(id) {
+    $.get(BASE_URL + '/app/api/clientes/get.php', { id: id }, function (response) {
+        if (response.success) {
+            const cliente = response.data;
+
+            // Llenar formulario
+            $('#clienteId').val(cliente.id);
+            $('#nombre_completo').val(cliente.nombre_completo);
+            $('#tipo_documento').val(cliente.tipo_documento);
+            $('#numero_documento').val(cliente.numero_documento);
+            $('#fecha_nacimiento').val(cliente.fecha_nacimiento);
+            $('#genero').val(cliente.genero);
+            $('#telefono').val(cliente.telefono);
+            $('#email').val(cliente.email);
+            $('#ocupacion').val(cliente.ocupacion);
+            $('#id_agencia').val(cliente.id_agencia);
+            $('#direccion').val(cliente.direccion);
+            $('#departamento').val(cliente.departamento);
+            $('#municipio').val(cliente.municipio);
+            $('#barrio').val(cliente.barrio);
+            $('#gps_coordenadas').val(cliente.gps_coordenadas);
+
+            if (cliente.gps_coordenadas) {
+                $('#coordenadasDisplay').text(cliente.gps_coordenadas);
+                $('#mapPreview').removeClass('hidden');
+            }
+        }
+    }).fail(function () {
+        Swal.fire('Error', 'No se pudo cargar la información del cliente', 'error');
+    });
+}
+
+// ============================================================================
+// GUARDAR CLIENTE
+// ============================================================================
+
+$('#formCliente').on('submit', function (e) {
+    e.preventDefault();
+
+    // Validar DNI duplicado
+    if ($('#dniError').is(':visible')) {
+        Swal.fire('Error', 'El DNI ingresado ya está registrado', 'error');
         return;
     }
-    
-    let html = '<div class="flex items-center justify-between">';
-    html += `<div class="text-sm text-gray-700">Mostrando ${((pagination.page - 1) * pagination.limit) + 1} a ${Math.min(pagination.page * pagination.limit, pagination.total)} de ${pagination.total}</div>`;
-    html += '<div class="flex space-x-2">';
-    
-    // Botón anterior
-    if (pagination.page > 1) {
-        html += `<button onclick="loadClientes(${pagination.page - 1})" class="px-3 py-1 border rounded hover:bg-gray-100">Anterior</button>`;
-    }
-    
-    // Páginas
-    for (let i = 1; i <= pagination.total_pages; i++) {
-        if (i === pagination.page) {
-            html += `<button class="px-3 py-1 bg-indigo-600 text-white rounded">${i}</button>`;
-        } else if (i === 1 || i === pagination.total_pages || (i >= pagination.page - 1 && i <= pagination.page + 1)) {
-            html += `<button onclick="loadClientes(${i})" class="px-3 py-1 border rounded hover:bg-gray-100">${i}</button>`;
-        } else if (i === pagination.page - 2 || i === pagination.page + 2) {
-            html += `<span class="px-3 py-1">...</span>`;
+
+    // Validar imágenes requeridas - COMENTADO TEMPORALMENTE
+    // Hasta que se agreguen las columnas a la tabla clientes
+    /*
+    if (!isEditMode) {
+        const requiredImages = ['foto_dni_frontal', 'foto_dni_reverso', 'foto_perfil', 'foto_casa', 'foto_recibo'];
+        const missingImages = requiredImages.filter(function (field) {
+            return !uploadedFiles[field];
+        });
+
+        if (missingImages.length > 0) {
+            Swal.fire('Error', 'Debes cargar todas las imágenes requeridas', 'error');
+            // Cambiar a tab de documentación
+            $('.tab-button[data-tab="documentacion"]').click();
+            return;
         }
     }
-    
-    // Botón siguiente
-    if (pagination.page < pagination.total_pages) {
-        html += `<button onclick="loadClientes(${pagination.page + 1})" class="px-3 py-1 border rounded hover:bg-gray-100">Siguiente</button>`;
-    }
-    
-    html += '</div></div>';
-    container.html(html);
-}
+    */
 
-// Abrir modal
-function openModal(cliente = null) {
-    $('#clienteForm')[0].reset();
-    $('#clienteId').val('');
-    $('#modalTitle').text(cliente ? 'Editar Cliente' : 'Nuevo Cliente');
-    
-    if (cliente) {
-        $('#clienteId').val(cliente.id);
-        $('#nombreCompleto').val(cliente.nombre_completo || '');
-        $('#tipoDocumento').val(cliente.tipo_documento || 'DNI');
-        $('#numeroDocumento').val(cliente.numero_documento || '');
-        $('#telefono').val(cliente.telefono || '');
-        $('#email').val(cliente.email || '');
-        $('#direccion').val(cliente.direccion || '');
-        $('#fechaNacimiento').val(cliente.fecha_nacimiento || '');
-        $('#ocupacion').val(cliente.ocupacion || '');
-        $('#estado').val(cliente.estado || 'activo');
-    }
-    
-    $('#clienteModal').removeClass('hidden').addClass('flex');
-}
+    // Preparar FormData
+    const formData = new FormData();
 
-// Cerrar modal
-function closeModal() {
-    $('#clienteModal').addClass('hidden').removeClass('flex');
-}
+    // Datos del formulario
+    const campos = [
+        'nombre_completo', 'tipo_documento', 'numero_documento', 'fecha_nacimiento',
+        'genero', 'telefono', 'email', 'ocupacion', 'id_agencia', 'direccion',
+        'departamento', 'municipio', 'barrio', 'gps_coordenadas'
+    ];
 
-// Editar cliente
-function editCliente(id) {
-    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
-    $.ajax({
-        url: `${BASE_URL}/app/api/clientes/get.php?id=${id}`,
-        method: 'GET',
-        headers: {
-            'Authorization': 'Bearer ' + token
-        },
-        success: function(response) {
-            if (response.success) {
-                openModal(response.data);
-            }
-        },
-        error: function() {
-            showAlert('error', 'Error al cargar cliente');
+    campos.forEach(function (campo) {
+        const valor = $('#' + campo).val();
+        if (valor) {
+            formData.append(campo, valor);
         }
     });
-}
 
-// Guardar cliente
-function saveCliente() {
-    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    const id = $('#clienteId').val();
-    const isEdit = id !== '';
-    
-    const data = {
-        nombre_completo: $('#nombreCompleto').val(),
-        tipo_documento: $('#tipoDocumento').val(),
-        numero_documento: $('#numeroDocumento').val(),
-        telefono: $('#telefono').val(),
-        email: $('#email').val(),
-        direccion: $('#direccion').val(),
-        fecha_nacimiento: $('#fechaNacimiento').val(),
-        ocupacion: $('#ocupacion').val(),
-        estado: $('#estado').val()
-    };
-    
-    if (isEdit) {
-        data.id = id;
+    // Agregar ID si es edición
+    if (isEditMode) {
+        formData.append('id', $('#clienteId').val());
     }
-    
-    const url = isEdit ? `${BASE_URL}/app/api/clientes/update.php` : `${BASE_URL}/app/api/clientes/create.php`;
-    const method = isEdit ? 'PUT' : 'POST';
-    
+
+    // Agregar archivos
+    Object.keys(uploadedFiles).forEach(function (field) {
+        formData.append(field, uploadedFiles[field]);
+    });
+
+    // Enviar
+    const url = isEditMode
+        ? BASE_URL + '/app/api/clientes/update.php'
+        : BASE_URL + '/app/api/clientes/create_with_files.php';
+
     $.ajax({
         url: url,
-        method: method,
-        headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-        },
-        data: JSON.stringify(data),
-        success: function(response) {
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (response) {
             if (response.success) {
-                showAlert('success', isEdit ? 'Cliente actualizado exitosamente' : 'Cliente creado exitosamente');
-                closeModal();
-                loadClientes(currentPage);
+                Swal.fire({
+                    title: '¡Éxito!',
+                    text: isEditMode ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ver Ficha',
+                    cancelButtonText: 'Cerrar'
+                }).then(function (result) {
+                    if (result.isConfirmed) {
+                        window.location.href = BASE_URL + '/public/admin/ficha_cliente.php?id=' + response.data.id;
+                    } else {
+                        closeModal();
+                        loadClientes();
+                    }
+                });
+            } else {
+                Swal.fire('Error', response.message || 'Error al guardar cliente', 'error');
             }
         },
-        error: function(xhr) {
-            if (xhr.responseJSON) {
-                showAlert('error', xhr.responseJSON.message || 'Error al guardar cliente');
-                if (xhr.responseJSON.errors) {
-                    console.error('Errores:', xhr.responseJSON.errors);
-                }
-            } else {
-                showAlert('error', 'Error al guardar cliente');
-            }
+        error: function (xhr) {
+            const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexión';
+            Swal.fire('Error', msg, 'error');
         }
     });
+});
+
+// ============================================================================
+// ACCIONES
+// ============================================================================
+
+function verFicha(id) {
+    window.location.href = BASE_URL + '/public/admin/ficha_cliente.php?id=' + id;
 }
 
-// Eliminar cliente
-function deleteCliente(id) {
+function editarCliente(id) {
+    openModal(id);
+}
+
+function eliminarCliente(id) {
     Swal.fire({
-        title: '¿Está seguro?',
-        text: 'Esta acción eliminará permanentemente el cliente',
+        title: '¿Eliminar cliente?',
+        text: 'Esta acción no se puede deshacer',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#6b7280',
+        confirmButtonColor: '#DC2626',
+        cancelButtonColor: '#6B7280',
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar'
-    }).then((result) => {
+    }).then(function (result) {
         if (result.isConfirmed) {
-            const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-            
             $.ajax({
-                url: `${BASE_URL}/app/api/clientes/delete.php?id=${id}`,
-                method: 'DELETE',
-                headers: {
-                    'Authorization': 'Bearer ' + token
-                },
-                success: function(response) {
+                url: BASE_URL + '/app/api/clientes/delete.php',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ id: id }),
+                success: function (response) {
                     if (response.success) {
-                        showAlert('success', 'Cliente eliminado exitosamente');
-                        loadClientes(currentPage);
+                        Swal.fire('Eliminado', 'Cliente eliminado correctamente', 'success');
+                        loadClientes();
+                    } else {
+                        Swal.fire('Error', response.message, 'error');
                     }
                 },
-                error: function(xhr) {
-                    if (xhr.responseJSON) {
-                        showAlert('error', xhr.responseJSON.message || 'Error al eliminar cliente');
-                    } else {
-                        showAlert('error', 'Error al eliminar cliente');
-                    }
+                error: function () {
+                    Swal.fire('Error', 'Error de conexión', 'error');
                 }
             });
         }
     });
 }
 
-// Funciones helper
-function getEstadoClass(estado) {
-    const estados = {
-        'activo': 'bg-green-100 text-green-800',
-        'inactivo': 'bg-gray-100 text-gray-800',
-        'en_mora': 'bg-red-100 text-red-800',
-        'bloqueado': 'bg-yellow-100 text-yellow-800'
-    };
-    return estados[estado] || 'bg-gray-100 text-gray-800';
-}
+// ============================================================================
+// FILTROS Y EVENT HANDLERS
+// ============================================================================
 
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return String(text || '').replace(/[&<>"']/g, function(m) { return map[m]; });
-}
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
-}
-
-function showAlert(type, message) {
-    const icons = {
-        'success': 'success',
-        'error': 'error',
-        'info': 'info',
-        'warning': 'warning'
-    };
-    
-    Swal.fire({
-        icon: icons[type] || 'info',
-        title: type === 'success' ? 'Éxito' : type === 'error' ? 'Error' : type === 'warning' ? 'Advertencia' : 'Información',
-        text: message,
-        timer: 3000,
-        showConfirmButton: false,
-        toast: true,
-        position: 'top-end'
+function initializeEventHandlers() {
+    // Botón nuevo cliente - ya manejado por el script inline
+    // pero agregamos soporte para el archivo externo también
+    $('#btnNuevoCliente').off('click').on('click', function () {
+        openModal();
     });
+
+    $('#btnCerrarModal, #btnCancelar').on('click', function () {
+        closeModal();
+    });
+
+    $('#searchInput').on('input', debounce(loadClientes, 500));
+    $('#filterEstado, #filterAgencia').on('change', loadClientes);
 }
 
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction() {
+        const context = this;
+        const args = arguments;
+        const later = function () {
+            clearTimeout(timeout);
+            func.apply(context, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}

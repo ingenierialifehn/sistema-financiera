@@ -1,6 +1,11 @@
 <?php
 require_once '../../config/database.php';
-header('Content-Type: application/json');
+
+require_once __DIR__ . '/../../core/Auth.php';
+require_once __DIR__ . '/../../core/Response.php';
+
+Auth::requireAuth();
+Auth::requirePermission('tesoreria.crear');
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

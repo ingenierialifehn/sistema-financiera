@@ -1,7 +1,16 @@
 <?php
 require_once '../../config/database.php';
 session_start();
-header('Content-Type: application/json');
+
+require_once __DIR__ . '/../../core/Auth.php';
+require_once __DIR__ . '/../../core/Response.php';
+
+Auth::requireAuth();
+
+// Permitir si tiene permiso de crear O editar en tesorería
+if (!Auth::hasPermission('tesoreria.crear') && !Auth::hasPermission('tesoreria.editar')) {
+    Response::forbidden('No tiene permisos para realizar transferencias');
+}
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

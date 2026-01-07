@@ -31,10 +31,12 @@ class Auth
             $stmt = $db->prepare("
                 SELECT u.id_usuario, u.username, u.password_hash, c.nombre_completo, c.email, 
                        r.nombre_rol as rol_nombre, r.id_rol, r.permisos,
-                       u.estado, c.id_agencia, u.id_jefe_directo, u.token_autorizacion, c.id_colaborador 
+                       u.estado, c.id_agencia, u.id_jefe_directo, u.token_autorizacion, c.id_colaborador,
+                       a.nombre_agencia
                 FROM usuarios u
                 INNER JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
                 LEFT JOIN roles r ON u.id_rol = r.id_rol
+                LEFT JOIN agencias a ON c.id_agencia = a.id_agencia
                 WHERE (u.username = :identificador OR c.email = :identificador2) 
                 AND u.estado = 'Activo'
             ");
@@ -110,6 +112,7 @@ class Auth
                 $_SESSION['rol_nombre'] = $user['rol_nombre']; // Nombre del rol
                 $_SESSION['permisos'] = json_decode($user['permisos'], true); // Permisos decodificados
                 $_SESSION['id_agencia'] = $user['id_agencia'];
+                $_SESSION['nombre_agencia'] = $user['nombre_agencia'] ?? 'Sede Central';
                 $_SESSION['nombre_completo'] = $user['nombre_completo'];
                 $_SESSION['id_colaborador'] = $user['id_colaborador'];
 

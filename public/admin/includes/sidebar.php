@@ -36,14 +36,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
 
 
 
-            <!-- Cobradores -->
-            <?php if (Auth::hasPermission('cobradores')): ?>
-                <a href="<?php echo base_url('public/admin/cobradores.php'); ?>"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'cobradores.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-user-tie w-5"></i>
-                    <span>Cobradores</span>
-                </a>
-            <?php endif; ?>
+
 
             <!-- Colaboradores -->
             <!-- Gestión de Personal (Colaboradores y Usuarios) -->
@@ -69,6 +62,15 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                         <span>Agencias</span>
                     </a>
                 <?php endif; ?>
+
+                <!-- Clientes -->
+                <?php if (Auth::hasPermission('clientes') || Auth::hasPermission('colaboradores')): ?>
+                    <a href="<?php echo base_url('public/admin/clientes.php'); ?>"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'clientes.php' || $currentPage === 'ficha_cliente.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-users w-5"></i>
+                        <span>Clientes</span>
+                    </a>
+                <?php endif; ?>
             <?php endif; ?>
 
             <!-- Finanzas -->
@@ -80,6 +82,24 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                     class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-university w-5"></i>
                     <span>Tesorería y Bancos</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- Operaciones -->
+            <?php if (Auth::hasPermission('operaciones')): ?>
+                <a href="<?php echo base_url('public/admin/operaciones.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'operaciones.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-tasks w-5"></i>
+                    <span>Operaciones</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- Control de Caja -->
+            <?php if (Auth::hasPermission('caja')): ?>
+                <a href="<?php echo base_url('public/admin/control_caja.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'control_caja.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-cash-register w-5"></i>
+                    <span>Control de Caja</span>
                 </a>
             <?php endif; ?>
 

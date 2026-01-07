@@ -9,15 +9,24 @@ document.addEventListener('DOMContentLoaded', function () {
 // Load Dashboard and Banks
 function loadTesoreriaData() {
     // 1. Dashboard
-    fetch('../../app/api/tesoreria/get_dashboard.php')
-        .then(response => response.json())
+    fetch('../../app/api/tesoreria/get_dashboard.php?t=' + Date.now())
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 document.getElementById('dashSaldoBancos').textContent = formatCurrency(data.data.saldo_bancos);
                 document.getElementById('dashSaldoCajas').textContent = formatCurrency(data.data.saldo_cajas);
+                if (document.getElementById('dashSaldoBovedas')) {
+                    document.getElementById('dashSaldoBovedas').textContent = formatCurrency(data.data.saldo_bovedas);
+                }
                 document.getElementById('dashPatrimonio').textContent = formatCurrency(data.data.patrimonio);
+            } else {
+                console.error('API Error:', data.message);
             }
-        });
+        })
+        .catch(error => console.error('Error fetching dashboard:', error));
 
     // 2. Bancos Table
     fetch('../../app/api/tesoreria/get_bancos.php')

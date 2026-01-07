@@ -1,237 +1,465 @@
 <?php
 /**
- * Gestión de Clientes - Admin
+ * Módulo de Gestión de Clientes
  */
 
+require_once __DIR__ . '/../../app/config/config.php';
+require_once __DIR__ . '/../../app/middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../../app/core/Auth.php';
+
+AuthMiddleware::requireAuth();
+
 $pageTitle = 'Gestión de Clientes';
-require_once __DIR__ . '/includes/layout.php';
+$currentUser = Auth::getCurrentUser();
+$userAgenciaId = $currentUser['id_agencia'] ?? null;
 ?>
+<!DOCTYPE html>
+<html lang="es">
 
-<div class="mb-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h2 class="text-2xl font-bold text-gray-800">Clientes</h2>
-            <p class="text-gray-600">Gestiona los clientes del sistema</p>
-        </div>
-        <button id="btnNuevoCliente" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
-            <i class="fas fa-plus"></i>
-            <span>Nuevo Cliente</span>
-        </button>
-    </div>
-</div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $pageTitle; ?> - Sistema Financiero</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        const BASE_URL = '<?php echo BASE_URL; ?>';
+        const USER_AGENCIA_ID = <?php echo $userAgenciaId ? $userAgenciaId : 'null'; ?>;
+    </script>
+</head>
 
-<!-- Modal: Referencias personales -->
-<div id="referenciasModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-800">Referencias de <span id="refClienteNombre"></span></h3>
-            <button onclick="closeReferenciasModal()" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        <div class="p-6">
-            <input type="hidden" id="refClienteId">
+<body class="bg-gray-50">
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
-            <div class="flex items-center justify-between mb-3">
-                <h4 class="text-lg font-semibold text-gray-800">Listado</h4>
-                <button id="btnNuevaReferencia" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md transition">
-                    <i class="fas fa-plus mr-1"></i> Nueva referencia
+    <div class="ml-64 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">
+                        <i class="fas fa-users text-blue-600 mr-3"></i>Gestión de Clientes
+                    </h1>
+                    <p class="text-gray-600 mt-2">Administra la información de tus clientes</p>
+                </div>
+                <button id="btnNuevoCliente"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition shadow-lg transform hover:-translate-y-1">
+                    <i class="fas fa-user-plus mr-2"></i>Nuevo Cliente
                 </button>
             </div>
+        </div>
 
-            <div class="overflow-x-auto mb-6">
+        <!-- Filtros y Búsqueda -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-search mr-1"></i>Buscar Cliente
+                    </label>
+                    <input type="text" id="searchInput" placeholder="Nombre, DNI, código..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-filter mr-1"></i>Estado
+                    </label>
+                    <select id="filterEstado"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todos</option>
+                        <option value="activo">Activos</option>
+                        <option value="inactivo">Inactivos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-building mr-1"></i>Agencia
+                    </label>
+                    <select id="filterAgencia"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Clientes -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relación</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dirección</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Código</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Cliente</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                DNI</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Teléfono</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Agencia</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="referenciasTableBody" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>
+                    <tbody id="clientesTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                                <i class="fas fa-spinner fa-spin text-2xl"></i>
+                                <p class="mt-2">Cargando clientes...</p>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-
-            <div id="referenciasPagination" class="bg-gray-50 px-4 py-3 border-t border-gray-200"></div>
-
-            <hr class="my-6">
-            <h4 id="refFormTitle" class="text-lg font-semibold text-gray-800 mb-2">Nueva referencia</h4>
-            <form id="referenciaForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="hidden" id="referenciaId">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                    <input type="text" id="refNombre" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
-                    <input type="text" id="refTelefono" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Relación</label>
-                    <input type="text" id="refRelacion" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-                    <textarea id="refDireccion" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-                </div>
-                <div class="md:col-span-2 flex justify-end space-x-3">
-                    <button type="button" onclick="resetReferenciaForm()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">Limpiar</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">Guardar</button>
-                </div>
-            </form>
         </div>
     </div>
-</div>
 
-<!-- Búsqueda y filtros -->
-<div class="bg-white rounded-lg shadow p-4 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-            <input type="text" id="searchInput" placeholder="Nombre, código, documento..." 
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-            <select id="filterEstado" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">Todos</option>
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="en_mora">En Mora</option>
-                <option value="bloqueado">Bloqueado</option>
-            </select>
-        </div>
-        <div class="flex items-end">
-            <button id="btnBuscar" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition">
-                <i class="fas fa-search"></i> Buscar
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Tabla de clientes -->
-<div class="bg-white rounded-lg shadow overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cobrador</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="clientesTableBody" class="bg-white divide-y divide-gray-200">
-                <tr>
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">
-                        <i class="fas fa-spinner fa-spin"></i> Cargando...
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- Paginación -->
-    <div id="pagination" class="bg-gray-50 px-4 py-3 border-t border-gray-200"></div>
-</div>
-
-<!-- Modal para crear/editar cliente -->
-<div id="clienteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-800" id="modalTitle">Nuevo Cliente</h3>
-            <button id="btnCerrarModal" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        
-        <form id="clienteForm" class="p-6">
-            <input type="hidden" id="clienteId">
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label>
-                    <input type="text" id="nombreCompleto" required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo Documento *</label>
-                    <select id="tipoDocumento" required 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="DNI">DNI</option>
-                        <option value="RUC">RUC</option>
-                        <option value="CE">Carné Extranjería</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Número Documento *</label>
-                    <input type="text" id="numeroDocumento" required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
-                    <input type="text" id="telefono" required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" id="email" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-                    <textarea id="direccion" rows="2" 
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento</label>
-                    <input type="date" id="fechaNacimiento" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Ocupación</label>
-                    <input type="text" id="ocupacion" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                    <select id="estado" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="activo">Activo</option>
-                        <option value="inactivo">Inactivo</option>
-                        <option value="en_mora">En Mora</option>
-                        <option value="bloqueado">Bloqueado</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="mt-6 flex justify-end space-x-3">
-                <button type="button" id="btnCancelar" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">
-                    Cancelar
-                </button>
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
-                    <i class="fas fa-save"></i> Guardar
+    <!-- Modal Nuevo/Editar Cliente -->
+    <div id="modalCliente"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+            <!-- Header del Modal -->
+            <div
+                class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="text-xl font-bold">
+                    <i class="fas fa-user-plus mr-2"></i>
+                    <span id="modalTitle">Nuevo Cliente</span>
+                </h3>
+                <button id="btnCerrarModal" class="text-white hover:text-gray-200 transition">
+                    <i class="fas fa-times text-2xl"></i>
                 </button>
             </div>
-        </form>
+
+            <!-- Contenido del Modal -->
+            <div class="overflow-y-auto max-h-[calc(90vh-140px)]">
+                <form id="formCliente" class="p-6">
+                    <input type="hidden" id="clienteId" name="id">
+
+                    <!-- Pestañas -->
+                    <div class="mb-6">
+                        <div class="border-b border-gray-200">
+                            <nav class="flex -mb-px space-x-8">
+                                <button type="button"
+                                    class="tab-button active py-4 px-1 border-b-2 border-blue-600 font-medium text-sm text-blue-600"
+                                    data-tab="datos-personales">
+                                    <i class="fas fa-user mr-2"></i>Datos Personales
+                                </button>
+                                <button type="button"
+                                    class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    data-tab="ubicacion">
+                                    <i class="fas fa-map-marker-alt mr-2"></i>Ubicación
+                                </button>
+                                <button type="button"
+                                    class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    data-tab="documentacion">
+                                    <i class="fas fa-file-image mr-2"></i>Documentación
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Datos Personales -->
+                    <div id="tab-datos-personales" class="tab-content">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Nombre Completo <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="nombre_completo" name="nombre_completo" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="Ej: Juan Carlos Pérez García">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Tipo de Documento <span class="text-red-500">*</span>
+                                </label>
+                                <select id="tipo_documento" name="tipo_documento" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="DNI">DNI</option>
+                                    <option value="RUC">RUC</option>
+                                    <option value="CE">Carnet de Extranjería</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Número de Documento <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="numero_documento" name="numero_documento" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="Ej: 0801199012345">
+                                <p id="dniError" class="text-red-500 text-xs mt-1 hidden">Este DNI ya está registrado
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Fecha de Nacimiento
+                                </label>
+                                <input type="date" id="fecha_nacimiento" name="fecha_nacimiento"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Género
+                                </label>
+                                <select id="genero" name="genero"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="M">Masculino</option>
+                                    <option value="F">Femenino</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Teléfono <span class="text-red-500">*</span>
+                                </label>
+                                <input type="tel" id="telefono" name="telefono" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: 98765432">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Email
+                                </label>
+                                <input type="email" id="email" name="email"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="cliente@ejemplo.com">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Ocupación
+                                </label>
+                                <input type="text" id="ocupacion" name="ocupacion"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: Comerciante">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Ubicación -->
+                    <div id="tab-ubicacion" class="tab-content hidden">
+                        <div class="grid grid-cols-1 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Dirección Completa
+                                </label>
+                                <textarea id="direccion" name="direccion" rows="3"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Ej: Col. Kennedy, Bloque A, Casa #15, Tegucigalpa"></textarea>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Departamento
+                                    </label>
+                                    <input type="text" id="departamento" name="departamento"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Ej: Francisco Morazán">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Municipio
+                                    </label>
+                                    <input type="text" id="municipio" name="municipio"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Ej: Tegucigalpa">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Barrio/Colonia
+                                    </label>
+                                    <input type="text" id="barrio" name="barrio"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Ej: Col. Kennedy">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-map-marker-alt text-red-500 mr-1"></i>
+                                    Coordenadas GPS
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="gps_coordenadas" name="gps_coordenadas" readonly
+                                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                        placeholder="Latitud, Longitud">
+                                    <button type="button" id="btnObtenerGPS"
+                                        class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition flex items-center">
+                                        <i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Haz clic en el botón para obtener la ubicación actual del navegador
+                                </p>
+                            </div>
+
+                            <div id="mapPreview" class="hidden">
+                                <div class="bg-gray-100 rounded-lg p-4 border border-gray-300">
+                                    <p class="text-sm text-gray-600 mb-2">
+                                        <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                                        Ubicación capturada correctamente
+                                    </p>
+                                    <p class="text-xs text-gray-500" id="coordenadasDisplay"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Documentación -->
+                    <div id="tab-documentacion" class="tab-content hidden">
+                        <div class="space-y-6">
+                            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                                <p class="text-sm text-blue-700">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    Arrastra y suelta las imágenes o haz clic para seleccionarlas. Las imágenes se
+                                    renombrarán automáticamente.
+                                </p>
+                            </div>
+
+                            <!-- DNI Frontal -->
+                            <div class="upload-zone" data-field="foto_dni_frontal">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-id-card mr-1"></i>DNI - Frontal <span class="text-red-500">*</span>
+                                </label>
+                                <div
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
+                                    <input type="file" class="file-input hidden" accept="image/*"
+                                        data-field="foto_dni_frontal">
+                                    <div class="preview-container">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- DNI Reverso -->
+                            <div class="upload-zone" data-field="foto_dni_reverso">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-id-card mr-1"></i>DNI - Reverso <span class="text-red-500">*</span>
+                                </label>
+                                <div
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
+                                    <input type="file" class="file-input hidden" accept="image/*"
+                                        data-field="foto_dni_reverso">
+                                    <div class="preview-container">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Foto Perfil -->
+                            <div class="upload-zone" data-field="foto_perfil">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-user-circle mr-1"></i>Foto de Perfil <span
+                                        class="text-red-500">*</span>
+                                </label>
+                                <div
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
+                                    <input type="file" class="file-input hidden" accept="image/*"
+                                        data-field="foto_perfil">
+                                    <div class="preview-container">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Foto Casa -->
+                            <div class="upload-zone" data-field="foto_casa">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-home mr-1"></i>Foto de Casa <span class="text-red-500">*</span>
+                                </label>
+                                <div
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
+                                    <input type="file" class="file-input hidden" accept="image/*"
+                                        data-field="foto_casa">
+                                    <div class="preview-container">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recibo Servicio -->
+                            <div class="upload-zone" data-field="foto_recibo">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-file-invoice mr-1"></i>Recibo de Servicio <span
+                                        class="text-red-500">*</span>
+                                </label>
+                                <div
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
+                                    <input type="file" class="file-input hidden" accept="image/*"
+                                        data-field="foto_recibo">
+                                    <div class="preview-container">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="mt-8 flex justify-end gap-3 pt-6 border-t">
+                        <button type="button" id="btnCancelar"
+                            class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                            <i class="fas fa-times mr-2"></i>Cancelar
+                        </button>
+                        <button type="submit"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition shadow-md">
+                            <i class="fas fa-save mr-2"></i>Guardar Cliente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-</div>
 
-<script src="<?php echo $baseUrl; ?>/public/admin/assets/js/clientes.js"></script>
-<?php include __DIR__ . '/includes/footer.php'; ?>
+    <script>
+        // Script de prueba inline para verificar que jQuery funciona
+        console.log('jQuery loaded:', typeof $ !== 'undefined');
+        console.log('BASE_URL:', BASE_URL);
 
+        // Prueba simple del botón
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded');
+            const btnNuevo = document.getElementById('btnNuevoCliente');
+            const modal = document.getElementById('modalCliente');
+            console.log('Button found:', btnNuevo !== null);
+            console.log('Modal found:', modal !== null);
+
+            if (btnNuevo) {
+                btnNuevo.addEventListener('click', function () {
+                    console.log('Button clicked!');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                    }
+                });
+            }
+        });
+    </script>
+    <script src="<?php echo BASE_URL; ?>/public/admin/assets/js/clientes.js"></script>
+</body>
+
+</html>

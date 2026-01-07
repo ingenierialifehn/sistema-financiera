@@ -46,13 +46,22 @@ require_once __DIR__ . '/includes/layout.php';
     </div>
 
     <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-emerald-500">
-        <div class="flex justify-between items-start">
+        <div class="flex justify-between items-start mb-2">
             <div>
-                <p class="text-xs font-semibold text-gray-500 uppercase">Efectivo en Cajas</p>
-                <h3 class="text-2xl font-bold text-gray-800 mt-1" id="dashSaldoCajas">L 0.00</h3>
+                <p class="text-xs font-semibold text-gray-500 uppercase">Efectivo en Sucursales</p>
             </div>
-            <div class="p-3 rounded-lg bg-emerald-50 text-emerald-600">
-                <i class="fas fa-cash-register text-xl"></i>
+            <div class="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <i class="fas fa-cash-register text-lg"></i>
+            </div>
+        </div>
+        <div class="space-y-1">
+            <div class="flex justify-between items-end border-b border-gray-100 pb-1">
+                <span class="text-sm text-gray-600">Cajas Operativas:</span>
+                <span class="text-lg font-bold text-gray-800" id="dashSaldoCajas">L 0.00</span>
+            </div>
+            <div class="flex justify-between items-end pt-1">
+                <span class="text-sm text-gray-600">Bóvedas:</span>
+                <span class="text-lg font-bold text-emerald-700" id="dashSaldoBovedas">L 0.00</span>
             </div>
         </div>
     </div>
@@ -244,5 +253,5 @@ require_once __DIR__ . '/includes/layout.php';
     </div>
 </div>
 
-<script src="<?php echo $baseUrl; ?>/public/admin/assets/js/tesoreria.js"></script>
+<script src="<?php echo $baseUrl; ?>/public/admin/assets/js/tesoreria.js?v=<?php echo time(); ?>"></script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

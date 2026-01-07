@@ -16,15 +16,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    // Requerir autenticación y rol admin
-    $user = AuthMiddleware::requireAdmin();
-    
+    // Requerir autenticación
+    AuthMiddleware::requireAuth();
+    // Requerir permiso de dashboard
+    Auth::requirePermission('dashboard');
+    $user = Auth::getCurrentUser();
+
     // Obtener resumen
     $summary = DashboardHelper::getSummary();
-    
+
     // Retornar respuesta exitosa
     Response::success($summary, 'Resumen obtenido exitosamente');
-    
+
 } catch (Exception $e) {
     error_log("Error en summary.php: " . $e->getMessage());
     Response::serverError('Error al obtener el resumen');

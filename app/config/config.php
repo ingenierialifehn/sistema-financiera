@@ -42,13 +42,21 @@ if (!function_exists('getBaseUrl')) {
         $host = $_SERVER['HTTP_HOST'];
         $script = $_SERVER['SCRIPT_NAME'];
 
-        // Si el script está en /public/, remover /public
-        // Si está en /app/, remover /app
+        // Extraer el path base del proyecto
+        // Buscar 'sistema-financiera' en el path y tomar todo hasta ahí
         $path = dirname($script);
 
-        // Remover subdirectorios comunes (public, app, etc.)
-        $path = str_replace('/public', '', $path);
-        $path = str_replace('/app', '', $path);
+        // Encontrar la posición de 'sistema-financiera'
+        $projectName = 'sistema-financiera';
+        $pos = strpos($path, $projectName);
+
+        if ($pos !== false) {
+            // Extraer desde el inicio hasta el final del nombre del proyecto
+            $path = substr($path, 0, $pos + strlen($projectName));
+        } else {
+            // Fallback: remover subdirectorios comunes
+            $path = preg_replace('#/(public|app)(/.*)?$#', '', $path);
+        }
 
         // Si el path termina en /, removerlo
         $path = rtrim($path, '/');
