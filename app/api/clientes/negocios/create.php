@@ -2,8 +2,7 @@
 require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../middleware/AuthMiddleware.php';
-require_once __DIR__ . '/../../../core/Response.php'; // Assuming these exist based on the other file
-require_once __DIR__ . '/../../../core/Validator.php';
+require_once __DIR__ . '/../../../core/Response.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Response::error('Método no permitido', 405);
@@ -13,99 +12,102 @@ try {
     $user = AuthMiddleware::requireAuth();
     $db = getDB();
 
-    // Validar campos obligatorios
     if (empty($_POST['cliente_id']) || empty($_POST['nombre_negocio']) || empty($_POST['rubro'])) {
-        Response::error('Faltan campos obligatorios (Cliente, Nombre Negocio, Rubro)', 400);
+        Response::error('Faltan campos obligatorios', 400);
     }
 
-    $clienteId = $_POST['cliente_id'];
-
-    // Verificar cliente
-    $stmt = $db->prepare("SELECT id FROM clientes WHERE id = ?");
-    $stmt->execute([$clienteId]);
-    if (!$stmt->fetch()) {
-        Response::error('Cliente no encontrado', 404);
-    }
-
-    // Configurar directorio de subida
-    // app/api/clientes/negocios -> uploads/negocios (4 levels up from script? No, Script is in app/api/clientes/negocios)
-    // app/api/clientes/negocios -> app/api/clientes -> app/api -> app -> root -> uploads
-    // So ../../../../uploads
     $uploadDir = __DIR__ . '/../../../../uploads/negocios/';
-
     if (!file_exists($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
 
-    $uploadedData = [];
+    $db->beginTransaction();
 
-    // Campos de archivo esperados
-    // doc_permiso_operaciones
-    // foto_negocio_1 ... foto_negocio_5
-    $fileFields = ['doc_permiso_operaciones'];
-    for ($i = 1; $i <= 5; $i++) {
-        $fileFields[] = "foto_negocio_$i";
-    }
+    try {
+        // 1. Insertar Negocio
+        $uploadedData = [];
+        $fileFields = ['doc_permiso_operaciones', 'foto_negocio_1', 'foto_negocio_2', 'foto_negocio_3', 'foto_negocio_4', 'foto_negocio_5'];
 
-    foreach ($fileFields as $field) {
-        $uploadedData[$field] = null;
-
-        if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
-            $file = $_FILES[$field];
-
-            // Validaciones básicas (puedes expandir esto)
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-            if (!in_array($file['type'], $allowedTypes)) {
-                // Si es foto de negocio, estrictamente imagen
-                if (strpos($field, 'foto_negocio') !== false && $file['type'] === 'application/pdf') {
-                    Response::error("El campo $field debe ser una imagen", 400);
+        foreach ($fileFields as $field) {
+            $uploadedData[$field] = null;
+            if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES[$field];
+                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_negocio']);
+                $timestamp = time();
+                $fileName = "{$_POST['cliente_id']}_{$cleanName}_{$field}_{$timestamp}.{$extension}";
+                if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
+                    $uploadedData[$field] = $fileName;
                 }
-                // Si es permiso, puede ser pdf o imagen
-            }
-
-            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_negocio']);
-            $timestamp = time();
-            $fileName = "{$clienteId}_{$cleanName}_{$field}_{$timestamp}.{$extension}";
-            $targetPath = $uploadDir . $fileName;
-
-            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-                $uploadedData[$field] = $fileName;
-            } else {
-                Response::error("Error al subir archivo $field", 500);
             }
         }
+
+        $sql = "INSERT INTO clientes_negocios (
+                    cliente_id, nombre_negocio, rubro, 
+                    foto_negocio_1, foto_negocio_2, foto_negocio_3, foto_negocio_4, foto_negocio_5,
+                    doc_permiso_operaciones, created_at
+                ) VALUES (
+                    :cliente_id, :nombre_negocio, :rubro,
+                    :foto_negocio_1, :foto_negocio_2, :foto_negocio_3, :foto_negocio_4, :foto_negocio_5,
+                    :doc_permiso_operaciones, NOW()
+                )";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([
+            ':cliente_id' => $_POST['cliente_id'],
+            ':nombre_negocio' => $_POST['nombre_negocio'],
+            ':rubro' => $_POST['rubro'],
+            ':foto_negocio_1' => $uploadedData['foto_negocio_1'],
+            ':foto_negocio_2' => $uploadedData['foto_negocio_2'],
+            ':foto_negocio_3' => $uploadedData['foto_negocio_3'],
+            ':foto_negocio_4' => $uploadedData['foto_negocio_4'],
+            ':foto_negocio_5' => $uploadedData['foto_negocio_5'],
+            ':doc_permiso_operaciones' => $uploadedData['doc_permiso_operaciones']
+        ]);
+
+        $negocioId = $db->lastInsertId();
+
+        // 2. Insertar Garantías - Procesamiento de Arrays
+        if (isset($_POST['garantias_descripcion']) && is_array($_POST['garantias_descripcion'])) {
+            $descripciones = $_POST['garantias_descripcion'];
+            $valores = $_POST['garantias_valor'] ?? [];
+            $files = $_FILES['garantias_fotos'] ?? null;
+
+            foreach ($descripciones as $index => $descripcion) {
+                if (empty($descripcion))
+                    continue;
+
+                $valor = $valores[$index] ?? 0;
+                $fotoName = null;
+
+                // Handle file upload for this index
+                // Note: $_FILES['garantias_fotos']['name'][$index]
+                if ($files && isset($files['name'][$index]) && $files['error'][$index] === UPLOAD_ERR_OK) {
+                    $tmpName = $files['tmp_name'][$index];
+                    $name = $files['name'][$index];
+                    $extension = pathinfo($name, PATHINFO_EXTENSION);
+                    $cleanName = "Garantia_{$index}";
+                    $timestamp = time();
+                    $fileName = "{$_POST['cliente_id']}_NEG{$negocioId}_{$cleanName}_{$timestamp}.{$extension}";
+
+                    if (move_uploaded_file($tmpName, $uploadDir . $fileName)) {
+                        $fotoName = $fileName;
+                    }
+                }
+
+                $stmtG = $db->prepare("INSERT INTO negocios_garantias (negocio_id, descripcion, valor, foto) VALUES (?, ?, ?, ?)");
+                $stmtG->execute([$negocioId, $descripcion, $valor, $fotoName]);
+            }
+        }
+
+        $db->commit();
+        Response::success(['id' => $negocioId], 'Negocio y garantías registrados');
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        throw $e;
     }
 
-    // Insertar en la base de datos
-    $sql = "INSERT INTO clientes_negocios (
-                cliente_id, nombre_negocio, rubro, 
-                foto_negocio_1, foto_negocio_2, foto_negocio_3, foto_negocio_4, foto_negocio_5,
-                doc_permiso_operaciones, garantia_descripcion, garantia_valor, created_at
-            ) VALUES (
-                :cliente_id, :nombre_negocio, :rubro,
-                :foto_negocio_1, :foto_negocio_2, :foto_negocio_3, :foto_negocio_4, :foto_negocio_5,
-                :doc_permiso_operaciones, :garantia_descripcion, :garantia_valor, NOW()
-            )";
-
-    $stmt = $db->prepare($sql);
-    $stmt->execute([
-        ':cliente_id' => $clienteId,
-        ':nombre_negocio' => $_POST['nombre_negocio'],
-        ':rubro' => $_POST['rubro'],
-        ':foto_negocio_1' => $uploadedData['foto_negocio_1'],
-        ':foto_negocio_2' => $uploadedData['foto_negocio_2'],
-        ':foto_negocio_3' => $uploadedData['foto_negocio_3'],
-        ':foto_negocio_4' => $uploadedData['foto_negocio_4'],
-        ':foto_negocio_5' => $uploadedData['foto_negocio_5'],
-        ':doc_permiso_operaciones' => $uploadedData['doc_permiso_operaciones'],
-        ':garantia_descripcion' => $_POST['garantia_descripcion'] ?? null,
-        ':garantia_valor' => !empty($_POST['garantia_valor']) ? $_POST['garantia_valor'] : null
-    ]);
-
-    Response::success(['id' => $db->lastInsertId()], 'Negocio registrado exitosamente');
-
 } catch (Exception $e) {
-    error_log("Error en create_negocio: " . $e->getMessage());
-    Response::serverError('Error interno del servidor: ' . $e->getMessage());
+    Response::serverError($e->getMessage());
 }

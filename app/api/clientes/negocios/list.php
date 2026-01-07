@@ -18,9 +18,24 @@ try {
 
     $clienteId = $_GET['cliente_id'];
 
+    // Obtener Negocios
     $stmt = $db->prepare("SELECT * FROM clientes_negocios WHERE cliente_id = ? ORDER BY created_at DESC");
     $stmt->execute([$clienteId]);
     $negocios = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Obtener Garantías para cada negocio
+    foreach ($negocios as &$negocio) {
+        $stmtG = $db->prepare("SELECT * FROM negocios_garantias WHERE negocio_id = ?");
+        $stmtG->execute([$negocio['id']]);
+        $negocio['garantias'] = $stmtG->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calcular total
+        $total = 0;
+        foreach ($negocio['garantias'] as $g) {
+            $total += floatval($g['valor']);
+        }
+        $negocio['total_garantias'] = $total;
+    }
 
     Response::success($negocios);
 
