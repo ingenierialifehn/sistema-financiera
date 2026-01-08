@@ -8,35 +8,35 @@ let currentEstado = '';
 let currentCliente = '';
 
 // Inicializar
-$(document).ready(function() {
+$(document).ready(function () {
     loadClientesForFilter();
     loadPrestamos();
-    
+
     // Eventos
-    $('#btnNuevoPrestamo').on('click', function() {
+    $('#btnNuevoPrestamo').on('click', function () {
         openModal();
         initializeClienteSelect();
     });
-    
-    $('#btnBuscar').on('click', function() {
+
+    $('#btnBuscar').on('click', function () {
         currentPage = 1;
         currentSearch = $('#searchInput').val();
         currentEstado = $('#filterEstado').val();
         currentCliente = $('#filterCliente').val();
         loadPrestamos();
     });
-    
-    $('#prestamoForm').on('submit', function(e) {
+
+    $('#prestamoForm').on('submit', function (e) {
         e.preventDefault();
         savePrestamo();
     });
-    
-    $('#btnCerrarModal, #btnCancelar').on('click', function() {
+
+    $('#btnCerrarModal, #btnCancelar').on('click', function () {
         closeModal();
     });
-    
+
     // Calcular resumen al cambiar valores
-    $('#montoPrestado, #tasaInteres, #periodoMeses, #modalidad').on('input change', function() {
+    $('#montoPrestado, #tasaInteres, #periodoMeses, #modalidad').on('input change', function () {
         if (this.id === 'modalidad') {
             suggestRateByModalidad();
         }
@@ -44,13 +44,13 @@ $(document).ready(function() {
     });
 
     // Abono a capital
-    $('#abonoForm').on('submit', function(e) {
+    $('#abonoForm').on('submit', function (e) {
         e.preventDefault();
         submitAbono();
     });
 
     // Refinanciar 50%
-    $('#refiForm').on('submit', function(e) {
+    $('#refiForm').on('submit', function (e) {
         e.preventDefault();
         submitRefi();
     });
@@ -59,7 +59,7 @@ $(document).ready(function() {
 // Cargar préstamos
 function loadPrestamos(page = 1) {
     const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
+
     let url = `${BASE_URL}/app/api/prestamos/list.php?page=${page}&limit=20`;
     if (currentSearch) {
         url += `&search=${encodeURIComponent(currentSearch)}`;
@@ -70,20 +70,20 @@ function loadPrestamos(page = 1) {
     if (currentCliente) {
         url += `&cliente_id=${currentCliente}`;
     }
-    
+
     $.ajax({
         url: url,
         method: 'GET',
         headers: {
             'Authorization': 'Bearer ' + token
         },
-        success: function(response) {
+        success: function (response) {
             if (response.success) {
                 renderPrestamos(response.data.prestamos);
                 renderPagination(response.data.pagination);
             }
         },
-        error: function(xhr) {
+        error: function (xhr) {
             if (xhr.status === 401 || xhr.status === 403) {
                 window.location.href = BASE_URL + '/public/login.php';
             } else {
@@ -96,17 +96,17 @@ function loadPrestamos(page = 1) {
 // Renderizar tabla
 function renderPrestamos(prestamos) {
     const tbody = $('#prestamosTableBody');
-    
+
     if (!prestamos || prestamos.length === 0) {
         tbody.html('<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No hay préstamos registrados</td></tr>');
         return;
     }
-    
+
     let html = '';
-    prestamos.forEach(function(prestamo) {
+    prestamos.forEach(function (prestamo) {
         const estadoClass = getEstadoClass(prestamo.estado);
         const saldo = parseFloat(prestamo.saldo_pendiente || prestamo.monto_total);
-        
+
         html += `
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -151,25 +151,25 @@ function renderPrestamos(prestamos) {
             </tr>
         `;
     });
-    
+
     tbody.html(html);
 }
 
 // Cargar clientes para filtro
 function loadClientesForFilter() {
     const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
+
     $.ajax({
         url: `${BASE_URL}/app/api/clientes/list.php?limit=1000`,
         method: 'GET',
         headers: {
             'Authorization': 'Bearer ' + token
         },
-        success: function(response) {
+        success: function (response) {
             if (response.success) {
                 const select = $('#filterCliente');
                 select.html('<option value="">Todos</option>');
-                response.data.clientes.forEach(function(cliente) {
+                response.data.clientes.forEach(function (cliente) {
                     select.append(`<option value="${cliente.id}">${escapeHtml(cliente.nombre_completo)}</option>`);
                 });
             }
@@ -180,12 +180,12 @@ function loadClientesForFilter() {
 // Inicializar Select2 para el cliente
 function initializeClienteSelect() {
     const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
+
     // Destruir Select2 si ya existe
     if ($('#clienteId').hasClass('select2-hidden-accessible')) {
         $('#clienteId').select2('destroy');
     }
-    
+
     $('#clienteId').select2({
         ajax: {
             url: `${BASE_URL}/app/api/clientes/list.php`,
@@ -206,7 +206,7 @@ function initializeClienteSelect() {
                 console.log('API Response:', data);
                 if (data.success) {
                     return {
-                        results: data.data.clientes.map(function(cliente) {
+                        results: data.data.clientes.map(function (cliente) {
                             return {
                                 id: cliente.id,
                                 text: `${cliente.nombre_completo} - ${cliente.codigo_cliente}`
@@ -221,7 +221,7 @@ function initializeClienteSelect() {
                     return { results: [] };
                 }
             },
-            error: function(xhr, status, error) {
+            error: function (xhr, status, error) {
                 console.error('AJAX Error:', error, xhr.responseText);
                 return { results: [] };
             },
@@ -251,13 +251,13 @@ function calculatePreview() {
     const tasa = parseFloat($('#tasaInteres').val() || 0);
     const periodo = parseInt($('#periodoMeses').val() || 0);
     const modalidad = ($('#modalidad').val() || 'mensual');
-    
+
     if (monto > 0 && periodo > 0) {
         // Interés simple
         const interes = monto * (tasa / 100) * (periodo / 12);
         const montoTotal = monto + interes;
-        const numeroCuotas = (function(p, mod){
-            switch(mod){
+        const numeroCuotas = (function (p, mod) {
+            switch (mod) {
                 case 'diario': return p * 20;
                 case 'semanal': return p * 4;
                 case 'catorcenal': return p * 2;
@@ -265,7 +265,7 @@ function calculatePreview() {
             }
         })(periodo, modalidad);
         const montoCuota = numeroCuotas > 0 ? (montoTotal / numeroCuotas) : 0;
-        
+
         $('#montoTotalPreview').text(formatMoney(montoTotal));
         $('#montoCuotaPreview').text(formatMoney(montoCuota));
     } else {
@@ -279,11 +279,11 @@ function openModal(prestamo = null) {
     $('#prestamoForm')[0].reset();
     $('#prestamoId').val('');
     $('#modalTitle').text(prestamo ? 'Editar Préstamo' : 'Nuevo Préstamo');
-    
+
     if (prestamo) {
         // Llenar datos
     }
-    
+
     $('#prestamoModal').removeClass('hidden').addClass('flex');
     calculatePreview();
 }
@@ -300,7 +300,7 @@ function closeModal() {
 // Guardar préstamo
 function savePrestamo() {
     const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-    
+
     const data = {
         cliente_id: parseInt($('#clienteId').val()),
         monto_prestado: parseFloat($('#montoPrestado').val()),
@@ -309,9 +309,10 @@ function savePrestamo() {
         modalidad: $('#modalidad').val() || 'mensual',
         fecha_desembolso: $('#fechaDesembolso').val(),
         dia_pago: parseInt($('#diaPago').val()),
-        observaciones: $('#observaciones').val()
+        observaciones: $('#observaciones').val(),
+        tipo_prestamo: $('#tipoPrestamo').val()
     };
-    
+
     $.ajax({
         url: `${BASE_URL}/app/api/prestamos/create.php`,
         method: 'POST',
@@ -320,14 +321,14 @@ function savePrestamo() {
             'Content-Type': 'application/json'
         },
         data: JSON.stringify(data),
-        success: function(response) {
+        success: function (response) {
             if (response.success) {
                 showAlert('success', 'Préstamo creado exitosamente. Las cuotas se generaron automáticamente.');
                 closeModal();
                 loadPrestamos(currentPage);
             }
         },
-        error: function(xhr) {
+        error: function (xhr) {
             if (xhr.responseJSON) {
                 showAlert('error', xhr.responseJSON.message || 'Error al crear préstamo');
             } else {
@@ -362,20 +363,20 @@ function deletePrestamo(id) {
     }).then((result) => {
         if (result.isConfirmed) {
             const token = localStorage.getItem('auth_token') || getCookie('auth_token');
-            
+
             $.ajax({
                 url: `${BASE_URL}/app/api/prestamos/delete.php?id=${id}`,
                 method: 'DELETE',
                 headers: {
                     'Authorization': 'Bearer ' + token
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         showAlert('success', response.message || 'Préstamo eliminado exitosamente');
                         loadPrestamos(currentPage);
                     }
                 },
-                error: function(xhr) {
+                error: function (xhr) {
                     if (xhr.responseJSON) {
                         showAlert('error', xhr.responseJSON.message || 'Error al eliminar préstamo');
                     } else {
@@ -390,20 +391,20 @@ function deletePrestamo(id) {
 // Renderizar paginación
 function renderPagination(pagination) {
     const container = $('#pagination');
-    
+
     if (pagination.total_pages <= 1) {
         container.html('');
         return;
     }
-    
+
     let html = '<div class="flex items-center justify-between">';
     html += `<div class="text-sm text-gray-700">Mostrando ${((pagination.page - 1) * pagination.limit) + 1} a ${Math.min(pagination.page * pagination.limit, pagination.total)} de ${pagination.total}</div>`;
     html += '<div class="flex space-x-2">';
-    
+
     if (pagination.page > 1) {
         html += `<button onclick="loadPrestamos(${pagination.page - 1})" class="px-3 py-1 border rounded hover:bg-gray-100">Anterior</button>`;
     }
-    
+
     for (let i = 1; i <= pagination.total_pages; i++) {
         if (i === pagination.page) {
             html += `<button class="px-3 py-1 bg-indigo-600 text-white rounded">${i}</button>`;
@@ -411,11 +412,11 @@ function renderPagination(pagination) {
             html += `<button onclick="loadPrestamos(${i})" class="px-3 py-1 border rounded hover:bg-gray-100">${i}</button>`;
         }
     }
-    
+
     if (pagination.page < pagination.total_pages) {
         html += `<button onclick="loadPrestamos(${pagination.page + 1})" class="px-3 py-1 border rounded hover:bg-gray-100">Siguiente</button>`;
     }
-    
+
     html += '</div></div>';
     container.html(html);
 }
@@ -447,7 +448,7 @@ function escapeHtml(text) {
         '"': '&quot;',
         "'": '&#039;'
     };
-    return String(text || '').replace(/[&<>"']/g, function(m) { return map[m]; });
+    return String(text || '').replace(/[&<>"']/g, function (m) { return map[m]; });
 }
 
 function getCookie(name) {
@@ -461,7 +462,7 @@ function getCookie(name) {
 function suggestRateByModalidad() {
     const modalidad = $('#modalidad').val();
     const tasaField = $('#tasaInteres');
-    
+
     // Tasas configuradas (valores por defecto)
     const tasasPorModalidad = {
         'diario': 2.5,
@@ -469,7 +470,7 @@ function suggestRateByModalidad() {
         'catorcenal': 8.0,
         'mensual': 15.0
     };
-    
+
     if (modalidad && tasasPorModalidad[modalidad]) {
         // Solo sugerir si el campo está vacío o es 0
         if (!tasaField.val() || parseFloat(tasaField.val()) === 0) {
@@ -487,7 +488,7 @@ function showAlert(type, message) {
         'info': 'info',
         'warning': 'warning'
     };
-    
+
     Swal.fire({
         icon: icons[type] || 'info',
         title: type === 'success' ? 'Éxito' : type === 'error' ? 'Error' : type === 'warning' ? 'Advertencia' : 'Información',

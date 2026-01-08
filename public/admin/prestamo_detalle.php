@@ -123,8 +123,9 @@ $pageTitle = 'Detalle del Préstamo';
                         <!-- Grid de Información Principal -->
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             <div class="bg-blue-50 p-4 rounded-lg">
-                                <p class="text-xs text-blue-600 font-semibold uppercase mb-1">Monto Capital</p>
-                                <p class="text-2xl font-bold text-blue-800">L ${parseFloat(prestamo.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                                <p class="text-xs text-blue-600 font-semibold uppercase mb-1">Capital Pendiente</p>
+                                <p class="text-2xl font-bold text-blue-800">L ${parseFloat(prestamo.capital_restante).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                                <p class="text-xs text-blue-500 mt-1">Orig: L ${parseFloat(prestamo.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-green-50 p-4 rounded-lg">
                                 <p class="text-xs text-green-600 font-semibold uppercase mb-1">Neto Entregado</p>
@@ -211,13 +212,27 @@ $pageTitle = 'Detalle del Préstamo';
                     </div>
                 </div>
 
-                <!-- Proceso de Solicitud -->
+                <!-- Proceso de Solicitud y Mora -->
                 <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                        <i class="fas fa-route text-indigo-600 mr-2"></i>
-                        Proceso de Solicitud
-                    </h3>
-                    ${renderProceso(prestamo)}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Columna Izquierda: Timeline -->
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                <i class="fas fa-route text-indigo-600 mr-2"></i>
+                                Proceso de Solicitud
+                            </h3>
+                            ${renderProceso(prestamo)}
+                        </div>
+
+                        <!-- Columna Derecha: Estado de Mora -->
+                        <div>
+                             <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                <i class="fas fa-exclamation-circle text-red-600 mr-2"></i>
+                                Estado del Crédito / Mora
+                            </h3>
+                            ${renderEstadoMora(prestamo)}
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Comentarios y Análisis -->
@@ -382,28 +397,29 @@ $pageTitle = 'Detalle del Préstamo';
             return html;
         }
 
-        functi on re nderCuotas(cuotas)  {
+        function renderCuotas(cuotas) {
             if (!cuotas || cuotas.length === 0) {
-                return '<p class="text-gray-500 italic">No hay cuotas generadas para este préstamo .</ p>';
+                return '<p class="text-gray-500 italic">No hay cuotas generadas para este préstamo.</p>';
             }
 
             let html = `
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
-                          <thead cla  ss="bg-gray-50">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 upperc  ase">#</th>
-                                  <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Vencimiento</th>
-                                <th cl as s="px-4 py-3 text-rig ht  text-xs font-bold text-gray-500 uppercase">Monto Cuota</th>
-                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppe rcas e">Capital</th>
-                                  <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Interés</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Vencimiento</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Monto Cuota</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Capital</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Interés</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Gastos</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Comisión</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Pagado</th>
                                 <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">Estado</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fecha Pago</th>
                             </tr>
-                        </thead>   <tbody class="bg-white divide-y divide-gray-200">
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
             `;
 
             cuotas.forEach(c => {
@@ -439,12 +455,75 @@ $pageTitle = 'Detalle del Préstamo';
             });
 
             html += `
-                        </tbody>
+             </tbody>
                     </table>
                 </div>
             `;
 
             return html;
+        }
+
+        function renderEstadoMora(prestamo) {
+            const diasMora = prestamo.dias_mora || 0;
+            const cuotasVencidas = prestamo.cuotas_vencidas || 0;
+            const montoMora = parseFloat(prestamo.monto_mora_total || 0);
+            const estadoCredito = prestamo.estado_cliente_credito || 'Al día';
+
+            let colorClass = 'green';
+            let icon = 'fa-check-circle';
+
+            if (diasMora > 0) {
+                if (diasMora <= 30) { colorClass = 'yellow'; icon = 'fa-exclamation-triangle'; }
+                else if (diasMora <= 60) { colorClass = 'orange'; icon = 'fa-exclamation-circle'; }
+                else { colorClass = 'red'; icon = 'fa-times-circle'; }
+            }
+
+            return `
+                <div class="bg-${colorClass}-50 rounded-lg p-6 border border-${colorClass}-200 h-full">
+                    <div class="flex items-center mb-4">
+                        <div class="flex-shrink-0 bg-${colorClass}-100 rounded-full p-3 text-${colorClass}-600">
+                            <i class="fas ${icon} text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="text-lg font-bold text-${colorClass}-800">Estado: ${estadoCredito}</h4>
+                            <p class="text-sm text-${colorClass}-700">Situación actual del cliente</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-white bg-opacity-60 rounded p-3 flex justify-between items-center">
+                            <span class="text-gray-600 font-medium">Días en Mora:</span>
+                            <span class="text-xl font-bold text-gray-800">${diasMora} días</span>
+                        </div>
+                        
+                        <div class="bg-white bg-opacity-60 rounded p-3 flex justify-between items-center">
+                            <span class="text-gray-600 font-medium">Cuotas Vencidas:</span>
+                            <span class="text-xl font-bold text-gray-800">${cuotasVencidas} cuotas</span>
+                        </div>
+                        
+                        <div class="bg-white bg-opacity-60 rounded p-3 flex justify-between items-center">
+                            <span class="text-gray-600 font-medium">Monto Vencido:</span>
+                            <span class="text-xl font-bold text-red-600">L ${montoMora.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+
+                         ${diasMora > 0 ? `
+                        <div class="mt-4 pt-4 border-t border-${colorClass}-200">
+                            <p class="text-xs text-${colorClass}-800 italic">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                El cliente presenta atrasos. Se recomienda contactar para gestión de cobro.
+                            </p>
+                        </div>
+                        ` : `
+                        <div class="mt-4 pt-4 border-t border-green-200">
+                            <p class="text-xs text-green-800 italic">
+                                <i class="fas fa-star mr-1"></i>
+                                Cliente excelente. Sin atrasos registrados.
+                            </p>
+                        </div>
+                        `}
+                    </div>
+                </div>
+            `;
         }
 
         function imprimirDetalle() {

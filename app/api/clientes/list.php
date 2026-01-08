@@ -106,10 +106,17 @@ try {
     $clientes = $stmt->fetchAll();
 
     // Agregar campos que no existen en la tabla pero el frontend espera
+    // Agregar campos calculados y categoría de riesgo
+    require_once __DIR__ . '/../../core/ClienteHelper.php';
+
     foreach ($clientes as &$cliente) {
         $cliente['foto_perfil'] = null;
-        $cliente['agencia_nombre'] = 'Sin asignar'; // Por ahora, hasta que exista la tabla agencias
+        $cliente['agencia_nombre'] = 'Sin asignar';
         $cliente['cobrador_nombre'] = null;
+
+        $riesgo = ClienteHelper::calcularCategoriaRiesgo($db, $cliente['id']);
+        $cliente['categoria_riesgo'] = $riesgo['categoria'];
+        $cliente['dias_mora_global'] = $riesgo['dias_mora'];
     }
 
     Response::success([

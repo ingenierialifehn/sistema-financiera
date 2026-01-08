@@ -181,6 +181,56 @@ try {
         $cuota['comision_cuota'] = floatval($cuota['comision_cuota'] ?? 0);
     }
 
+    // Calcular Mora Global del Préstamo
+    $dias_mora_total = 0;
+    $cuotas_vencidas_count = 0;
+    $fecha_mas_antigua_mora = null;
+    $monto_total_vencido = 0;
+    $hoy = new DateTime();
+
+    foreach ($cuotas as $cuota) {
+        if ($cuota['estado'] !== 'pagada') {
+            $fecha_venc = new DateTime($cuota['fecha_vencimiento']);
+            // Reset hours for accurate diff
+            $fecha_venc->setTime(0, 0, 0);
+            $hoy->setTime(0, 0, 0);
+
+            if ($fecha_venc < $hoy) {
+                // Está vencida
+                $cuotas_vencidas_count++;
+                $interval = $hoy->diff($fecha_venc);
+                $dias = $interval->days;
+
+                // Tomamos la fecha más antigua para los días de mora totales
+                if ($dias > $dias_mora_total) {
+                    $dias_mora_total = $dias;
+                    $fecha_mas_antigua_mora = $cuota['fecha_vencimiento'];
+                }
+
+                $monto_total_vencido += ($cuota['monto_cuota'] - $cuota['monto_pagado']);
+            }
+        }
+    }
+
+    $estado_cliente_credito = "Al día";
+    if ($dias_mora_total > 0) {
+        if ($dias_mora_total <= 30) {
+            $estado_cliente_credito = "Mora Leve ({$dias_mora_total} días)";
+        } elseif ($dias_mora_total <= 60) {
+            $estado_cliente_credito = "Mora Moderada ({$dias_mora_total} días)";
+        } elseif ($dias_mora_total <= 90) {
+            $estado_cliente_credito = "Mora Alta ({$dias_mora_total} días)";
+        } else {
+            $estado_cliente_credito = "Cobro Judicial / Pérdida";
+        }
+    }
+
+    $prestamo['dias_mora'] = $dias_mora_total;
+    $prestamo['cuotas_vencidas'] = $cuotas_vencidas_count;
+    $prestamo['monto_mora_total'] = $monto_total_vencido;
+    $prestamo['estado_cliente_credito'] = $estado_cliente_credito;
+    $prestamo['fecha_inicio_mora'] = $fecha_mas_antigua_mora;
+
     Response::success([
         'prestamo' => $prestamo,
         'cuotas' => $cuotas,

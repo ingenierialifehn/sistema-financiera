@@ -204,13 +204,15 @@ require_once __DIR__ . '/includes/layout.php';
                                     class="text-xs text-center text-gray-400 italic bg-gray-50 p-2 rounded">
                                     Esperando monto...
                                 </div>
-                                
+
                                 <!-- Botones Avanzados -->
                                 <div class="mt-4 pt-3 border-t border-gray-100 flex justify-center gap-2">
-                                    <button type="button" onclick="iniciarRefinanciamiento()" class="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold transition">
+                                    <button type="button" onclick="iniciarRefinanciamiento()"
+                                        class="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold transition">
                                         <i class="fas fa-sync-alt mr-1"></i> Refinanciar
                                     </button>
-                                    <button type="button" onclick="iniciarReestructuracion()" class="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded hover:bg-orange-200 font-bold transition">
+                                    <button type="button" onclick="iniciarReestructuracion()"
+                                        class="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded hover:bg-orange-200 font-bold transition">
                                         <i class="fas fa-tools mr-1"></i> Reestructurar
                                     </button>
                                 </div>
@@ -246,7 +248,7 @@ require_once __DIR__ . '/includes/layout.php';
         switchTab('pendientes');
     });
     async function switchTab(tab) {
-        currentTab = tab; 
+        currentTab = tab;
         document.getElementById('tab-pendientes').className = tab === 'pendientes' ? 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center' : 'px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-indigo-600 transition flex items-center';
         document.getElementById('tab-historial').className = tab === 'historial' ? 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center' : 'px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-indigo-600 transition flex items-center';
         document.getElementById('view-pendientes').classList.toggle('hidden', tab !== 'pendientes');
@@ -257,17 +259,17 @@ require_once __DIR__ . '/includes/layout.php';
     async function refreshCurrentView() {
         const fecha = document.getElementById('filtroFecha').value;
         const agencia = document.getElementById('filtroAgencia').value;
-        
+
         // Ensure BASE_URL is available (fallback safe access)
         const baseUrl = (typeof BASE_URL !== 'undefined') ? BASE_URL : '<?php echo BASE_URL; ?>';
 
         if (currentTab === 'pendientes') {
             document.getElementById('tablaCobros').innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">Cargando...</td></tr>';
             try {
-                 const url = new URL(`${baseUrl}/app/api/cobranza/list_grouped.php`);
-                 url.searchParams.append('fecha', fecha);
-                 if(agencia) url.searchParams.append('agencia_id', agencia);
-                 
+                const url = new URL(`${baseUrl}/app/api/cobranza/list_grouped.php`);
+                url.searchParams.append('fecha', fecha);
+                if (agencia) url.searchParams.append('agencia_id', agencia);
+
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.success) renderTable(data.data);
@@ -277,32 +279,32 @@ require_once __DIR__ . '/includes/layout.php';
                 document.getElementById('tablaCobros').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Error de conexión</td></tr>`;
             }
         } else {
-             loadHistorial(fecha, agencia, baseUrl);
+            loadHistorial(fecha, agencia, baseUrl);
         }
     }
-    
+
     async function loadHistorial(fecha, agencia, baseUrl) {
         const tbody = document.getElementById('tablaHistorial');
         tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">Cargando historial...</td></tr>';
         try {
-             // Try to use new 'pagos' table logic if historial_pagos.php is updated, otherwise old logic
-             const url = new URL(`${baseUrl}/app/api/cobranza/historial_pagos.php`);
-             url.searchParams.append('fecha', fecha);
-             if(agencia) url.searchParams.append('agencia_id', agencia);
-             
-             const res = await fetch(url);
-             const data = await res.json();
-             
-             if(data.success && data.data.length > 0) {
-                 let html = '';
-                 data.data.forEach(h => {
-                     // Adapter for different API response structures
-                     const fechaShow = h.fecha_hora || h.fecha_pago || h.fecha;
-                     const clienteShow = h.cliente || h.nombre_completo;
-                     const montoShow = h.monto || h.total_pagado || h.monto_total;
-                     const idShow = h.id;
+            // Try to use new 'pagos' table logic if historial_pagos.php is updated, otherwise old logic
+            const url = new URL(`${baseUrl}/app/api/cobranza/historial_pagos.php`);
+            url.searchParams.append('fecha', fecha);
+            if (agencia) url.searchParams.append('agencia_id', agencia);
 
-                     html += `
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.success && data.data.length > 0) {
+                let html = '';
+                data.data.forEach(h => {
+                    // Adapter for different API response structures
+                    const fechaShow = h.fecha_hora || h.fecha_pago || h.fecha;
+                    const clienteShow = h.cliente || h.nombre_completo;
+                    const montoShow = h.monto || h.total_pagado || h.monto_total;
+                    const idShow = h.id;
+
+                    html += `
                         <tr class="hover:bg-gray-50 border-b border-gray-100">
                             <td class="px-6 py-4 text-sm text-gray-700">${fechaShow}</td>
                             <td class="px-6 py-4 text-sm font-bold text-gray-900">${clienteShow}</td>
@@ -313,12 +315,12 @@ require_once __DIR__ . '/includes/layout.php';
                             </td>
                         </tr>
                      `;
-                 });
-                 tbody.innerHTML = html;
-             } else {
-                 tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">No hay pagos registrados en esta fecha.</td></tr>';
-             }
-        } catch(e) {
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">No hay pagos registrados en esta fecha.</td></tr>';
+            }
+        } catch (e) {
             console.error(e);
             tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Error al cargar historial</td></tr>`;
         }
@@ -337,10 +339,15 @@ require_once __DIR__ . '/includes/layout.php';
             const montoCuota = r.monto_cuota ? parseFloat(r.monto_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 }) : '0.00';
             const saldoCap = r.saldo_capital || 0;
             const saldoBal = r.saldo_balance || 0;
-            
+
             let accionBtn, proxCuotaInfo;
 
-            if (r.cuota_id) {
+            if (r.tiene_refinanciamiento) {
+                accionBtn = `<button onclick="Swal.fire('Atención', 'Este cliente tiene una solicitud de refinanciamiento en proceso. No se pueden realizar cobros hasta que se apruebe o rechace la solicitud.', 'warning')" 
+                class="bg-gray-300 text-gray-600 font-bold py-2 px-4 rounded shadow-sm text-sm flex items-center ml-auto cursor-not-allowed transition">
+                <i class="fas fa-lock mr-2"></i> En Proceso
+            </button>`;
+            } else if (r.cuota_id) {
                 proxCuotaInfo = `
                 <div>
                    <span class="text-xs font-bold text-gray-500 uppercase">Cuota #${r.numero_cuota}</span>
@@ -359,12 +366,14 @@ require_once __DIR__ . '/includes/layout.php';
                 <i class="fas fa-plus-circle mr-2"></i> Abono Cap.
             </button>`;
             }
-// ... (Render HTML Row is mostly same) ...
+            // ... (Render HTML Row is mostly same) ...
             html += `
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 table-row-animate">
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-bold text-gray-900">${r.nombre_completo}</div>
                 <div class="text-xs text-gray-500">${r.numero_documento || 'Sin DNI'}</div>
+                <!-- Risk Badge -->
+                ${getRiskBadge(r.categoria_riesgo, r.dias_mora_global)}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900 font-medium">L ${capital}</div>
@@ -389,7 +398,7 @@ require_once __DIR__ . '/includes/layout.php';
         tbody.innerHTML = html;
     }
 
-// ... (skip renderHistorial) ...
+    // ... (skip renderHistorial) ...
 
     // Modal Logic
     const modal = document.getElementById('modalCobro');
@@ -400,13 +409,13 @@ require_once __DIR__ . '/includes/layout.php';
         document.getElementById('modal-title').innerText = `Cobrar a ${nombre}`;
         document.getElementById('cobro_prestamo_id').value = prestamoId;
         document.getElementById('cobro_cuota_monto').value = cuotaMonto;
-        
+
         // Globals Update
         currentPrestamoId = prestamoId;
         currentSaldoCapital = parseFloat(saldoCap);
         currentSaldoBalance = parseFloat(saldoBal);
         currentClienteId = clienteId;
-        
+
         // Saldo Display
         document.getElementById('modal-saldo-capital').innerText = 'L ' + currentSaldoCapital.toLocaleString('es-HN', { minimumFractionDigits: 2 });
         document.getElementById('modal-saldo-balance').innerText = 'L ' + currentSaldoBalance.toLocaleString('es-HN', { minimumFractionDigits: 2 });
@@ -418,7 +427,7 @@ require_once __DIR__ . '/includes/layout.php';
         } else {
             inputMonto.value = '';
         }
-        
+
         // Trigger calculation update immediately
         setTimeout(updateCalc, 150);
         document.getElementById('es_capital').checked = false;
@@ -428,7 +437,7 @@ require_once __DIR__ . '/includes/layout.php';
         } else {
             document.getElementById('modal-info').innerHTML = `Sin cuotas pendientes. Abono a capital disponible.`;
         }
-        
+
         // ... rest (update class)
         infoCalc.innerText = "Ingrese monto...";
         infoCalc.className = "text-xs text-center text-gray-400 italic bg-gray-50 p-2 rounded";
@@ -531,14 +540,17 @@ require_once __DIR__ . '/includes/layout.php';
 </script>
 
 <!-- Modal Refinanciamiento / Reestructuración -->
-<div id="modalRefinanciamiento" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-refin-title" role="dialog" aria-modal="true">
+<div id="modalRefinanciamiento" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-refin-title"
+    role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity backdrop-blur-sm" onclick="closeRefinModal()"></div>
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity backdrop-blur-sm"
+            onclick="closeRefinModal()"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-gray-200">
-             
-             <!-- Header con gradiente -->
-             <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-4 sm:px-6">
+        <div
+            class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-gray-200">
+
+            <!-- Header con gradiente -->
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-4 sm:px-6">
                 <div class="flex justify-between items-center text-white">
                     <h3 class="text-lg leading-6 font-bold flex items-center" id="refin_header_title">
                         <i class="fas fa-sync-alt mr-2"></i> <span id="refin_tipo_op">Refinanciamiento</span>
@@ -547,9 +559,9 @@ require_once __DIR__ . '/includes/layout.php';
                         <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
-             </div>
+            </div>
 
-             <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
                 <form id="formRefinanciamiento" onsubmit="submitRefinanciamiento(event)">
                     <!-- Info Préstamo Actual -->
                     <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-6 rounded-r">
@@ -565,14 +577,14 @@ require_once __DIR__ . '/includes/layout.php';
 
                     <!-- Datos Nuevo Credito -->
                     <h4 class="font-bold text-gray-800 mb-3 border-b pb-1">Condiciones del Nuevo Crédito</h4>
-                    
+
                     <div class="mb-4">
                         <label class="block text-gray-700 text-sm font-bold mb-2">Monto Solicitado</label>
                         <div class="relative">
-                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <span class="text-gray-500">L</span>
-                             </div>
-                             <input type="number" id="refin_monto" required min="1" step="0.01" 
+                            </div>
+                            <input type="number" id="refin_monto" required min="1" step="0.01"
                                 class="pl-8 focus:ring-purple-500 focus:border-purple-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2"
                                 placeholder="0.00">
                         </div>
@@ -598,14 +610,14 @@ require_once __DIR__ . '/includes/layout.php';
 
                     <!-- Calculadora Mini -->
                     <div id="refin_calc_info" class="bg-gray-50 p-3 rounded text-sm text-gray-600 mb-4 hidden">
-                         <div class="flex justify-between">
+                        <div class="flex justify-between">
                             <span>Cuota Estimada:</span>
                             <span class="font-bold text-indigo-700" id="refin_cuota_est">L 0.00</span>
-                         </div>
-                         <div class="flex justify-between text-xs mt-1">
-                             <span>Monto Neto a Recibir:</span>
-                             <span class="font-bold text-green-600" id="refin_neto">Calculando...</span>
-                         </div>
+                        </div>
+                        <div class="flex justify-between text-xs mt-1">
+                            <span>Monto Neto a Recibir:</span>
+                            <span class="font-bold text-green-600" id="refin_neto">Calculando...</span>
+                        </div>
                     </div>
 
                     <div class="mt-5 sm:mt-6 flex flex-row-reverse gap-2">
@@ -619,109 +631,134 @@ require_once __DIR__ . '/includes/layout.php';
                         </button>
                     </div>
                 </form>
-             </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// Scripts de Refinanciamiento
-function iniciarRefinanciamiento() {
-    setupRefinModal('Refinanciamiento');
-}
-
-function iniciarReestructuracion() {
-    setupRefinModal('Reestructuración');
-}
-
-function setupRefinModal(tipo) {
-    if(!currentPrestamoId) return;
-    closeModal(); // Cerrar cobro
-    
-    document.getElementById('refin_tipo_op').innerText = tipo;
-    document.getElementById('refin_saldo_pendiente').innerText = 'L ' + currentSaldoCapital.toLocaleString('es-HN', {minimumFractionDigits: 2});
-    document.getElementById('formRefinanciamiento').reset();
-    document.getElementById('refin_calc_info').classList.add('hidden');
-    
-    document.getElementById('modalRefinanciamiento').classList.remove('hidden');
-}
-
-function closeRefinModal() {
-    document.getElementById('modalRefinanciamiento').classList.add('hidden');
-}
-
-// Listeners for Calc
-['refin_monto', 'refin_plazo', 'refin_modalidad'].forEach(id => {
-    document.getElementById(id).addEventListener('input', calculateRefin);
-});
-
-function calculateRefin() {
-    const monto = parseFloat(document.getElementById('refin_monto').value) || 0;
-    const plazo = parseInt(document.getElementById('refin_plazo').value) || 0;
-    const mod = document.getElementById('refin_modalidad').value;
-    
-    if(monto > 0 && plazo > 0) {
-        // Logica simplificada 11% mensual
-        const total = monto + (monto * 0.11 * plazo);
-        let n = plazo; 
-        if(mod === 'Diario') n *= 20;
-        else if(mod === 'Semanal') n *= 4;
-        else if(mod === 'Catorcenal') n *= 2;
-        else if(mod === 'Mensual') n *= 1;
-        
-        const cuota = total / n;
-        const neto = Math.max(0, monto - currentSaldoCapital);
-        
-        document.getElementById('refin_cuota_est').innerText = 'L ' + cuota.toLocaleString('es-HN', {minimumFractionDigits: 2});
-        document.getElementById('refin_neto').innerText = 'L ' + neto.toLocaleString('es-HN', {minimumFractionDigits: 2}) + ' (Aprox)';
-        
-        document.getElementById('refin_calc_info').classList.remove('hidden');
-    }
-}
-
-async function submitRefinanciamiento(e) {
-    e.preventDefault();
-    if(!confirm('¿Confirmar solicitud? El préstamo actual seguirá activo hasta la aprobación.')) return;
-    
-    const monto = document.getElementById('refin_monto').value;
-    const plazo = document.getElementById('refin_plazo').value;
-    const mod = document.getElementById('refin_modalidad').value;
-    const tipo = document.getElementById('refin_tipo_op').innerText;
-    
-    // Check cliente ID
-    if(!currentClienteId) {
-        Swal.fire('Error', 'No se ha identificado el cliente.', 'error');
-        return;
+    // Scripts de Refinanciamiento
+    function iniciarRefinanciamiento() {
+        setupRefinModal('Refinanciamiento');
     }
 
-    const obs = `SOLICITUD DE ${tipo.toUpperCase()} del Préstamo #${currentPrestamoId}. Se debe liquidar Saldo Capital de L ${currentSaldoCapital.toFixed(2)}.`;
-    
-    const fd = new FormData();
-    fd.append('cliente_id', currentClienteId);
-    fd.append('monto', monto);
-    fd.append('plazo_meses', plazo);
-    fd.append('modalidad', mod);
-    fd.append('observaciones', obs);
-    fd.append('es_refinanciamiento', '1'); // Bypass active check
-    
-    try {
-        const res = await fetch(`${BASE_URL}/app/api/prestamos/create.php`, {
-            method: 'POST',
-            body: fd
-        });
-        const data = await res.json();
-        
-        if(data.success) {
-            Swal.fire('Solicitud Enviada', 'Se ha creado la solicitud de ' + tipo, 'success');
-            closeRefinModal();
-        } else {
-             Swal.fire('Error', data.message, 'error');
+    function iniciarReestructuracion() {
+        setupRefinModal('Reestructuración');
+    }
+
+    function setupRefinModal(tipo) {
+        if (!currentPrestamoId) return;
+        closeModal(); // Cerrar cobro
+
+        document.getElementById('refin_tipo_op').innerText = tipo;
+        document.getElementById('refin_saldo_pendiente').innerText = 'L ' + currentSaldoCapital.toLocaleString('es-HN', { minimumFractionDigits: 2 });
+        document.getElementById('formRefinanciamiento').reset();
+        document.getElementById('refin_calc_info').classList.add('hidden');
+
+        document.getElementById('modalRefinanciamiento').classList.remove('hidden');
+    }
+
+    function closeRefinModal() {
+        document.getElementById('modalRefinanciamiento').classList.add('hidden');
+    }
+
+    // Listeners for Calc
+    ['refin_monto', 'refin_plazo', 'refin_modalidad'].forEach(id => {
+        document.getElementById(id).addEventListener('input', calculateRefin);
+    });
+
+    function calculateRefin() {
+        const monto = parseFloat(document.getElementById('refin_monto').value) || 0;
+        const plazo = parseInt(document.getElementById('refin_plazo').value) || 0;
+        const mod = document.getElementById('refin_modalidad').value;
+
+        if (monto > 0 && plazo > 0) {
+            // Logica simplificada 11% mensual
+            const total = monto + (monto * 0.11 * plazo);
+            let n = plazo;
+            if (mod === 'Diario') n *= 20;
+            else if (mod === 'Semanal') n *= 4;
+            else if (mod === 'Catorcenal') n *= 2;
+            else if (mod === 'Mensual') n *= 1;
+
+            const cuota = total / n;
+            const neto = Math.max(0, monto - currentSaldoCapital);
+
+            document.getElementById('refin_cuota_est').innerText = 'L ' + cuota.toLocaleString('es-HN', { minimumFractionDigits: 2 });
+            document.getElementById('refin_neto').innerText = 'L ' + neto.toLocaleString('es-HN', { minimumFractionDigits: 2 }) + ' (Aprox)';
+
+            document.getElementById('refin_calc_info').classList.remove('hidden');
         }
-    } catch(err) {
-        console.error(err);
-        Swal.fire('Error', 'Error de conexión', 'error');
     }
-}
+
+    async function submitRefinanciamiento(e) {
+        e.preventDefault();
+        if (!confirm('¿Confirmar solicitud? El préstamo actual seguirá activo hasta la aprobación.')) return;
+
+        const monto = document.getElementById('refin_monto').value;
+        const plazo = document.getElementById('refin_plazo').value;
+        const mod = document.getElementById('refin_modalidad').value;
+        const tipo = document.getElementById('refin_tipo_op').innerText;
+
+        // Check cliente ID
+        if (!currentClienteId) {
+            Swal.fire('Error', 'No se ha identificado el cliente.', 'error');
+            return;
+        }
+
+        const obs = `SOLICITUD DE ${tipo.toUpperCase()} del Préstamo #${currentPrestamoId}. Se debe liquidar Saldo Capital de L ${currentSaldoCapital.toFixed(2)}.`;
+
+        const fd = new FormData();
+        fd.append('cliente_id', currentClienteId);
+        fd.append('monto', monto);
+        fd.append('plazo_meses', plazo);
+        fd.append('modalidad', mod);
+        fd.append('observaciones', obs);
+        fd.append('es_refinanciamiento', '1'); // Bypass active check
+
+        try {
+            const res = await fetch(`${BASE_URL}/app/api/prestamos/create.php`, {
+                method: 'POST',
+                body: fd
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                Swal.fire('Solicitud Enviada', 'Se ha creado la solicitud de ' + tipo, 'success');
+                closeRefinModal();
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Error', 'Error de conexión', 'error');
+        }
+    }
+    function getRiskBadge(categoria, dias) {
+        categoria = categoria || 'A';
+        dias = dias || 0;
+
+        let color = 'green';
+        let label = 'A';
+
+        if (categoria === 'A') { color = 'green'; label = 'A'; }
+        else if (categoria === 'B') { color = 'yellow'; label = 'B'; }
+        else if (categoria === 'C') { color = 'orange'; label = 'C'; }
+        else if (categoria === 'D') { color = 'red'; label = 'D'; }
+        else { color = 'red'; label = 'E'; }
+
+        if (dias === 0 && categoria === 'A') return `
+            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                A (0d)
+            </span>
+        `;
+
+        return `
+            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${color}-100 text-${color}-800">
+                ${label} (${dias}d)
+            </span>
+        `;
+    }
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

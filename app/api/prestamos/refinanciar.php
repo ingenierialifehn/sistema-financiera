@@ -30,7 +30,7 @@ try {
             'required' => true,
             'message' => 'ID de préstamo es requerido'
         ],
-        // Parámetros del nuevo préstamo (permitimos override o usamos por defecto del original)
+        // Parámetros del nuevo préstamo
         'modalidad' => [
             'type' => 'string',
             'required' => false,
@@ -78,6 +78,7 @@ try {
     $db = getDB();
 
     // Obtener préstamo original
+    // Use correct columns: id_cliente, monto_capital, total_a_pagar, modalidad, plazo_meses, tasa_total
     $stmt = $db->prepare("SELECT * FROM prestamos WHERE id = :id");
     $stmt->execute(['id' => $data['prestamo_id']]);
     $original = $stmt->fetch();
@@ -85,124 +86,180 @@ try {
         Response::error('Préstamo original no encontrado', 404);
     }
 
-    // Calcular saldo pendiente del original a partir de cuotas
-    $stmt = $db->prepare("SELECT SUM(monto_cuota) AS total_cuotas, SUM(monto_pagado) AS total_pagado FROM cuotas WHERE prestamo_id = :pid");
-    $stmt->execute(['pid' => $original['id']]);
-    $sum = $stmt->fetch();
-    $totalCuotas = floatval($sum['total_cuotas'] ?? 0);
-    $totalPagado = floatval($sum['total_pagado'] ?? 0);
-    $saldo = max(0.0, $totalCuotas - $totalPagado);
+    // Calcular saldo pendiente
+    // Logic: Capital Restante = monto_capital - amortized_capital_from_cuotas
+    $stmt = $db->prepare("
+        SELECT 
+            p.monto_capital,
+            IFNULL((
+                SELECT SUM(c.monto_pagado * (c.capital_cuota / c.monto_cuota)) 
+                FROM cuotas c
+                WHERE c.prestamo_id = p.id 
+                AND c.estado IN ('pagada', 'parcial')
+                AND c.monto_cuota > 0
+            ), 0) as capital_amortizado,
+             IFNULL((
+                SELECT SUM(c.monto_pagado) 
+                FROM cuotas c
+                WHERE c.prestamo_id = p.id 
+            ), 0) as total_pagado_real
+        FROM prestamos p
+        WHERE p.id = :id
+    ");
+    $stmt->execute(['id' => $original['id']]);
+    $calc = $stmt->fetch();
+
+    $saldo = max(0.0, floatval($calc['monto_capital']) - floatval($calc['capital_amortizado']));
 
     if ($saldo <= 0) {
         Response::error('El préstamo original no tiene saldo pendiente', 409);
     }
 
+    // Validar porcentaje mínimo pagado
+    $minPorcentaje = getConfig('refinanciamiento_min_pagado_porcentaje', 50);
+    $totalAPagar = floatval($original['total_a_pagar']);
+    $totalPagadoReal = floatval($calc['total_pagado_real'] ?? 0);
+
+    $porcentajePagado = ($totalAPagar > 0) ? ($totalPagadoReal / $totalAPagar) * 100 : 0;
+
+    if ($porcentajePagado < $minPorcentaje) {
+        Response::error("No cumple con el requisito de refinanciamiento. Se requiere haber pagado el {$minPorcentaje}% del total del crédito. (Actual: " . number_format($porcentajePagado, 2) . "%)", 400);
+    }
+
     $montoRef = round($saldo * 0.5, 2); // 50%
 
     // Parámetros del nuevo préstamo
-    $modalidadNueva = isset($data['modalidad']) && in_array($data['modalidad'], ['diario','semanal','catorcenal','mensual']) ? $data['modalidad'] : ($original['modalidad'] ?? 'mensual');
-    $tasaNueva = isset($data['tasa_interes']) ? floatval($data['tasa_interes']) : floatval($original['tasa_interes']);
-    $periodoNuevo = isset($data['periodo_meses']) ? intval($data['periodo_meses']) : intval($original['periodo_meses']);
+    $modalidadNueva = isset($data['modalidad']) && in_array($data['modalidad'], ['Diario', 'Semanal', 'Catorcenal', 'Mensual']) ? $data['modalidad'] : ($original['modalidad'] ?? 'Mensual');
+
+    // Tasa Handling
+    // If input tasa_interes is provided, we assume it overrides the TOTAL rate logic or just the base interest?
+    // Matching create.php logic: tasa_total is the main driver.
+    // If user sends tasa_interes, we update tasa_interes component and recalculate tasa_total?
+    // For simplicity, we assume input 'tasa_interes' maps to 'tasa_total' if simplified, OR we keep original structure.
+    // Let's copy structure.
+    $tasaInteresBase = floatval($original['tasa_interes']);
+    $tasaGastos = floatval($original['tasa_gastos']);
+    $tasaComision = floatval($original['tasa_comision']);
+
+    // Check if user provided a new rate (we assume it replaces base interest)
+    if (isset($data['tasa_interes'])) {
+        $tasaInteresBase = floatval($data['tasa_interes']);
+    }
+
+    $tasaTotal = $tasaInteresBase + $tasaGastos + $tasaComision;
+
+    $plazoNuevo = isset($data['periodo_meses']) ? intval($data['periodo_meses']) : intval($original['plazo_meses']);
     $fechaDesembolso = !empty($data['fecha_desembolso']) ? $data['fecha_desembolso'] : date('Y-m-d');
-    $diaPago = isset($data['dia_pago']) ? intval($data['dia_pago']) : intval($original['dia_pago']);
+    $diaPago = isset($data['dia_pago']) ? intval($data['dia_pago']) : date('d', strtotime($fechaDesembolso));
 
-    // Calcular montos del nuevo préstamo
-    $montoTotalNuevo = PrestamoHelper::calculateMontoTotal($montoRef, $tasaNueva, $periodoNuevo);
-    $numeroCuotasNuevo = PrestamoHelper::calculateNumeroCuotas($periodoNuevo, $modalidadNueva);
-    $montoCuotaNueva = ($modalidadNueva === 'mensual')
-        ? PrestamoHelper::calculateMontoCuota($montoTotalNuevo, $periodoNuevo)
-        : PrestamoHelper::calculateMontoCuotaPorCuotas($montoTotalNuevo, $numeroCuotasNuevo);
+    // Calculate Totals using create.php logic (Simple Interest per month logic implied)
+    // create.php: $totalInteresMonto = $monto * ($tasaTotal / 100) * $plazoMeses;
+    $totalInteresMonto = $montoRef * ($tasaTotal / 100) * $plazoNuevo;
+    $montoTotalNuevo = $montoRef + $totalInteresMonto;
 
-    $fechaVencimientoNueva = PrestamoHelper::calcularUltimaFechaVencimiento(
-        $periodoNuevo,
-        $fechaDesembolso,
-        $diaPago,
-        $modalidadNueva
-    );
+    // Calculate Cuota
+    $numCuotas = PrestamoHelper::calculateNumeroCuotas($plazoNuevo, $modalidadNueva);
+    $montoCuotaNueva = $montoTotalNuevo / $numCuotas;
 
     $db->beginTransaction();
     try {
-        // Crear nuevo préstamo (similar a create.php), con columnas opcionales
-        $colModalidad = false; $colTasaSug = false;
-        $check = $db->query("SHOW COLUMNS FROM prestamos LIKE 'modalidad'");
-        if ($check && $check->fetch()) { $colModalidad = true; }
-        $check = $db->query("SHOW COLUMNS FROM prestamos LIKE 'tasa_interes_sugerida'");
-        if ($check && $check->fetch()) { $colTasaSug = true; }
+        // Insert new loan
+        $sql = "INSERT INTO prestamos (
+            id_cliente, 
+            asesor_creditos_id, 
+            monto_capital, 
+            neto_entregar,
+            modalidad, 
+            plazo_meses, 
+            tasa_total, 
+            tasa_interes, 
+            tasa_gastos, 
+            tasa_comision,
+            valor_cuota, 
+            total_a_pagar, 
+            estado, 
+            fecha_solicitud, 
+            fecha_desembolso,
+            observaciones,
+            tipo_prestamo
+        ) VALUES (
+            :id_cliente, 
+            :asesor_id, 
+            :monto_capital, 
+            :neto_entregar,
+            :modalidad, 
+            :plazo_meses, 
+            :tasa_total, 
+            :tasa_interes, 
+            :tasa_gastos, 
+            :tasa_comision,
+            :valor_cuota, 
+            :total_a_pagar, 
+            'Activo', 
+            NOW(), 
+            :fecha_desembolso,
+            :observaciones,
+            'Refinanciamiento'
+        )";
 
-        $numeroPrestamo = generatePrestamoNumber();
-        $stmt = $db->prepare("SELECT id FROM prestamos WHERE numero_prestamo = :numero");
-        $stmt->execute(['numero' => $numeroPrestamo]);
-        $tries = 0; while ($stmt->fetch() && $tries < 10) { $numeroPrestamo = generatePrestamoNumber(); $stmt->execute(['numero' => $numeroPrestamo]); $tries++; }
-
-        $tasaSugerida = null;
-        $map = [ 'diario' => 'tasa_diario', 'semanal' => 'tasa_semanal', 'catorcenal' => 'tasa_catorcenal', 'mensual' => 'tasa_mensual' ];
-        $cfgKey = isset($map[$modalidadNueva]) ? $map[$modalidadNueva] : null;
-        if ($cfgKey) { $tasaSugerida = getConfig($cfgKey, getConfig('tasa_interes_default', $tasaNueva)); }
-
-        $cols = ['cliente_id','numero_prestamo','monto_prestado','tasa_interes','periodo_meses','monto_total','monto_cuota','fecha_desembolso','fecha_vencimiento','dia_pago','estado','observaciones','created_by'];
-        $vals = [':cliente_id',':numero_prestamo',':monto_prestado',':tasa_interes',':periodo_meses',':monto_total',':monto_cuota',':fecha_desembolso',':fecha_vencimiento',':dia_pago',"'pendiente'",':observaciones',':created_by'];
-        if ($colModalidad) { $cols[] = 'modalidad'; $vals[] = ':modalidad'; }
-        if ($colTasaSug) { $cols[] = 'tasa_interes_sugerida'; $vals[] = ':tasa_interes_sugerida'; }
-
-        $sql = "INSERT INTO prestamos (".implode(',', $cols).") VALUES (".implode(',', $vals).")";
         $stmt = $db->prepare($sql);
-        $params = [
-            'cliente_id' => $original['cliente_id'],
-            'numero_prestamo' => $numeroPrestamo,
-            'monto_prestado' => $montoRef,
-            'tasa_interes' => $tasaNueva,
-            'periodo_meses' => $periodoNuevo,
-            'monto_total' => round($montoTotalNuevo, 2),
-            'monto_cuota' => round($montoCuotaNueva, 2),
+        $stmt->execute([
+            'id_cliente' => $original['id_cliente'],
+            'asesor_id' => $user['id'], // Assuming current user is the advisor/creator
+            'monto_capital' => $montoRef,
+            'neto_entregar' => $montoRef, // Refinance amount is fully credited/disbursed logically
+            'modalidad' => $modalidadNueva,
+            'plazo_meses' => $plazoNuevo,
+            'tasa_total' => $tasaTotal,
+            'tasa_interes' => $tasaInteresBase,
+            'tasa_gastos' => $tasaGastos,
+            'tasa_comision' => $tasaComision,
+            'valor_cuota' => round($montoCuotaNueva, 2),
+            'total_a_pagar' => round($montoTotalNuevo, 2),
             'fecha_desembolso' => $fechaDesembolso,
-            'fecha_vencimiento' => $fechaVencimientoNueva,
-            'dia_pago' => $diaPago,
-            'observaciones' => !empty($data['observaciones']) ? Validator::sanitize($data['observaciones']) : 'Refinanciamiento 50% del préstamo '.$original['numero_prestamo'],
-            'created_by' => $user['id']
-        ];
-        if ($colModalidad) { $params['modalidad'] = $modalidadNueva; }
-        if ($colTasaSug) { $params['tasa_interes_sugerida'] = $tasaSugerida; }
-        $stmt->execute($params);
+            'observaciones' => !empty($data['observaciones']) ? Validator::sanitize($data['observaciones']) : 'Refinanciamiento 50% del préstamo #' . $original['id']
+        ]);
 
         $nuevoPrestamoId = $db->lastInsertId();
 
         // Generar cuotas del nuevo préstamo
         PrestamoHelper::generateCuotasModalidad(
+            $db,
             $nuevoPrestamoId,
             round($montoCuotaNueva, 2),
-            $periodoNuevo,
+            $plazoNuevo,
             $fechaDesembolso,
             $diaPago,
             $modalidadNueva
         );
 
-        // Cambiar estado a activo
-        $db->prepare("UPDATE prestamos SET estado = 'activo' WHERE id = :id")->execute(['id' => $nuevoPrestamoId]);
+        // Abonar al préstamo original 50%
+        // We record this as an abono_capital
+        $stmt = $db->prepare("INSERT INTO abonos_capital (prestamo_id, cliente_id, monto, fecha, observaciones, registrado_por) VALUES (:prestamo_id, :cliente_id, :monto, :fecha, :observaciones, :registrado_por)");
+        $stmt->execute([
+            'prestamo_id' => $original['id'],
+            'cliente_id' => $original['id_cliente'],
+            'monto' => round($montoRef, 2),
+            'fecha' => $fechaDesembolso,
+            'observaciones' => 'Abono por refinanciamiento 50% (Nuevo Préstamo #' . $nuevoPrestamoId . ')',
+            'registrado_por' => $user['id']
+        ]);
 
-        // Abonar al préstamo original el 50% como abono a capital distribuyendo a cuotas pendientes
+        // Distribution of payment to pending cuotas
         $stmt = $db->prepare("SELECT * FROM cuotas WHERE prestamo_id = :id AND estado IN ('pendiente','en_mora') ORDER BY numero_cuota ASC");
         $stmt->execute(['id' => $original['id']]);
         $cuotasPend = $stmt->fetchAll();
 
-        $restante = $montoRef; // el nuevo préstamo cubre 50% del saldo
-
-        // Registrar en abonos_capital
-        $stmt = $db->prepare("INSERT INTO abonos_capital (prestamo_id, cliente_id, monto, fecha, observaciones, registrado_por) VALUES (:prestamo_id, :cliente_id, :monto, :fecha, :observaciones, :registrado_por)");
-        $stmt->execute([
-            'prestamo_id' => $original['id'],
-            'cliente_id' => $original['cliente_id'],
-            'monto' => round($montoRef, 2),
-            'fecha' => $fechaDesembolso,
-            'observaciones' => 'Abono por refinanciamiento 50%',
-            'registrado_por' => $user['id']
-        ]);
+        $restante = $montoRef;
 
         foreach ($cuotasPend as $cuota) {
-            if ($restante <= 0) break;
+            if ($restante <= 0)
+                break;
             $pagado = floatval($cuota['monto_pagado']);
             $cuotaMonto = floatval($cuota['monto_cuota']);
             $faltante = max(0, $cuotaMonto - $pagado);
-            if ($faltante <= 0) continue;
+            if ($faltante <= 0)
+                continue;
 
             $aplicar = min($faltante, $restante);
             $nuevoPagado = round($pagado + $aplicar, 2);
@@ -212,31 +269,30 @@ try {
             $stmtUp->execute([
                 'monto_pagado' => $nuevoPagado,
                 'estado' => $nuevoEstado,
-                'fecha' => $fechaDesembolso,
+                'fecha' => $fechaDesembolso, // Use disbursement date as payment date
                 'id' => $cuota['id']
             ]);
 
             $restante = round($restante - $aplicar, 2);
         }
 
-        // Si original queda completamente pagado, marcar completado; si no, sigue activo
+        // Si el préstamo original se paga completo
         $stmt = $db->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN estado = 'pagada' THEN 1 ELSE 0 END) as pagadas FROM cuotas WHERE prestamo_id = :pid");
         $stmt->execute(['pid' => $original['id']]);
         $info = $stmt->fetch();
         if ($info && $info['total'] == $info['pagadas']) {
-            $db->prepare("UPDATE prestamos SET estado = 'completado', updated_at = NOW() WHERE id = :id")->execute(['id' => $original['id']]);
-        } else {
-            $db->prepare("UPDATE prestamos SET estado = 'activo', updated_at = NOW() WHERE id = :id")->execute(['id' => $original['id']]);
+            $db->prepare("UPDATE prestamos SET estado = 'Finalizado', updated_at = NOW() WHERE id = :id")->execute(['id' => $original['id']]);
         }
+        // Original stays 'Activo' or whatever status it was if not fully paid
 
         // Logs
-        Auth::logActivity($user['id'], 'create', 'prestamos', 'Préstamo por refinanciamiento 50% creado: '.$numeroPrestamo, null, ['nuevo_prestamo_id' => $nuevoPrestamoId]);
-        Auth::logActivity($user['id'], 'update', 'prestamos', 'Abono aplicado por refinanciamiento 50% al préstamo '.$original['numero_prestamo'], null, ['prestamo_id' => $original['id'], 'monto' => $montoRef]);
+        Auth::logActivity($user['id'], 'create', 'prestamos', 'Préstamo por refinanciamiento 50% creado: #' . $nuevoPrestamoId, null, ['nuevo_prestamo_id' => $nuevoPrestamoId]);
+        Auth::logActivity($user['id'], 'update', 'prestamos', 'Abono aplicado por refinanciamiento 50% al préstamo #' . $original['id'], null, ['prestamo_id' => $original['id'], 'monto' => $montoRef]);
 
         $db->commit();
 
-        // Respuesta
-        $stmt = $db->prepare("SELECT p.*, c.nombre_completo as cliente_nombre, c.codigo_cliente FROM prestamos p INNER JOIN clientes c ON p.cliente_id = c.id WHERE p.id = :id");
+        // Fetch new loan for response
+        $stmt = $db->prepare("SELECT p.*, c.nombre_completo as cliente_nombre FROM prestamos p INNER JOIN clientes c ON p.id_cliente = c.id WHERE p.id = :id");
         $stmt->execute(['id' => $nuevoPrestamoId]);
         $nuevo = $stmt->fetch();
 

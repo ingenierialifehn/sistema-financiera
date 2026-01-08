@@ -54,9 +54,15 @@ try {
     $stmt->execute($params);
     $cliente = $stmt->fetch();
 
+    require_once __DIR__ . '/../../core/ClienteHelper.php';
+
     if (!$cliente) {
         Response::notFound('Cliente no encontrado');
     }
+
+    $riesgo = ClienteHelper::calcularCategoriaRiesgo($db, $cliente['id']);
+    $cliente['categoria_riesgo'] = $riesgo['categoria'];
+    $cliente['dias_mora_global'] = $riesgo['dias_mora'];
 
     Response::success($cliente, 'Cliente obtenido exitosamente');
 

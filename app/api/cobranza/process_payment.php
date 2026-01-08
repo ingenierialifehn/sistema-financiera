@@ -38,14 +38,45 @@ try {
 
     if ($esCapital) {
         // --- ABONO A CAPITAL DIRECTO ---
-        $nuevoSaldo = floatval($prestamo['monto_capital']) - $montoRecibido;
-        if ($nuevoSaldo < 0)
-            $nuevoSaldo = 0;
+        // Regla: Solo clientes al día (sin mora) pueden abonar a capital.
+        // Regla: Se registra como una cuota extra pagada, 100% capital, 0% interés.
 
-        $upd = $db->prepare("UPDATE prestamos SET monto_capital = ? WHERE id = ?");
-        $upd->execute([$nuevoSaldo, $prestamoId]);
+        // 1. Validar si tiene cuotas en mora
+        $stmtMora = $db->prepare("SELECT COUNT(*) FROM cuotas WHERE prestamo_id = ? AND estado = 'en_mora'");
+        $stmtMora->execute([$prestamoId]);
+        if ($stmtMora->fetchColumn() > 0) {
+            throw new Exception("No es posible realizar abonos a capital: El préstamo tiene cuotas en mora. Debe ponerse al día primero.");
+        }
 
-        $msg = "Abono a Capital registrado. Nuevo saldo: L " . number_format($nuevoSaldo, 2);
+        // 2. Registrar el abono como una cuota especial
+        // Usaremos numero_cuota = 0 o un identificador especial si fuera string, pero es int.
+        // Opción: Usar el siguiente número disponible + 1000 para diferenciarlo, o simplemente agregarlo al historial sin afectar la numeración normal de las pendientes.
+        // Vamos a usar numero_cuota = 0 para denotar "Abono Extra".
+
+        $ins = $db->prepare("
+            INSERT INTO cuotas (
+                prestamo_id, numero_cuota, fecha_vencimiento, 
+                monto_cuota, monto_pagado, 
+                capital_cuota, interes_cuota, gastos_cuota, comision_cuota,
+                estado, fecha_pago_real, usuario_cobro_id
+            ) VALUES (
+                ?, 0, CURDATE(),
+                ?, ?,
+                ?, 0, 0, 0,
+                'pagada', ?, ?
+            )
+        ");
+
+        $ins->execute([
+            $prestamoId,
+            $montoRecibido,
+            $montoRecibido, // Pagado
+            $montoRecibido, // Todo a Capital
+            $fecha,
+            $userId
+        ]);
+
+        $msg = "Abono a Capital registrado exitosamente como cuota extraordinaria (L " . number_format($montoRecibido, 2) . ")";
 
     } else {
         // --- PAGO DE CUOTAS ---
@@ -90,20 +121,97 @@ try {
 
                 $detallesPago[] = "Cuota #{$cuota['numero_cuota']} pagada (L " . number_format($saldoCuota, 2) . ")";
             } else {
-                // Pago Parcial
-                $montoAPagar = $dineroRestante;
-                $nuevoPagado = $pagadoPreviamente + $dineroRestante;
+                // Pago Parcial - DIVISIÓN DE CUOTA
+                // El cliente paga una parte ($dineroRestante) de la cuota actual.
+                // 1. La cuota actual se convierte en el registro del PAGO realizado (se reduce su monto y se marca pagada).
+                // 2. Se crea una NUEVA cuota por el saldo pendiente.
 
-                // Actualizar cuota como parcial
+                $montoAPagar = $dineroRestante;
+
+                // Obtener datos completos de la cuota para clonar/dividir
+                $stmtDetalle = $db->prepare("SELECT * FROM cuotas WHERE id = ?");
+                $stmtDetalle->execute([$cuota['id']]);
+                $cuotaFull = $stmtDetalle->fetch(PDO::FETCH_ASSOC);
+
+                // Calcular valores para la parte PAGADA (Proporcional)
+                // Nota: Usamos el saldo pendiente como base, no el monto original total si ya tuviera pagos (aunque idealmente no debería tenerlos con este sistema)
+                $saldoTotal = floatval($cuotaFull['monto_cuota']) - floatval($cuotaFull['monto_pagado'] ?? 0);
+
+                // Evitamos división por cero (no debería pasar por validaciones anteriores)
+                if ($saldoTotal <= 0)
+                    continue;
+
+                $porcionPagada = $montoAPagar;
+                $porcionPendiente = $saldoTotal - $porcionPagada;
+
+                // Factor para dividir los rubros (capital, interés, etc)
+                // Si la cuota era de 500 y saldo 500, y pago 250 -> factor 0.5
+                // Si la cuota era de 500 (pagado 0) -> factor = 250 / 500 = 0.5
+                $ratio = $porcionPagada / ($saldoTotal + floatval($cuotaFull['monto_pagado'] ?? 0));
+                // Corrección: El ratio debe ser sobre el monto ACTUAL de este registro.
+                // Si este registro ya es un "remanente" de 300, y pago 100. Ratio = 100/300.
+                $ratio = $porcionPagada / floatval($cuotaFull['monto_cuota']);
+
+                $capPagado = round(floatval($cuotaFull['capital_cuota']) * $ratio, 2);
+                $intPagado = round(floatval($cuotaFull['interes_cuota']) * $ratio, 2);
+                $gastosPagado = round(floatval($cuotaFull['gastos_cuota']) * $ratio, 2);
+                $comisionPagado = round(floatval($cuotaFull['comision_cuota']) * $ratio, 2);
+
+                // Ajuste por redondeo para la parte pendiente (Nuevo Registro)
+                $capPendiente = floatval($cuotaFull['capital_cuota']) - $capPagado;
+                $intPendiente = floatval($cuotaFull['interes_cuota']) - $intPagado;
+                $gastosPendiente = floatval($cuotaFull['gastos_cuota']) - $gastosPagado;
+                $comisionPendiente = floatval($cuotaFull['comision_cuota']) - $comisionPagado;
+
+                // 1. MODIFICAR CUOTA ACTUAL (Se convierte en el PAĜO)
                 $upd = $db->prepare("
                     UPDATE cuotas 
-                    SET estado = 'parcial', 
-                        monto_pagado = ?,
+                    SET 
+                        monto_cuota = ?,          -- Se reduce al monto que se pagó efectivamente
+                        monto_pagado = ?,         -- Se marca como totalmente pagada (por ese monto reducido)
+                        capital_cuota = ?,
+                        interes_cuota = ?,
+                        gastos_cuota = ?,
+                        comision_cuota = ?,
+                        estado = 'pagada',        -- Se cierra este registro
                         fecha_pago_real = ?,
                         usuario_cobro_id = ?
                     WHERE id = ?
                 ");
-                $upd->execute([$nuevoPagado, $fecha, $userId, $cuota['id']]);
+                $upd->execute([
+                    $porcionPagada,
+                    $porcionPagada,
+                    $capPagado,
+                    $intPagado,
+                    $gastosPagado,
+                    $comisionPagado,
+                    $fecha,
+                    $userId,
+                    $cuota['id']
+                ]);
+
+                // 2. INSERTAR NUEVA CUOTA (El SALDO pendiente)
+                $ins = $db->prepare("
+                    INSERT INTO cuotas (
+                        prestamo_id, numero_cuota, fecha_vencimiento, 
+                        monto_cuota, monto_pagado, estado,
+                        capital_cuota, interes_cuota, gastos_cuota, comision_cuota
+                    ) VALUES (
+                        ?, ?, ?, 
+                        ?, 0, 'pendiente',
+                        ?, ?, ?, ?
+                    )
+                ");
+                $ins->execute([
+                    $cuotaFull['prestamo_id'],
+                    $cuotaFull['numero_cuota'],
+                    $cuotaFull['fecha_vencimiento'],
+                    $porcionPendiente,
+                    $capPendiente,
+                    $intPendiente,
+                    $gastosPendiente,
+                    $comisionPendiente
+                ]);
 
                 $detallesPago[] = "Abono a Cuota #{$cuota['numero_cuota']} (L " . number_format($dineroRestante, 2) . ")";
             }

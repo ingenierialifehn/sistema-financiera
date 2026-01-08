@@ -50,6 +50,14 @@ try {
     $stmt->execute($params);
     $prestamos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    require_once __DIR__ . '/../../core/ClienteHelper.php';
+
+    foreach ($prestamos as &$p) {
+        $riesgo = ClienteHelper::calcularCategoriaRiesgo($db, $p['id_cliente']);
+        $p['categoria_riesgo'] = $riesgo['categoria'];
+        $p['dias_mora_global'] = $riesgo['dias_mora'];
+    }
+
     echo json_encode([
         'success' => true,
         'data' => $prestamos

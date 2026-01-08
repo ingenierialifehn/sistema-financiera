@@ -78,14 +78,64 @@ try {
     $observaciones = $data['observaciones'] ?? '';
 
     // 3. Insert Loan Record
+    $tipo = $data['tipo_prestamo'] ?? 'Nuevo';
+    // Validate custom types if needed, or rely on enum constraint
+    if (!in_array($tipo, ['Nuevo', 'Refinanciamiento', 'Readecuacion', 'Represtamo'])) {
+        $tipo = 'Nuevo';
+    }
+
+    // Check Auto-Approval (Excepcion Refinanciamiento)
+    $estadoInicial = 'Solicitado';
+    $autoApproved = false;
+    $autoApproveMsg = "";
+
+    if ($tipo === 'Refinanciamiento') {
+        require_once __DIR__ . '/../../core/Helpers.php';
+        $autoEnabled = getConfig('refinanciamiento_auto_approve_enabled', 0);
+
+        if ($autoEnabled == 1) {
+            // 1. Check Previous Active Loan
+            $stmtPrev = $db->prepare("SELECT * FROM prestamos WHERE id_cliente = ? AND estado = 'Activo' ORDER BY id DESC LIMIT 1");
+            $stmtPrev->execute([$clienteId]);
+            $prevLoan = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+
+            if ($prevLoan) {
+                // 2. Check Arrears (0 days)
+                // Arrears are calculated based on pending cuotas with past due date
+                $stmtArrears = $db->prepare("SELECT COUNT(*) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada' AND fecha_vencimiento < CURDATE()");
+                $stmtArrears->execute([$prevLoan['id']]);
+                $arrearsCount = $stmtArrears->fetchColumn();
+
+                // If 0 arrears count, imply 0 days delay (simplification, or calculate exact days)
+                // User requirement: "lleva cero dias de atrasos" -> any overdue installment > 0 days.
+                if ($arrearsCount == 0) {
+                    // 3. Check Amount Increase %
+                    // "aumento de 0 a 25% sobre el credito que tiene actualmente"
+                    $oldAmount = floatval($prevLoan['monto_capital']);
+                    $maxPercent = floatval(getConfig('refinanciamiento_auto_approve_max_increase_percent', 25));
+
+                    if ($oldAmount > 0) {
+                        $increasePercent = (($monto - $oldAmount) / $oldAmount) * 100;
+                        if ($increasePercent >= 0 && $increasePercent <= $maxPercent) {
+                            $estadoInicial = 'Listo para Entrega';
+                            $autoApproved = true;
+                            $autoApproveMsg = " [Auto-Aprobado por Regla de Excepción: 0 Atrasos, Aumento " . number_format($increasePercent, 2) . "%]";
+                            $observaciones .= $autoApproveMsg;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     $sql = "INSERT INTO prestamos (
         id_cliente, asesor_creditos_id, monto_capital, modalidad, plazo_meses, 
         tasa_total, tasa_interes, tasa_gastos, tasa_comision,
-        valor_cuota, total_a_pagar, neto_entregar, estado, fecha_solicitud, observaciones
+        valor_cuota, total_a_pagar, neto_entregar, estado, fecha_solicitud, observaciones, tipo_prestamo
     ) VALUES (
         ?, ?, ?, ?, ?, 
         ?, ?, ?, ?,
-        ?, ?, ?, 'Solicitado', NOW(), ?
+        ?, ?, ?, ?, NOW(), ?, ?
     )";
 
     $stmt = $db->prepare($sql);
@@ -102,7 +152,9 @@ try {
         $valorCuota,
         $totalAPagar,
         $monto,  // neto_entregar = monto_capital initially
-        $observaciones
+        $estadoInicial,
+        $observaciones,
+        $tipo
     ]);
 
     $prestamoId = $db->lastInsertId();

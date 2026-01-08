@@ -11,6 +11,7 @@ try {
     $agenciaId = $_GET['agencia_id'] ?? null;
 
     $db = getDB();
+    require_once __DIR__ . '/../../core/ClienteHelper.php';
 
     // Consulta: Prestamos Activos + Info de la Cuota Mas Antigua Pendiente
     $sql = "SELECT 
@@ -25,13 +26,31 @@ try {
                 (SELECT COUNT(*) FROM cuotas c WHERE c.prestamo_id = p.id AND c.estado = 'pagada') as pagadas,
                 (SELECT COUNT(*) FROM cuotas c WHERE c.prestamo_id = p.id) as total_cuotas,
                 (SELECT IFNULL(SUM(monto_pagado), 0) FROM cuotas WHERE prestamo_id = p.id) as total_pagado_real,
+                
+                -- Calculo Exacto Capital Restante
+                (p.monto_capital - IFNULL((
+                    SELECT SUM(c_inner.monto_pagado * (c_inner.capital_cuota / c_inner.monto_cuota))
+                    FROM cuotas c_inner
+                    WHERE c_inner.prestamo_id = p.id 
+                    AND c_inner.estado IN ('pagada', 'parcial')
+                    AND c_inner.monto_cuota > 0
+                ), 0)) as saldo_capital_real,
+
                 -- Info Proxima Cuota
                 c.id as cuota_id,
                 c.numero_cuota,
                 c.fecha_vencimiento,
                 c.monto_cuota,
                 c.estado as estado_cuota,
-                DATEDIFF(?, c.fecha_vencimiento) as dias_atraso
+                DATEDIFF(?, c.fecha_vencimiento) as dias_atraso,
+                
+                -- Check for pending refinancing
+                (SELECT COUNT(*) 
+                 FROM prestamos p2 
+                 WHERE p2.id_cliente = p.id_cliente 
+                 AND p2.tipo_prestamo = 'Refinanciamiento' 
+                 AND p2.estado NOT IN ('Activo', 'Finalizado', 'Rechazado')
+                ) > 0 as tiene_refinanciamiento
             FROM prestamos p
             JOIN clientes cl ON p.id_cliente = cl.id
             LEFT JOIN usuarios u ON p.asesor_creditos_id = u.id_usuario
@@ -72,12 +91,8 @@ try {
         $totalCuotas = intval($row['total_cuotas']);
         $pagadas = intval($row['pagadas']);
 
-        // Linear Capital Amortization Estimate (Si es sistema Flat)
-        if ($totalCuotas > 0) {
-            $row['saldo_capital'] = $montoCap * (1 - ($pagadas / $totalCuotas));
-        } else {
-            $row['saldo_capital'] = $montoCap;
-        }
+        // Uso del Capital Real calculado en SQL
+        $row['saldo_capital'] = floatval($row['saldo_capital_real']);
 
         // Balance Total (Deuda total restante)
         $totalPagar = floatval($row['total_a_pagar']);
@@ -112,6 +127,11 @@ try {
         } else {
             $row['fecha_fmt'] = 'N/A';
         }
+
+        // Add Risk Info
+        $riesgo = ClienteHelper::calcularCategoriaRiesgo($db, $row['id_cliente']);
+        $row['categoria_riesgo'] = $riesgo['categoria'];
+        $row['dias_mora_global'] = $riesgo['dias_mora'];
     }
 
     echo json_encode(['success' => true, 'data' => $data]);

@@ -106,8 +106,15 @@ $pageTitle = 'Análisis de Préstamos';
                 <input type="hidden" id="gestion_prestamo_id" name="prestamo_id">
 
                 <div class="mb-4">
-                    <p class="text-sm text-gray-600 mb-2">Cliente: <span id="gestion_cliente"
-                            class="font-bold text-gray-800"></span></p>
+                    <div class="flex justify-between">
+                        <p class="text-sm text-gray-600 mb-2">Cliente: <span id="gestion_cliente"
+                                class="font-bold text-gray-800"></span></p>
+                        <p class="text-sm text-gray-600 mb-2">
+                            <span id="gestion_tipo"
+                                class="font-bold px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs"></span>
+                            <span id="gestion_riesgo_container" class="ml-2"></span>
+                        </p>
+                    </div>
                     <p class="text-sm text-gray-600 mb-4">Estado Actual: <span id="gestion_estado_actual"
                             class="font-bold text-blue-600"></span></p>
 
@@ -262,6 +269,13 @@ $pageTitle = 'Análisis de Préstamos';
                 const fecha = new Date(row.fecha_solicitud).toLocaleDateString('es-HN');
                 const monto = parseFloat(row.monto_capital).toLocaleString('es-HN', { style: 'currency', currency: 'HNL' });
 
+                const tipo = row.tipo_prestamo || 'Nuevo';
+                let tipoBadge = '';
+                if (tipo === 'Refinanciamiento') tipoBadge = '<span class="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-800 border border-purple-200">Refinan.</span>';
+                else if (tipo === 'Readecuacion') tipoBadge = '<span class="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800 border border-orange-200">Readecuación</span>';
+                else if (tipo === 'Represtamo') tipoBadge = '<span class="px-2 py-0.5 rounded text-xs bg-teal-100 text-teal-800 border border-teal-200">Représtamo</span>';
+                else tipoBadge = '<span class="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-100">Nuevo</span>';
+
                 let badgeClass = 'bg-gray-100 text-gray-800';
                 if (row.estado === 'Solicitado') badgeClass = 'bg-blue-100 text-blue-800';
                 else if (row.estado === 'En Análisis') badgeClass = 'bg-yellow-100 text-yellow-800';
@@ -275,6 +289,8 @@ $pageTitle = 'Análisis de Préstamos';
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm font-medium text-gray-900">${row.cliente_nombre}</div>
                             <div class="text-sm text-gray-500">${row.numero_documento}</div>
+                            <!-- Risk Badge -->
+                            ${getRiskBadge(row.categoria_riesgo, row.dias_mora_global)}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${row.nombre_agencia || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">${monto}</td>
@@ -284,6 +300,9 @@ $pageTitle = 'Análisis de Préstamos';
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}">
                                 ${row.estado}
                             </span>
+                            <div class="mt-1">
+                                ${tipoBadge}
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <a href="${BASE_URL}/public/admin/ficha_cliente.php?id=${row.id_cliente}"
@@ -309,6 +328,8 @@ $pageTitle = 'Análisis de Préstamos';
         function openGestion(row) {
             $('#gestion_prestamo_id').val(row.id);
             $('#gestion_cliente').text(row.cliente_nombre);
+            $('#gestion_tipo').text(row.tipo_prestamo || 'Nuevo');
+            $('#gestion_riesgo_container').html(getRiskBadge(row.categoria_riesgo, row.dias_mora_global));
             $('#gestion_estado_actual').text(row.estado);
             $('#gestion_nuevo_estado').val(row.estado); // Pre-select current state
 
@@ -446,6 +467,32 @@ $pageTitle = 'Análisis de Préstamos';
                 Swal.fire('Error', 'Error de conexión', 'error');
             }
         });
+
+        function getRiskBadge(categoria, dias) {
+            categoria = categoria || 'A';
+            dias = dias || 0;
+
+            let color = 'green';
+            let label = 'A';
+
+            if (categoria === 'A') { color = 'green'; label = 'A'; }
+            else if (categoria === 'B') { color = 'yellow'; label = 'B'; }
+            else if (categoria === 'C') { color = 'orange'; label = 'C'; }
+            else if (categoria === 'D') { color = 'red'; label = 'D'; }
+            else { color = 'red'; label = 'E'; }
+
+            if (dias === 0 && categoria === 'A') return `
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
+                    Cat: A (0d)
+                </span>
+            `;
+
+            return `
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${color}-100 text-${color}-800 mt-1">
+                    Cat: ${label} (${dias}d)
+                </span>
+            `;
+        }
     </script>
 </body>
 

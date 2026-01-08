@@ -149,8 +149,9 @@ $pageTitle = 'Ficha del Cliente';
                                     <p class="text-blue-100">DNI: ${cliente.numero_documento}</p>
                                 </div>
                             </div>
-                            <div>
+                            <div class="flex flex-col items-end gap-2">
                                 ${estadoBadge}
+                                ${getRiskBadge(cliente.categoria_riesgo, cliente.dias_mora_global)}
                             </div>
                         </div>
                     </div>
@@ -368,7 +369,7 @@ $pageTitle = 'Ficha del Cliente';
         }
 
         // --- Gestión de Préstamos ---
-        
+
         async function loadPrestamos() {
             try {
                 const response = await fetch(`${BASE_URL}/app/api/clientes/prestamos/list.php?cliente_id=${CLIENTE_ID}`);
@@ -392,7 +393,7 @@ $pageTitle = 'Ficha del Cliente';
 
         function renderPrestamos(prestamos) {
             let html = '';
-            
+
             prestamos.forEach((p, index) => {
                 const estadoClass = {
                     'Activo': 'bg-green-100 text-green-800',
@@ -440,19 +441,19 @@ $pageTitle = 'Ficha del Cliente';
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div class="bg-blue-50 p-3 rounded">
                                 <p class="text-xs text-blue-600 font-semibold uppercase">Monto Capital</p>
-                                <p class="text-lg font-bold text-blue-800">L ${p.monto_capital.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="text-lg font-bold text-blue-800">L ${p.monto_capital.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-green-50 p-3 rounded">
                                 <p class="text-xs text-green-600 font-semibold uppercase">Neto Entregado</p>
-                                <p class="text-lg font-bold text-green-800">L ${p.neto_entregar.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="text-lg font-bold text-green-800">L ${p.neto_entregar.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-purple-50 p-3 rounded">
                                 <p class="text-xs text-purple-600 font-semibold uppercase">Total a Pagar</p>
-                                <p class="text-lg font-bold text-purple-800">L ${p.total_a_pagar.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="text-lg font-bold text-purple-800">L ${p.total_a_pagar.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-orange-50 p-3 rounded">
                                 <p class="text-xs text-orange-600 font-semibold uppercase">Balance Pendiente</p>
-                                <p class="text-lg font-bold text-orange-800">L ${p.balance_pendiente.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="text-lg font-bold text-orange-800">L ${p.balance_pendiente.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                         </div>
 
@@ -472,11 +473,11 @@ $pageTitle = 'Ficha del Cliente';
                             </div>
                             <div>
                                 <p class="text-gray-500 text-xs">Valor Cuota</p>
-                                <p class="font-semibold text-gray-800">L ${p.valor_cuota.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="font-semibold text-gray-800">L ${p.valor_cuota.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div>
                                 <p class="text-gray-500 text-xs">Capital Restante</p>
-                                <p class="font-semibold text-gray-800">L ${p.capital_restante.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                                <p class="font-semibold text-gray-800">L ${p.capital_restante.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                         </div>
 
@@ -503,7 +504,7 @@ $pageTitle = 'Ficha del Cliente';
                                         </p>
                                     </div>
                                     <p class="text-lg font-bold text-yellow-800">
-                                        L ${p.proxima_cuota_monto.toLocaleString('es-HN', {minimumFractionDigits: 2})}
+                                        L ${p.proxima_cuota_monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                             </div>
@@ -513,6 +514,28 @@ $pageTitle = 'Ficha del Cliente';
             });
 
             $('#prestamos-container').html(html);
+        }
+
+        function getRiskBadge(categoria, dias) {
+            categoria = categoria || 'A';
+            dias = dias || 0;
+
+            let color = 'green';
+            let label = 'Excelente';
+
+            if (categoria === 'A') { color = 'green'; label = 'Excelente (A)'; }
+            else if (categoria === 'B') { color = 'lime'; label = 'Bueno (B)'; }
+            else if (categoria === 'C') { color = 'yellow'; label = 'Regular (C)'; }
+            else if (categoria === 'D') { color = 'orange'; label = 'Riesgo Alto (D)'; }
+            else { color = 'red'; label = 'Cobro Judicial (E)'; }
+
+            return `
+                <div class="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-white text-xs font-bold border border-white border-opacity-30 text-right">
+                    <div class="text-${color}-100 uppercase tracking-wider text-[10px]">Categoría</div>
+                    <div class="text-sm">${label}</div>
+                    <div class="text-[10px] opacity-75">${dias} días mora</div>
+                </div>
+            `;
         }
 
         function verDetallePrestamo(prestamoId) {
