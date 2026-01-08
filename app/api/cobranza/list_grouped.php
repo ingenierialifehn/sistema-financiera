@@ -44,12 +44,18 @@ try {
                 c.estado as estado_cuota,
                 DATEDIFF(?, c.fecha_vencimiento) as dias_atraso,
                 
-                -- Check for pending refinancing
+                -- Check for pending refinancing/restructuring request
+                -- Si el cliente tiene una solicitud de refinanciamiento en proceso, bloquear cobros
                 (SELECT COUNT(*) 
                  FROM prestamos p2 
                  WHERE p2.id_cliente = p.id_cliente 
-                 AND p2.tipo_prestamo = 'Refinanciamiento' 
-                 AND p2.estado NOT IN ('Activo', 'Finalizado', 'Rechazado')
+                 AND p2.id != p.id
+                 AND (
+                    p2.tipo_prestamo = 'Refinanciamiento' 
+                    OR p2.observaciones LIKE '%SOLICITUD DE REFINANCIAMIENTO%'
+                    OR p2.observaciones LIKE '%SOLICITUD DE REESTRUCTURACIÓN%'
+                 )
+                 AND p2.estado IN ('Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Listo para Entrega')
                 ) > 0 as tiene_refinanciamiento
             FROM prestamos p
             JOIN clientes cl ON p.id_cliente = cl.id

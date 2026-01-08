@@ -276,14 +276,22 @@ try {
             $restante = round($restante - $aplicar, 2);
         }
 
-        // Si el préstamo original se paga completo
+        // IMPORTANTE: Marcar el préstamo original como REFINANCIADO
+        // Esto evita que se puedan hacer cobros duplicados y permite filtrar préstamos refinanciados
         $stmt = $db->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN estado = 'pagada' THEN 1 ELSE 0 END) as pagadas FROM cuotas WHERE prestamo_id = :pid");
         $stmt->execute(['pid' => $original['id']]);
         $info = $stmt->fetch();
+
         if ($info && $info['total'] == $info['pagadas']) {
+            // Si todas las cuotas están pagadas, marcar como Finalizado
             $db->prepare("UPDATE prestamos SET estado = 'Finalizado', updated_at = NOW() WHERE id = :id")->execute(['id' => $original['id']]);
+        } else {
+            // Si aún hay cuotas pendientes, marcar como Refinanciado
+            $db->prepare("UPDATE prestamos SET estado = 'Refinanciado', observaciones = CONCAT(IFNULL(observaciones, ''), ' [Refinanciado - Nuevo préstamo #', :nuevo_id, ']'), updated_at = NOW() WHERE id = :id")->execute([
+                'id' => $original['id'],
+                'nuevo_id' => $nuevoPrestamoId
+            ]);
         }
-        // Original stays 'Activo' or whatever status it was if not fully paid
 
         // Logs
         Auth::logActivity($user['id'], 'create', 'prestamos', 'Préstamo por refinanciamiento 50% creado: #' . $nuevoPrestamoId, null, ['nuevo_prestamo_id' => $nuevoPrestamoId]);
