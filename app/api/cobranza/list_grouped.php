@@ -15,6 +15,7 @@ try {
     // Consulta: Prestamos Activos + Info de la Cuota Mas Antigua Pendiente
     $sql = "SELECT 
                 p.id as prestamo_id, 
+                p.id_cliente,
                 p.monto_capital, 
                 p.total_a_pagar,
                 p.modalidad,
@@ -23,6 +24,7 @@ try {
                 u.username as asesor,
                 (SELECT COUNT(*) FROM cuotas c WHERE c.prestamo_id = p.id AND c.estado = 'pagada') as pagadas,
                 (SELECT COUNT(*) FROM cuotas c WHERE c.prestamo_id = p.id) as total_cuotas,
+                (SELECT IFNULL(SUM(monto_pagado), 0) FROM cuotas WHERE prestamo_id = p.id) as total_pagado_real,
                 -- Info Proxima Cuota
                 c.id as cuota_id,
                 c.numero_cuota,
@@ -65,6 +67,23 @@ try {
 
     // Procesamiento visual
     foreach ($data as &$row) {
+        // Finance Calculations
+        $montoCap = floatval($row['monto_capital']);
+        $totalCuotas = intval($row['total_cuotas']);
+        $pagadas = intval($row['pagadas']);
+
+        // Linear Capital Amortization Estimate (Si es sistema Flat)
+        if ($totalCuotas > 0) {
+            $row['saldo_capital'] = $montoCap * (1 - ($pagadas / $totalCuotas));
+        } else {
+            $row['saldo_capital'] = $montoCap;
+        }
+
+        // Balance Total (Deuda total restante)
+        $totalPagar = floatval($row['total_a_pagar']);
+        $pagado = floatval($row['total_pagado_real']);
+        $row['saldo_balance'] = max(0, $totalPagar - $pagado);
+
         // Estado Visual
         if (!$row['cuota_id']) {
             $row['estado_visual'] = 'Al Día (Finalizando)';

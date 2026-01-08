@@ -1,17 +1,25 @@
 <?php
-require_once __DIR__ . '/../../config/database.php';
-session_start();
-header('Content-Type: application/json');
+/**
+ * Script: Ver respuesta exacta de historial_pagos.php
+ */
 
+require_once __DIR__ . '/../../config/database.php';
+
+// Simular sesión
+session_start();
+$_SESSION['id_usuario'] = 1;
+$_SESSION['rol_nombre'] = 'Admin';
+
+$_GET['fecha'] = date('Y-m-d');
+
+// Ejecutar el código de historial_pagos.php
 try {
     $userId = $_SESSION['id_usuario'] ?? 0;
     $rol = $_SESSION['rol_nombre'] ?? '';
 
-    // Filtros
     $fechaFiltro = $_GET['fecha'] ?? date('Y-m-d');
     $agenciaId = $_GET['agencia_id'] ?? null;
 
-    // Seguridad: Gestores solo ven HOY
     $isGestor = (stripos($rol, 'Asesor') !== false || stripos($rol, 'Oficial') !== false);
     if ($isGestor) {
         $fechaFiltro = date('Y-m-d');
@@ -19,8 +27,6 @@ try {
 
     $db = getDB();
 
-    // Consulta: Cuotas pagadas o parciales
-    // Se asume que fecha_pago_real indica cuándo se recibió el dinero
     $sql = "SELECT 
                 c.id as cuota_id, 
                 c.numero_cuota, 
@@ -39,14 +45,12 @@ try {
 
     $params = [$fechaFiltro];
 
-    // Filtros de Rol (Asesor ve solo lo suyo)
     if (stripos($rol, 'Asesor') !== false || stripos($rol, 'Oficial') !== false) {
         $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
         $params[] = $userId;
         $params[] = $userId;
     }
 
-    // Filtro Agencia
     if ($agenciaId) {
         $sql .= " AND cl.id_agencia = ?";
         $params[] = $agenciaId;
@@ -58,24 +62,22 @@ try {
     $stmt->execute($params);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Formateo
     foreach ($data as &$row) {
-        // Campos originales
         $row['monto_fmt'] = number_format($row['monto_pagado'], 2);
-        $row['fecha_fmt'] = date('d/m/Y H:i', strtotime($row['fecha_pago_real']));
-
-        // Aliases para compatibilidad con el frontend
-        $row['id'] = $row['cuota_id'];  // Para el ticket
-        $row['fecha_hora'] = $row['fecha_pago_real'];  // Para mostrar
-        $row['cliente'] = $row['nombre_completo'];  // Para mostrar
-        $row['monto'] = $row['monto_pagado'];  // Para mostrar
-        $row['concepto'] = "Cuota #{$row['numero_cuota']} - Préstamo #{$row['prestamo_id']}";
+        $row['fecha_fmt'] = date('d/m/Y', strtotime($row['fecha_pago_real']));
     }
 
-    echo json_encode(['success' => true, 'data' => $data]);
+    echo "=== Respuesta de historial_pagos.php ===\n\n";
+    echo "Total de registros: " . count($data) . "\n\n";
+
+    if (count($data) > 0) {
+        echo "Primer registro (estructura):\n";
+        print_r($data[0]);
+
+        echo "\n\nJSON que se enviaría al frontend:\n";
+        echo json_encode(['success' => true, 'data' => $data], JSON_PRETTY_PRINT);
+    }
 
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo "Error: " . $e->getMessage() . "\n";
 }
-?>

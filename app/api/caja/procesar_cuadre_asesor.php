@@ -42,18 +42,39 @@ try {
     $fecha = date('Y-m-d H:i:s');
 
     // Obtener nombre asesor una vez
-    $stmtUser = $db->prepare("SELECT username, nombre, apellido FROM usuarios WHERE id_usuario = ?");
+    $stmtUser = $db->prepare("SELECT u.username, c.nombre_completo 
+                              FROM usuarios u 
+                              LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                              WHERE u.id_usuario = ?");
     $stmtUser->execute([$asesorId]);
     $asesor = $stmtUser->fetch(PDO::FETCH_ASSOC);
-    $nombreAsesor = $asesor ? ($asesor['nombre'] . ' ' . $asesor['apellido']) : 'Asesor ID ' . $asesorId;
+    $nombreAsesor = $asesor['nombre_completo'] ?? $asesor['username'] ?? 'Asesor ID ' . $asesorId;
+
+    // Modificación Schema: Usar tablas reales
+
+    // Modificación Flujo: Todo entra a Bóveda/Caja Agencias. NO se tocan bancos aún.
 
     // Preparar statements
-    $updCaja = $db->prepare("UPDATE cajas_agencias SET saldo_caja_operativa = saldo_caja_operativa + ?, ultima_actualizacion = ? WHERE id_agencia = ?");
-    $stmtMov = $db->prepare("INSERT INTO movimientos_caja (id_caja, id_usuario, tipo_movimiento, monto, fecha_movimiento, descripcion, categoria)
-                   VALUES ((SELECT id FROM cajas_agencias WHERE id_agencia = ? LIMIT 1), ?, 'ingreso', ?, ?, ?, 'Cuadre Asesor')");
+    // Modificación Flujo Final: ROUTING DE FONDOS
+    // Efectivo -> Caja Agencia
+    // Banco -> Cuentas Bancarias
 
-    $stmtBan = $db->prepare("INSERT INTO movimientos_bancarios (id_cuenta_bancaria, fecha_movimiento, tipo_transaccion, monto, referencia, descripcion, id_usuario_responsable)
-                   VALUES (?, ?, 'deposito', ?, ?, ?, ?)");
+    // Preparar statements
+
+    // 1. Para Efectivo
+    $updCaja = $db->prepare("UPDATE cajas_agencias SET saldo_caja_operativa = saldo_caja_operativa + ?, ultima_actualizacion = ? WHERE id_agencia = ?");
+    $stmtMov = $db->prepare("INSERT INTO movimientos_internos_agencia 
+                             (id_agencia, id_usuario_operador, tipo_movimiento, monto, fecha_movimiento, observaciones)
+                             VALUES (?, ?, 'Recaudo Asesor', ?, ?, ?)");
+
+    // 2. Para Banco
+    $stmtBan = $db->prepare("INSERT INTO movimientos_bancarios 
+                             (banco_id, tipo_transaccion, monto, saldo_anterior, saldo_nuevo, descripcion, realizado_por) 
+                             VALUES (?, 'ingreso', ?, ?, ?, ?, ?)");
+    $updBanco = $db->prepare("UPDATE bancos SET saldo_actual = ? WHERE id = ?");
+    $selBanco = $db->prepare("SELECT saldo_actual FROM bancos WHERE id = ? FOR UPDATE");
+
+    $totalDescontar = 0.0;
 
     foreach ($items as $item) {
         $tipo = $item['tipo'];
@@ -62,23 +83,41 @@ try {
         if ($monto <= 0)
             continue;
 
+        $totalDescontar += $monto;
+
         if ($tipo === 'efectivo') {
-            // 1. PROCESAR EFECTIVO
+            // --- FLUJO CAJA ---
             $updCaja->execute([$monto, $fecha, $agenciaId]);
-            $concepto = "Entrega de $nombreAsesor (Recaudo)";
-            $stmtMov->execute([$agenciaId, $cajeroId, $monto, $fecha, $concepto]);
+            // Etiqueta estricta [AID:ID] para evitar ambiguedad por nombre
+            $obs = "Entrega de $nombreAsesor (Efectivo) [AID:$asesorId]";
+            $stmtMov->execute([$agenciaId, $cajeroId, $monto, $fecha, $obs]);
 
         } elseif ($tipo === 'banco') {
-            // 2. PROCESAR BANCO
+            // --- FLUJO BANCO ---
             $bancoId = $item['banco_id'] ?? null;
             $refBanco = $item['referencia'] ?? '';
 
             if (!$bancoId)
-                throw new Exception("Falta banco en un item de depósito.");
+                throw new Exception("Falta banco en item de depósito.");
 
-            $conceptoBanco = "Depósito Recaudo - $nombreAsesor";
-            $stmtBan->execute([$bancoId, $fecha, $monto, $refBanco, $conceptoBanco, $cajeroId]);
+            // Leer saldo actual banco
+            $selBanco->execute([$bancoId]);
+            $saldoAnt = floatval($selBanco->fetchColumn());
+            $saldoNuevo = $saldoAnt + $monto;
+
+            // Actualizar Banco
+            $updBanco->execute([$saldoNuevo, $bancoId]);
+
+            // Registrar Movimiento Bancario. Etiqueta [AID:ID]
+            $descBanco = "Cuadre Asesor $nombreAsesor. Ref: $refBanco [AID:$asesorId]";
+            $stmtBan->execute([$bancoId, $monto, $saldoAnt, $saldoNuevo, $descBanco, $cajeroId]);
         }
+    }
+
+    // 3. ACTUALIZAR SALDO VIRTUAL ASESOR (LA VERDAD ABSOLUTA)
+    if ($totalDescontar > 0) {
+        $updUser = $db->prepare("UPDATE usuarios SET saldo_caja_virtual = saldo_caja_virtual - ? WHERE id_usuario = ?");
+        $updUser->execute([$totalDescontar, $asesorId]);
     }
 
     $db->commit();

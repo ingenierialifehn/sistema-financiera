@@ -15,6 +15,26 @@ class PrestamoHelper
     public static function generateCuotas($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago)
     {
         try {
+            // Obtener datos del préstamo para calcular desglose
+            $stmtPrestamo = $db->prepare("SELECT monto_capital, neto_entregar, total_a_pagar FROM prestamos WHERE id = ?");
+            $stmtPrestamo->execute([$prestamoId]);
+            $prestamo = $stmtPrestamo->fetch(PDO::FETCH_ASSOC);
+
+            if (!$prestamo) {
+                throw new Exception("Préstamo no encontrado");
+            }
+
+            // Calcular ratio de interés del préstamo
+            $totalPagar = floatval($prestamo['total_a_pagar']);
+            $capitalOriginal = floatval($prestamo['neto_entregar'] ?: $prestamo['monto_capital']);
+            $interesTotal = $totalPagar - $capitalOriginal;
+            $ratioInteres = ($totalPagar > 0) ? ($interesTotal / $totalPagar) : 0;
+
+            // Proporciones del interés según regla 4-4-3 (total = 11)
+            $propInteres = 4 / 11;
+            $propGastos = 4 / 11;
+            $propComision = 3 / 11;
+
             // Calcular fecha de inicio del primer pago
             $fechaInicioObj = new DateTime($fechaInicio);
             $fechaPrimerPago = clone $fechaInicioObj;
@@ -45,11 +65,22 @@ class PrestamoHelper
                     $fechaVencimiento->modify('+1 day');
                 }
 
+                // Calcular desglose de la cuota
+                $parteInteresMonto = $montoCuota * $ratioInteres;
+                $parteCapitalMonto = $montoCuota - $parteInteresMonto;
+
+                // Desglosar el interés según regla 4-4-3
+                $interesCuota = $parteInteresMonto * $propInteres;
+                $gastosCuota = $parteInteresMonto * $propGastos;
+                $comisionCuota = $parteInteresMonto * $propComision;
+
                 $stmt = $db->prepare("
                     INSERT INTO cuotas (
-                        prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado
+                        prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado,
+                        capital_cuota, interes_cuota, gastos_cuota, comision_cuota
                     ) VALUES (
-                        :prestamo_id, :numero_cuota, :monto_cuota, :fecha_vencimiento, 'pendiente'
+                        :prestamo_id, :numero_cuota, :monto_cuota, :fecha_vencimiento, 'pendiente',
+                        :capital_cuota, :interes_cuota, :gastos_cuota, :comision_cuota
                     )
                 ");
 
@@ -57,7 +88,11 @@ class PrestamoHelper
                     'prestamo_id' => $prestamoId,
                     'numero_cuota' => $i,
                     'monto_cuota' => $montoCuota,
-                    'fecha_vencimiento' => $fechaVencimiento->format('Y-m-d')
+                    'fecha_vencimiento' => $fechaVencimiento->format('Y-m-d'),
+                    'capital_cuota' => $parteCapitalMonto,
+                    'interes_cuota' => $interesCuota,
+                    'gastos_cuota' => $gastosCuota,
+                    'comision_cuota' => $comisionCuota
                 ]);
             }
 
@@ -217,22 +252,57 @@ class PrestamoHelper
     }
 
     /**
-     * Insert helper
+     * Insert helper con desglose detallado
      */
     private static function insertCuota($db, $prestamoId, $numeroCuota, $montoCuota, DateTime $fechaVencimiento)
     {
+        // Obtener datos del préstamo para calcular desglose
+        $stmtPrestamo = $db->prepare("SELECT monto_capital, neto_entregar, total_a_pagar FROM prestamos WHERE id = ?");
+        $stmtPrestamo->execute([$prestamoId]);
+        $prestamo = $stmtPrestamo->fetch(PDO::FETCH_ASSOC);
+
+        if (!$prestamo) {
+            throw new Exception("Préstamo no encontrado");
+        }
+
+        // Calcular ratio de interés del préstamo
+        $totalPagar = floatval($prestamo['total_a_pagar']);
+        $capitalOriginal = floatval($prestamo['neto_entregar'] ?: $prestamo['monto_capital']);
+        $interesTotal = $totalPagar - $capitalOriginal;
+        $ratioInteres = ($totalPagar > 0) ? ($interesTotal / $totalPagar) : 0;
+
+        // Proporciones del interés según regla 4-4-3 (total = 11)
+        $propInteres = 4 / 11;
+        $propGastos = 4 / 11;
+        $propComision = 3 / 11;
+
+        // Calcular desglose de la cuota
+        $parteInteresMonto = $montoCuota * $ratioInteres;
+        $parteCapitalMonto = $montoCuota - $parteInteresMonto;
+
+        // Desglosar el interés según regla 4-4-3
+        $interesCuota = $parteInteresMonto * $propInteres;
+        $gastosCuota = $parteInteresMonto * $propGastos;
+        $comisionCuota = $parteInteresMonto * $propComision;
+
         $stmt = $db->prepare("
             INSERT INTO cuotas (
-                prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado
+                prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado,
+                capital_cuota, interes_cuota, gastos_cuota, comision_cuota
             ) VALUES (
-                :prestamo_id, :numero_cuota, :monto_cuota, :fecha_vencimiento, 'pendiente'
+                :prestamo_id, :numero_cuota, :monto_cuota, :fecha_vencimiento, 'pendiente',
+                :capital_cuota, :interes_cuota, :gastos_cuota, :comision_cuota
             )
         ");
         $stmt->execute([
             'prestamo_id' => $prestamoId,
             'numero_cuota' => $numeroCuota,
             'monto_cuota' => $montoCuota,
-            'fecha_vencimiento' => $fechaVencimiento->format('Y-m-d')
+            'fecha_vencimiento' => $fechaVencimiento->format('Y-m-d'),
+            'capital_cuota' => $parteCapitalMonto,
+            'interes_cuota' => $interesCuota,
+            'gastos_cuota' => $gastosCuota,
+            'comision_cuota' => $comisionCuota
         ]);
     }
 

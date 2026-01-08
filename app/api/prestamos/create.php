@@ -28,18 +28,18 @@ try {
     // Start Transaction
     $db->beginTransaction();
 
-    // 1. Check Active Loan
-    // We strictly follow the request: verify if client has an 'Activo' loan.
-    $stmt = $db->prepare("SELECT COUNT(*) FROM prestamos WHERE id_cliente = ? AND estado = 'Activo'");
-    $stmt->execute([$clienteId]);
-    if ($stmt->fetchColumn() > 0) {
-        throw new Exception("El cliente ya posee un préstamo activo.");
+    // 1. Check Active Loan (Unless it's a refinancing request)
+    $esRefinanciamiento = !empty($data['es_refinanciamiento']) && ($data['es_refinanciamiento'] == '1' || $data['es_refinanciamiento'] === 'true');
+
+    if (!$esRefinanciamiento) {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM prestamos WHERE id_cliente = ? AND estado = 'Activo'");
+        $stmt->execute([$clienteId]);
+        if ($stmt->fetchColumn() > 0) {
+            throw new Exception("El cliente ya posee un préstamo activo. Para refinanciar, utilice la opción correspondiente.");
+        }
     }
 
-    // Also, logically we should probably check if they already have a pending request ('Solicitado') to avoid duplicates?
-    // The user didn't explicitly ask for this, but it's good practice. I'll stick to the requested check to avoid friction, 
-    // or maybe add 'Solicitado' based on previous logic attempt.
-    // Let's stick to just blocking 'Activo' as per explicit instructions to "verify if client has 'Activo' loan".
+    // ...
 
     // 2. Financial Calculations
     $tasaTotal = 11.00;
@@ -50,12 +50,10 @@ try {
     $totalInteresMonto = $monto * ($tasaTotal / 100) * $plazoMeses;
     $totalAPagar = $monto + $totalInteresMonto;
 
-    // Calculate number of quotas for estimation logic (stored in DB) but NOT generating specific dates yet
-    // We still need 'valor_cuota' for the record
+    // ... (Cuotas logic same) ...
     $numCuotas = 0;
     switch ($modalidad) {
         case 'Diario':
-            // "Genera 20 cuotas por cada mes" rule for estimation
             $numCuotas = $plazoMeses * 20;
             break;
         case 'Semanal':
@@ -73,20 +71,21 @@ try {
 
     $valorCuota = $totalAPagar / $numCuotas;
 
-    // Obtener Asesor (Usuario Logueado)
+    // Obtener Asesor
     if (session_status() === PHP_SESSION_NONE)
         session_start();
     $asesorId = $_SESSION['id_usuario'] ?? null;
+    $observaciones = $data['observaciones'] ?? '';
 
-    // 3. Insert Loan Record with status 'Solicitado'
+    // 3. Insert Loan Record
     $sql = "INSERT INTO prestamos (
         id_cliente, asesor_creditos_id, monto_capital, modalidad, plazo_meses, 
         tasa_total, tasa_interes, tasa_gastos, tasa_comision,
-        valor_cuota, total_a_pagar, neto_entregar, estado, fecha_solicitud
+        valor_cuota, total_a_pagar, neto_entregar, estado, fecha_solicitud, observaciones
     ) VALUES (
         ?, ?, ?, ?, ?, 
         ?, ?, ?, ?,
-        ?, ?, ?, 'Solicitado', NOW()
+        ?, ?, ?, 'Solicitado', NOW(), ?
     )";
 
     $stmt = $db->prepare($sql);
@@ -102,7 +101,8 @@ try {
         $tasaComision,
         $valorCuota,
         $totalAPagar,
-        $monto  // neto_entregar = monto_capital initially
+        $monto,  // neto_entregar = monto_capital initially
+        $observaciones
     ]);
 
     $prestamoId = $db->lastInsertId();

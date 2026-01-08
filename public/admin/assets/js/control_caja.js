@@ -404,7 +404,7 @@ function verificarDiferencia(tipo, totalFisico) {
     let saldoReferencia = 0;
 
     if (tipo === 'Apertura') {
-        saldoReferencia = saldoBoveda;
+        saldoReferencia = saldoSistema; // Corrección: Debe coincidir con lo que hay en sistema (remanente de ayer)
     } else {
         // En cierre, verificamos contra el total de EFECTIVO de la agencia (Boveda + Caja)
         // Ya que la caja debe estar en 0, el fisico debe coincidir con lo que hay en Boveda
@@ -495,7 +495,7 @@ $('#formApertura').on('submit', function (e) {
 
     const totalFisico = calcularTotal('Apertura');
     const observaciones = $('#observacionesApertura').val().trim();
-    const diferencia = totalFisico - saldoBoveda;
+    const diferencia = totalFisico - saldoSistema; // Corrección: Debe coincidir con Saldo Sistema
 
     // Validar observaciones si hay diferencia
     if (Math.abs(diferencia) > 0.01 && !observaciones) {
@@ -796,15 +796,17 @@ function renderEstadoCaja() {
 
 let asesoresData = [];
 let itemsCuadre = []; // Lista de partidas a registrar
+let asesorSeleccionadoStats = null; // Guardar estado inicial para cálculos visuales
 
 function abrirModalCuadre() {
     // Reset Todo
     itemsCuadre = [];
+    asesorSeleccionadoStats = null;
     renderItemsCuadre();
-    $('#cuadreAsesoresForm')[0].reset();
 
+    $('#cuadreAsesoresForm')[0].reset();
     $('#recaudadoHoyDisplay').text('L. 0.00');
-    $('#entregadoHoyDisplay').text('L. 0.00');
+    $('#entregadoHoyDisplay').text('L. 0.00').removeClass('text-blue-600').addClass('text-green-600');
     $('#pendienteDisplay').text('L. 0.00');
     $('#infoRecaudadoContainer').addClass('hidden');
 
@@ -842,27 +844,54 @@ function abrirModalCuadre() {
 $('#asesorIdCuadre').on('change', function () {
     const id = $(this).val();
     const asesor = asesoresData.find(a => a.id_usuario == id);
+
+    // Al cambiar asesor, reseteamos la lista para evitar mezclar
+    if (itemsCuadre.length > 0) {
+        if (!confirm('Cambiar de asesor limpiará la lista actual. ¿Continuar?')) {
+            $(this).val(asesorSeleccionadoStats ? asesorSeleccionadoStats.id : '');
+            return;
+        }
+        itemsCuadre = [];
+        renderItemsCuadre();
+    }
+
     if (asesor) {
-        const monto = parseFloat(asesor.recaudado_hoy || 0);
-        const entregado = parseFloat(asesor.entregado_hoy || 0);
-        const pendiente = parseFloat(asesor.pendiente || 0);
-
-        $('#recaudadoHoyDisplay').text('L. ' + monto.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
-        $('#entregadoHoyDisplay').text('L. ' + entregado.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
-        $('#pendienteDisplay').text('L. ' + pendiente.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
-
+        // Guardamos stats base (lo que viene de DB)
+        asesorSeleccionadoStats = {
+            id: id,
+            recaudado: parseFloat(asesor.recaudado_hoy || 0),
+            entregadoBase: parseFloat(asesor.entregado_hoy || 0),
+            pendienteBase: parseFloat(asesor.pendiente || 0)
+        };
+        actualizarKPIsSimulados();
         $('#infoRecaudadoContainer').removeClass('hidden');
     } else {
+        asesorSeleccionadoStats = null;
         $('#infoRecaudadoContainer').addClass('hidden');
     }
 });
 
 function actualizarDatosAsesor(asesorId) {
     if (!asesorId) return;
-    $.get(BASE_URL + '/app/api/caja/get_asesores_recaudo.php', function (res) {
+    let url = BASE_URL + '/app/api/caja/get_asesores_recaudo.php?v=' + new Date().getTime();
+    if (typeof cajaActual !== 'undefined' && cajaActual && cajaActual.id_agencia) {
+        url += '&id_agencia=' + cajaActual.id_agencia;
+    }
+
+    $.get(url, function (res) {
         if (res.success) {
             asesoresData = res.data;
-            $('#asesorIdCuadre').trigger('change');
+            // No triggereamos change para no borrar la lista si estamos en medio de algun proceso,
+            // pero actualizamos los stats base si es el mismo asesor.
+            if (asesorSeleccionadoStats && asesorSeleccionadoStats.id == asesorId) {
+                const updated = res.data.find(a => a.id_usuario == asesorId);
+                if (updated) {
+                    asesorSeleccionadoStats.recaudado = parseFloat(updated.recaudado_hoy || 0);
+                    asesorSeleccionadoStats.entregadoBase = parseFloat(updated.entregado_hoy || 0);
+                    asesorSeleccionadoStats.pendienteBase = parseFloat(updated.pendiente || 0);
+                    actualizarKPIsSimulados();
+                }
+            }
         }
     });
 }
@@ -881,25 +910,68 @@ function cargarBancosCuadre() {
     });
 }
 
+// Recalcular visualmente sumando lo que está en el carrito
+function actualizarKPIsSimulados() {
+    if (!asesorSeleccionadoStats) return;
+
+    let totalEnLista = itemsCuadre.reduce((sum, item) => sum + item.monto, 0);
+
+    let entregadoSimulado = asesorSeleccionadoStats.entregadoBase + totalEnLista;
+    let pendienteSimulado = asesorSeleccionadoStats.recaudado - entregadoSimulado;
+
+    $('#recaudadoHoyDisplay').text('L. ' + asesorSeleccionadoStats.recaudado.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+    // Destacar cambio visual y explicar origen
+    const elEntregado = $('#entregadoHoyDisplay');
+    elEntregado.text('L. ' + entregadoSimulado.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+    // Tooltip explicativo
+    const desglose = `Base BD: L. ${asesorSeleccionadoStats.entregadoBase.toLocaleString('es-HN', { minimumFractionDigits: 2 })} + Lista: L. ${totalEnLista.toLocaleString('es-HN', { minimumFractionDigits: 2 })}`;
+    elEntregado.attr('title', desglose);
+    elEntregado.parent().attr('title', desglose); // Tambien al contenedor padre por si acaso
+
+    // Si hay items en lista, cambiamos color
+    if (totalEnLista > 0) {
+        elEntregado.removeClass('text-green-600').addClass('text-blue-600 font-extrabold');
+    } else {
+        elEntregado.removeClass('text-blue-600 font-extrabold').addClass('text-green-600');
+    }
+
+    const elPendiente = $('#pendienteDisplay');
+    elPendiente.text('L. ' + pendienteSimulado.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+    // Alerta visual si negativo (excedente)
+    if (pendienteSimulado < 0) {
+        elPendiente.removeClass('text-red-600').addClass('text-orange-500').attr('title', 'Saldo a favor (Excedente)');
+    } else {
+        elPendiente.removeClass('text-orange-500').addClass('text-red-600').attr('title', '');
+    }
+}
+
+
 // --- GESTIÓN DE ITEMS ---
 
 // Agregar Efectivo
 $('#btnAgregarEfectivo').on('click', function () {
+    if (!asesorSeleccionadoStats) { Swal.fire('Atención', 'Seleccione un asesor primero', 'warning'); return; }
+
     const monto = parseFloat($('#montoEfectivoCuadre').val());
     if (!monto || monto <= 0) { Swal.fire('Error', 'Monto inválido', 'error'); return; }
 
     itemsCuadre.push({
         tipo: 'efectivo',
         monto: monto,
-        detalle: 'Efectivo'
+        detalle: 'Efectivo (Cobranza)'
     });
 
-    $('#montoEfectivoCuadre').val('');
+    $('#montoEfectivoCuadre').val('').focus(); // Limpiar y mantener foco para entrada rapida
     renderItemsCuadre();
 });
 
 // Agregar Deposito
 $('#btnAgregarBanco').on('click', function () {
+    if (!asesorSeleccionadoStats) { Swal.fire('Atención', 'Seleccione un asesor primero', 'warning'); return; }
+
     const monto = parseFloat($('#montoBancoCuadre').val());
     const bancoId = $('#bancoIdCuadre').val();
     const bancoTexto = $('#bancoIdCuadre option:selected').text();
@@ -958,6 +1030,9 @@ function renderItemsCuadre() {
 
     $('#listaItemsCuadre').html(html);
     $('#granTotalCuadre').text('L. ' + total.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+    // Actualizar KPIs visuales cada vez que cambia la lista
+    actualizarKPIsSimulados();
 }
 
 

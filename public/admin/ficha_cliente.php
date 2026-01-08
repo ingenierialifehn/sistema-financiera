@@ -107,6 +107,7 @@ $pageTitle = 'Ficha del Cliente';
                 if (response.success) {
                     renderFicha(response.data);
                     loadNegocios();
+                    loadPrestamos();
                 } else {
                     Swal.fire('Error', 'No se pudo cargar la información del cliente', 'error')
                         .then(() => {
@@ -267,14 +268,13 @@ $pageTitle = 'Ficha del Cliente';
                         <!-- Historial de Préstamos -->
                         <div class="pt-8 border-t mt-8">
                             <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                                <i class="fas fa-history text-orange-600 mr-2"></i>
+                                <i class="fas fa-money-bill-wave text-orange-600 mr-2"></i>
                                 Historial de Préstamos
                             </h3>
-                            <div class="bg-gray-50 rounded-lg p-6 border border-gray-200 text-center">
-                                <p class="text-gray-500 italic">
-                                    <i class="fas fa-inbox text-gray-300 text-3xl mb-2 block"></i>
-                                    Sin préstamos registrados
-                                </p>
+                            <div id="prestamos-container" class="space-y-4">
+                                <div class="flex justify-center p-4">
+                                    <i class="fas fa-spinner fa-spin text-2xl text-blue-600"></i>
+                                </div>
                             </div>
                         </div>
 
@@ -365,6 +365,158 @@ $pageTitle = 'Ficha del Cliente';
 
         function imprimirFicha() {
             window.print();
+        }
+
+        // --- Gestión de Préstamos ---
+        
+        async function loadPrestamos() {
+            try {
+                const response = await fetch(`${BASE_URL}/app/api/clientes/prestamos/list.php?cliente_id=${CLIENTE_ID}`);
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    renderPrestamos(data.data);
+                } else {
+                    $('#prestamos-container').html(`
+                        <div class="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <i class="fas fa-money-bill-wave text-gray-300 text-3xl mb-2"></i>
+                            <p class="text-gray-500 text-sm">No hay préstamos registrados para este cliente.</p>
+                        </div>
+                    `);
+                }
+            } catch (error) {
+                console.error("Error loading préstamos", error);
+                $('#prestamos-container').html('<p class="text-red-500">Error al cargar préstamos.</p>');
+            }
+        }
+
+        function renderPrestamos(prestamos) {
+            let html = '';
+            
+            prestamos.forEach((p, index) => {
+                const estadoClass = {
+                    'Activo': 'bg-green-100 text-green-800',
+                    'Finalizado': 'bg-gray-100 text-gray-800',
+                    'Solicitado': 'bg-blue-100 text-blue-800',
+                    'En Análisis': 'bg-yellow-100 text-yellow-800',
+                    'Aprobado': 'bg-purple-100 text-purple-800',
+                    'Rechazado': 'bg-red-100 text-red-800',
+                    'Listo para Entrega': 'bg-indigo-100 text-indigo-800'
+                }[p.estado] || 'bg-gray-100 text-gray-800';
+
+                const moraClass = p.dias_mora > 0 ? 'text-red-600' : 'text-green-600';
+                const moraIcon = p.dias_mora > 0 ? 'fa-exclamation-triangle' : 'fa-check-circle';
+
+                html += `
+                    <div class="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-lg transition">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex-grow">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h4 class="font-bold text-lg text-gray-800">
+                                        Préstamo #${p.id}
+                                    </h4>
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${estadoClass}">
+                                        ${p.estado}
+                                    </span>
+                                    ${p.dias_mora > 0 ? `
+                                        <span class="px-2 py-1 text-xs font-bold rounded bg-red-100 text-red-700">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>${p.dias_mora} días en mora
+                                        </span>
+                                    ` : ''}
+                                </div>
+                                <p class="text-sm text-gray-600">
+                                    <i class="fas fa-calendar mr-1"></i>
+                                    Solicitado: ${new Date(p.fecha_solicitud).toLocaleDateString('es-HN')}
+                                    ${p.fecha_desembolso ? ` | Desembolsado: ${new Date(p.fecha_desembolso).toLocaleDateString('es-HN')}` : ''}
+                                </p>
+                            </div>
+                            <button onclick="verDetallePrestamo(${p.id})" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                                <i class="fas fa-eye mr-2"></i>Ver Detalle
+                            </button>
+                        </div>
+
+                        <!-- Grid de Información -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div class="bg-blue-50 p-3 rounded">
+                                <p class="text-xs text-blue-600 font-semibold uppercase">Monto Capital</p>
+                                <p class="text-lg font-bold text-blue-800">L ${p.monto_capital.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div class="bg-green-50 p-3 rounded">
+                                <p class="text-xs text-green-600 font-semibold uppercase">Neto Entregado</p>
+                                <p class="text-lg font-bold text-green-800">L ${p.neto_entregar.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div class="bg-purple-50 p-3 rounded">
+                                <p class="text-xs text-purple-600 font-semibold uppercase">Total a Pagar</p>
+                                <p class="text-lg font-bold text-purple-800">L ${p.total_a_pagar.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div class="bg-orange-50 p-3 rounded">
+                                <p class="text-xs text-orange-600 font-semibold uppercase">Balance Pendiente</p>
+                                <p class="text-lg font-bold text-orange-800">L ${p.balance_pendiente.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                        </div>
+
+                        <!-- Detalles del Préstamo -->
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
+                            <div>
+                                <p class="text-gray-500 text-xs">Modalidad</p>
+                                <p class="font-semibold text-gray-800">${p.modalidad}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">Plazo</p>
+                                <p class="font-semibold text-gray-800">${p.plazo_meses} meses</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">Tasa Total</p>
+                                <p class="font-semibold text-gray-800">${p.tasa_total}%</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">Valor Cuota</p>
+                                <p class="font-semibold text-gray-800">L ${p.valor_cuota.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">Capital Restante</p>
+                                <p class="font-semibold text-gray-800">L ${p.capital_restante.toLocaleString('es-HN', {minimumFractionDigits: 2})}</p>
+                            </div>
+                        </div>
+
+                        <!-- Progreso de Cuotas -->
+                        <div class="mb-3">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-600">Progreso de Cuotas</span>
+                                <span class="font-semibold text-gray-800">${p.cuotas_pagadas} / ${p.total_cuotas} (${p.progreso}%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all" 
+                                    style="width: ${p.progreso}%"></div>
+                            </div>
+                        </div>
+
+                        ${p.proxima_cuota_fecha ? `
+                            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="text-xs font-semibold text-yellow-800 uppercase">Próxima Cuota</p>
+                                        <p class="text-sm text-yellow-700">
+                                            <i class="fas fa-calendar-alt mr-1"></i>
+                                            ${new Date(p.proxima_cuota_fecha).toLocaleDateString('es-HN')}
+                                        </p>
+                                    </div>
+                                    <p class="text-lg font-bold text-yellow-800">
+                                        L ${p.proxima_cuota_monto.toLocaleString('es-HN', {minimumFractionDigits: 2})}
+                                    </p>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            $('#prestamos-container').html(html);
+        }
+
+        function verDetallePrestamo(prestamoId) {
+            window.location.href = `${BASE_URL}/public/admin/prestamo_detalle.php?id=${prestamoId}`;
         }
     </script>
     <script>
