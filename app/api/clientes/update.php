@@ -18,8 +18,8 @@ if (!in_array($_SERVER['REQUEST_METHOD'], ['PUT', 'POST'])) {
 }
 
 try {
-    // Requerir autenticación (solo admin puede actualizar)
-    $user = AuthMiddleware::requireAdmin();
+    // Requerir autenticación
+    $user = AuthMiddleware::requireAuth();
 
     // Obtener datos según el método
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -46,138 +46,25 @@ try {
         Response::notFound('Cliente no encontrado');
     }
 
-    // Validar datos (campos opcionales para actualización)
-    $validation = Validator::validate($input, [
-        'nombre_completo' => [
-            'type' => 'string',
-            'required' => false,
-            'min' => 3,
-            'max' => 100,
-            'message' => 'Nombre completo inválido (3-100 caracteres)'
-        ],
-        'tipo_documento' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Tipo de documento inválido'
-        ],
-        'numero_documento' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Número de documento inválido'
-        ],
-        'telefono' => [
-            'type' => 'phone',
-            'required' => false,
-            'message' => 'Teléfono inválido'
-        ],
-        'email' => [
-            'type' => 'email',
-            'required' => false,
-            'message' => 'Email inválido'
-        ],
-        'direccion' => [
-            'type' => 'string',
-            'required' => false,
-            'max' => 255,
-            'message' => 'Dirección inválida'
-        ],
-        'departamento' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Departamento inválido'
-        ],
-        'municipio' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Municipio inválido'
-        ],
-        'barrio' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Barrio inválido'
-        ],
-        'punto_referencia' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Punto de referencia inválido'
-        ],
-        'tipo_vivienda' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Tipo de vivienda inválido'
-        ],
-        'gps_coordenadas' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Coordenadas GPS inválidas'
-        ],
-        'fecha_nacimiento' => [
-            'type' => 'date',
-            'required' => false,
-            'message' => 'Fecha de nacimiento inválida'
-        ],
-        'genero' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Género inválido'
-        ],
-        'ocupacion' => [
-            'type' => 'string',
-            'required' => false,
-            'max' => 100,
-            'message' => 'Ocupación inválida'
-        ],
-        'estado' => [
-            'type' => 'string',
-            'required' => false,
-            'message' => 'Estado inválido'
-        ],
-        'cobrador_id' => [
-            'type' => 'integer',
-            'required' => false,
-            'message' => 'ID de cobrador inválido'
-        ],
-        'id_agencia' => [
-            'type' => 'integer',
-            'required' => false,
-            'message' => 'ID de agencia inválido'
-        ]
-    ]);
-
-    if (!$validation['valid']) {
-        Response::validationError($validation['errors']);
+    // Validación simple manual - solo campos requeridos
+    if (empty($input['nombre_completo']) || strlen(trim($input['nombre_completo'])) < 3) {
+        Response::error('El nombre completo es requerido (mínimo 3 caracteres)', 400);
     }
 
-    $data = $validation['data'];
+    if (empty($input['numero_documento'])) {
+        Response::error('El número de documento es requerido', 400);
+    }
 
-    // Verificar documento único si se actualiza
+    // Usar los datos directamente del input
+    $data = $input;
+
+    // Verificar documento único si se actualiza (solo verificar duplicados, no validar formato)
     if (!empty($data['numero_documento']) && $data['numero_documento'] !== $clienteExistente['numero_documento']) {
-        $tipoDoc = $data['tipo_documento'] ?? $clienteExistente['tipo_documento'];
-        $documentoValidado = Validator::documento($data['numero_documento'], $tipoDoc);
-
-        if ($documentoValidado === false) {
-            Response::error('Número de documento inválido', 400);
-        }
-
         $stmt = $db->prepare("SELECT id FROM clientes WHERE numero_documento = :documento AND id != :id");
-        $stmt->execute(['documento' => $documentoValidado, 'id' => $id]);
+        $stmt->execute(['documento' => $data['numero_documento'], 'id' => $id]);
         if ($stmt->fetch()) {
             Response::error('Ya existe otro cliente con este número de documento', 409);
         }
-    }
-
-    // Verificar cobrador si se especificó
-    if (!empty($data['cobrador_id'])) {
-        $stmt = $db->prepare("SELECT u.id_usuario FROM usuarios u WHERE u.id_usuario = :id AND u.estado = 'Activo'");
-        $stmt->execute(['id' => $data['cobrador_id']]);
-        if (!$stmt->fetch()) {
-            Response::error('Cobrador no válido', 400);
-        }
-    }
-
-    // Validar estado si se actualiza
-    if (!empty($data['estado']) && !in_array($data['estado'], ['activo', 'inactivo', 'en_mora', 'bloqueado'])) {
-        Response::error('Estado inválido', 400);
     }
 
     // Construir UPDATE dinámico
@@ -209,16 +96,14 @@ try {
         if (isset($data[$field])) {
             $updateFields[] = "{$field} = :{$field}";
 
-            if ($field === 'numero_documento' && !empty($data['numero_documento'])) {
-                $tipoDoc = $data['tipo_documento'] ?? $clienteExistente['tipo_documento'];
-                $params[$field] = Validator::documento($data[$field], $tipoDoc);
-            } elseif (in_array($field, ['nombre_completo', 'email', 'direccion', 'ocupacion', 'departamento', 'municipio', 'barrio', 'punto_referencia'])) {
-                $params[$field] = !empty($data[$field]) ? Validator::sanitize($data[$field]) : null;
-            } elseif ($field === 'telefono') {
-                $params[$field] = Validator::phone($data[$field]);
-            } elseif (in_array($field, ['cobrador_id', 'id_agencia'])) {
+            // Convertir a tipo apropiado sin validar
+            if (in_array($field, ['cobrador_id', 'id_agencia'])) {
                 $params[$field] = !empty($data[$field]) ? intval($data[$field]) : null;
+            } elseif ($field === 'fecha_nacimiento') {
+                // Fechas vacías deben ser NULL, no string vacío
+                $params[$field] = (!empty($data[$field]) && $data[$field] !== '') ? $data[$field] : null;
             } else {
+                // Aceptar el valor tal cual, incluso si está vacío
                 $params[$field] = $data[$field];
             }
         }

@@ -449,5 +449,15 @@ if (!$idAgencia) {
     </div>
 </div>
 
+<script>
+    const USER_PERMISSIONS = {
+        open_cash: <?php echo Auth::hasPermission('caja.open_cash') ? 'true' : 'false'; ?>,
+        close_cash: <?php echo Auth::hasPermission('caja.close_cash') ? 'true' : 'false'; ?>,
+        pull_funds_bank: <?php echo Auth::hasPermission('caja.pull_funds_bank') ? 'true' : 'false'; ?>,
+        withdraw_vault: <?php echo Auth::hasPermission('caja.withdraw_vault') ? 'true' : 'false'; ?>,
+        return_vault: <?php echo Auth::hasPermission('caja.return_vault') ? 'true' : 'false'; ?>,
+        return_bank: <?php echo Auth::hasPermission('caja.return_bank') ? 'true' : 'false'; ?>
+    };
+</script>
 <script src="<?php echo $baseUrl; ?>/public/admin/assets/js/control_caja.js?v=<?php echo time(); ?>"></script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

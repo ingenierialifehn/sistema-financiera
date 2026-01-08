@@ -142,10 +142,11 @@ function loadProximosDesembolsos() {
                             ${fecha}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="prepararEntrega(${d.id})" 
+                            ${USER_PERMISSIONS.prepare_delivery ?
+                        `<button onclick="prepararEntrega(${d.id})" 
                                 class="text-indigo-600 hover:text-indigo-900">
                                 <i class="fas fa-hand-holding-usd mr-1"></i>Preparar Entrega
-                            </button>
+                            </button>` : ''}
                         </td>
                     </tr>
                 `;

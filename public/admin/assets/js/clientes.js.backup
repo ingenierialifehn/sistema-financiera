@@ -170,26 +170,29 @@ function initializeGPS() {
         const btn = $(this);
 
         if (!navigator.geolocation) {
+            Swal.fire('Error', 'Tu navegador no soporta geolocalización', 'error');
+            return;
+        }
+
+        // Check if we're on HTTPS or localhost
+        const isSecure = window.location.protocol === 'https:' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+
+        if (!isSecure) {
             Swal.fire({
-                icon: 'error',
-                title: 'No soportado',
-                text: 'Tu navegador no soporta geolocalización',
-                footer: '<small>Intenta usar Chrome, Firefox o Edge</small>'
+                title: 'Advertencia de Seguridad',
+                html: 'La geolocalización requiere una conexión segura (HTTPS) o localhost.<br><br>' +
+                    'Por favor, accede al sistema usando:<br>' +
+                    '<code>http://localhost/sistema-financiera/...</code>',
+                icon: 'warning'
             });
             return;
         }
 
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Obteniendo ubicación...');
-
-        // Opciones para geolocalización
-        const options = {
-            enableHighAccuracy: false,  // Más rápido, menos preciso
-            timeout: 30000,  // 30 segundos
-            maximumAge: 0
-        };
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Obteniendo...');
 
         navigator.geolocation.getCurrentPosition(
-            // Success callback
             function (position) {
                 const lat = position.coords.latitude.toFixed(6);
                 const lng = position.coords.longitude.toFixed(6);
@@ -199,66 +202,41 @@ function initializeGPS() {
                 $('#coordenadasDisplay').text('Latitud: ' + lat + ', Longitud: ' + lng);
                 $('#mapPreview').removeClass('hidden');
 
-                btn.prop('disabled', false)
-                    .removeClass('bg-green-600 hover:bg-green-700')
-                    .addClass('bg-blue-600 hover:bg-blue-700')
-                    .html('<i class="fas fa-check-circle mr-2"></i>Ubicación Obtenida');
-
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Ubicación obtenida!',
-                    text: coords,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
+                btn.prop('disabled', false).html('<i class="fas fa-check mr-2"></i>Ubicación Obtenida');
 
                 setTimeout(function () {
-                    btn.removeClass('bg-blue-600 hover:bg-blue-700')
-                        .addClass('bg-green-600 hover:bg-green-700')
-                        .html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+                    btn.html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
                 }, 3000);
             },
-            // Error callback
             function (error) {
-                console.error('Geolocation error:', error);
+                let mensaje = 'No se pudo obtener la ubicación';
+                let detalles = '';
 
-                let titulo = 'Error de ubicación';
-                let mensaje = '';
-                let solucion = '';
-
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        titulo = 'Permiso denegado';
-                        mensaje = 'Has bloqueado el acceso a tu ubicación.';
-                        solucion = 'Haz clic en el ícono de candado/información en la barra de direcciones y permite el acceso a la ubicación.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        titulo = 'Ubicación no disponible';
-                        mensaje = 'No se pudo determinar tu ubicación.';
-                        solucion = 'Verifica que tengas GPS/WiFi activo y conexión a internet.';
-                        break;
-                    case error.TIMEOUT:
-                        titulo = 'Tiempo agotado';
-                        mensaje = 'La solicitud tardó demasiado tiempo.';
-                        solucion = 'Intenta nuevamente. Asegúrate de tener buena señal.';
-                        break;
-                    default:
-                        mensaje = 'Error desconocido al obtener la ubicación.';
-                        solucion = 'Intenta recargar la página o usar otro navegador.';
+                if (error.code === 1) {
+                    mensaje = 'Permiso denegado';
+                    detalles = 'Debes permitir el acceso a tu ubicación en la configuración del navegador.';
+                } else if (error.code === 2) {
+                    mensaje = 'Ubicación no disponible';
+                    detalles = 'No se pudo determinar tu ubicación. Verifica tu conexión GPS/WiFi.';
+                } else if (error.code === 3) {
+                    mensaje = 'Tiempo de espera agotado';
+                    detalles = 'La solicitud de ubicación tardó demasiado. Intenta nuevamente.';
                 }
 
                 Swal.fire({
-                    icon: 'warning',
-                    title: titulo,
-                    html: `<p class="mb-2">${mensaje}</p><p class="text-sm text-gray-600">${solucion}</p>`,
-                    footer: '<small><strong>Nota:</strong> Este campo es opcional. Puedes guardar sin geolocalización.</small>',
-                    confirmButtonText: 'Entendido'
+                    title: mensaje,
+                    text: detalles,
+                    icon: 'error',
+                    footer: '<small>Nota: Este campo es opcional. Puedes guardar el cliente sin geolocalización.</small>'
                 });
 
-                btn.prop('disabled', false)
-                    .html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
             },
-            options
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
         );
     });
 }
@@ -588,25 +566,25 @@ $('#formCliente').on('submit', function (e) {
     // Preparar FormData
     const formData = new FormData();
 
-    // Datos del formulario - ENVIAR TODOS LOS CAMPOS SIEMPRE
+    // Datos del formulario
     const campos = [
         'nombre_completo', 'tipo_documento', 'numero_documento', 'fecha_nacimiento',
-        'genero', 'telefono', 'email', 'ocupacion', 'direccion',
+        'genero', 'telefono', 'email', 'ocupacion', 'id_agencia', 'direccion',
         'departamento', 'municipio', 'barrio', 'punto_referencia', 'tipo_vivienda'
     ];
 
     campos.forEach(function (campo) {
         const valor = $('#' + campo).val();
-        // Enviar SIEMPRE, incluso si está vacío
-        formData.append(campo, valor || '');
+        if (valor) {
+            formData.append(campo, valor);
+        }
     });
 
-    // Agencia - SIEMPRE usar la del usuario logueado
-    formData.append('id_agencia', USER_AGENCIA_ID);
-
-    // GPS coordinates - send always
+    // GPS coordinates - only if obtained
     const gpsValue = $('#gps_coordenadas').val();
-    formData.append('gps_coordenadas', gpsValue || '');
+    if (gpsValue && gpsValue.trim() !== '') {
+        formData.append('gps_coordenadas', gpsValue);
+    }
 
     // Agregar ID si es edición
     if (isEditMode) {

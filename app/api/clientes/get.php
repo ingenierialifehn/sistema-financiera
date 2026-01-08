@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 try {
     // Requerir autenticación
-    $user = AuthMiddleware::requireCobradorOrAdmin();
+    $user = AuthMiddleware::requireAuth();
 
     // Validar ID
     if (!isset($_GET['id']) || empty($_GET['id'])) {

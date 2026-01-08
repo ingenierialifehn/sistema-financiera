@@ -480,7 +480,7 @@ $currentUser = $user ?? [];
             }
         });
     </script>
-    <script src="<?php echo BASE_URL; ?>/public/admin/assets/js/clientes.js"></script>
+    <script src="<?php echo BASE_URL; ?>/public/admin/assets/js/clientes.js?v=<?php echo time(); ?>&force=1"></script>
 </body>
 
 </html>

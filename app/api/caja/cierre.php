@@ -73,6 +73,24 @@ try {
         }
     }
 
+    // 3. Verificar que no haya préstamos en ruta de desembolso
+    $stmtPrestamosRuta = $db->prepare("
+        SELECT COUNT(*) as total 
+        FROM prestamos p
+        JOIN clientes c ON p.id_cliente = c.id
+        WHERE c.id_agencia = ? AND p.estado = 'Listo para Entrega'
+    ");
+    $stmtPrestamosRuta->execute([$idAgencia]);
+    $prestamosEnRuta = $stmtPrestamosRuta->fetch(PDO::FETCH_ASSOC);
+
+    if ($prestamosEnRuta && $prestamosEnRuta['total'] > 0) {
+        Response::error(
+            "No se puede cerrar caja. Hay " . $prestamosEnRuta['total'] . " préstamo(s) en ruta de desembolso. " .
+            "Debe completar o cancelar los desembolsos pendientes antes de cerrar.",
+            400
+        );
+    }
+
     // Actualizar cierre
     $stmt = $db->prepare("
         UPDATE control_caja_diaria 

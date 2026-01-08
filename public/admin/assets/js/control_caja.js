@@ -50,9 +50,10 @@ function renderEstadoCaja() {
                     <h3 class="text-2xl font-bold text-gray-800 mb-2">Caja Cerrada</h3>
                     <p class="text-gray-500 mb-6">Debe abrir la caja para iniciar operaciones y movimientos de fondos.</p>
                     
-                    <button id="btnAbrirCaja" class="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition font-semibold shadow-md transform hover:-translate-y-1">
+                    ${USER_PERMISSIONS.open_cash ?
+                `<button id="btnAbrirCaja" class="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition font-semibold shadow-md transform hover:-translate-y-1">
                         <i class="fas fa-key mr-2"></i> Abrir Caja del Día
-                    </button>
+                    </button>` : '<p class="text-red-500 font-semibold">No tiene permisos para abrir la caja.</p>'}
                  </div>
             </div>
         `;
@@ -69,9 +70,10 @@ function renderEstadoCaja() {
                                 <p class="text-green-100 text-sm">Apertura: ${horaApertura}</p>
                             </div>
                         </div>
-                        <button id="btnCerrarCaja" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
+                        ${USER_PERMISSIONS.close_cash ?
+                `<button id="btnCerrarCaja" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
                             <i class="fas fa-lock"></i> Cerrar Caja
-                        </button>
+                        </button>` : ''}
                     </div>
                 </div>
                 <div class="p-6">
@@ -92,22 +94,29 @@ function renderEstadoCaja() {
 
                     <!-- Botones de Operaciones de Fondos -->
                     <div class="flex flex-wrap gap-3 justify-center border-t pt-4">
-                        <button id="btnJalarFondos" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        ${USER_PERMISSIONS.pull_funds_bank ?
+                `<button id="btnJalarFondos" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
                             <i class="fas fa-download"></i>
                             <span>Jalar Fondos Banco</span>
-                        </button>
-                        <button id="btnRetiroBoveda" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.withdraw_vault ?
+                `<button id="btnRetiroBoveda" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
                             <i class="fas fa-money-bill-wave"></i>
                             <span>Retirar de Bóveda a Caja</span>
-                        </button>
-                         <button id="btnDevolucionBoveda" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.return_vault ?
+                `<button id="btnDevolucionBoveda" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
                             <i class="fas fa-undo"></i>
                             <span>Devolver a Bóveda</span>
-                        </button>
-                        <button id="btnDepositoBanco" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.return_bank ?
+                `<button id="btnDepositoBanco" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
                             <i class="fas fa-university"></i>
                             <span>Devolver a Banco</span>
-                        </button>
+                        </button>` : ''}
                     </div>
                 </div>
             </div>

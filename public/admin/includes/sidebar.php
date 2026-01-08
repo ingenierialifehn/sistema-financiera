@@ -73,6 +73,18 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 <?php endif; ?>
             <?php endif; ?>
 
+            <!-- Gestión de Créditos -->
+            <?php if (Auth::hasPermission('prestamos_analisis') || Auth::hasPermission('clientes')): ?>
+                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Gestión de Créditos
+                </div>
+                <a href="<?php echo base_url('public/admin/analisis_prestamos.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'analisis_prestamos.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-search-dollar w-5"></i>
+                    <span>Análisis de Préstamos</span>
+                </a>
+            <?php endif; ?>
+
             <!-- Finanzas -->
             <?php if (Auth::hasPermission('tesoreria')): ?>
                 <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
