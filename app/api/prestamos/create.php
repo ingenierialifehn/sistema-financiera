@@ -73,13 +73,18 @@ try {
 
     $valorCuota = $totalAPagar / $numCuotas;
 
+    // Obtener Asesor (Usuario Logueado)
+    if (session_status() === PHP_SESSION_NONE)
+        session_start();
+    $asesorId = $_SESSION['id_usuario'] ?? null;
+
     // 3. Insert Loan Record with status 'Solicitado'
     $sql = "INSERT INTO prestamos (
-        id_cliente, monto_capital, modalidad, plazo_meses, 
+        id_cliente, asesor_creditos_id, monto_capital, modalidad, plazo_meses, 
         tasa_total, tasa_interes, tasa_gastos, tasa_comision,
         valor_cuota, total_a_pagar, neto_entregar, estado, fecha_solicitud
     ) VALUES (
-        ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, 
         ?, ?, ?, ?,
         ?, ?, ?, 'Solicitado', NOW()
     )";
@@ -87,6 +92,7 @@ try {
     $stmt = $db->prepare($sql);
     $stmt->execute([
         $clienteId,
+        $asesorId,
         $monto,
         $modalidad,
         $plazoMeses,

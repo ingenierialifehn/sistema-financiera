@@ -106,6 +106,24 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
+            <!-- Desembolsos -->
+            <?php if (Auth::hasPermission('operaciones') || Auth::hasPermission('caja')): ?>
+                <a href="<?php echo base_url('public/admin/desembolsos.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'desembolsos.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-hand-holding-usd w-5"></i>
+                    <span>Desembolsos</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- Cobranza -->
+            <?php if (Auth::hasPermission('operaciones') || Auth::hasPermission('caja')): ?>
+                <a href="<?php echo base_url('public/admin/cobranza.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'cobranza.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-money-bill-alt w-5"></i>
+                    <span>Gestión de Cobranza</span>
+                </a>
+            <?php endif; ?>
+
             <!-- Control de Caja -->
             <?php if (Auth::hasPermission('caja')): ?>
                 <a href="<?php echo base_url('public/admin/control_caja.php'); ?>"

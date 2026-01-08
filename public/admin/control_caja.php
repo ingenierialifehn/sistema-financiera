@@ -449,6 +449,132 @@ if (!$idAgencia) {
     </div>
 </div>
 
+<!-- Modal Cuadre Asesores -->
+<div id="modalCuadreAsesores" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-user-shield text-indigo-600"></i> Cuadre de Asesores
+            </h3>
+            <button id="btnCerrarModalCuadre" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <form id="cuadreAsesoresForm" class="p-6">
+            <!-- Selección de Asesor -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Asesor *</label>
+                <select id="asesorIdCuadre" required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Cargando asesores...</option>
+                </select>
+                <!-- Info Recaudado Detallada -->
+                <div id="infoRecaudadoContainer"
+                    class="hidden mt-3 grid grid-cols-3 gap-2 bg-gray-50 p-2 rounded border border-gray-200 text-center">
+                    <div>
+                        <span class="block text-xs text-gray-500 uppercase">Recaudado</span>
+                        <span id="recaudadoHoyDisplay" class="font-bold text-gray-800 text-lg">L. 0.00</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-500 uppercase">Entregado</span>
+                        <span id="entregadoHoyDisplay" class="font-bold text-green-600 text-lg">L. 0.00</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-500 uppercase">Pendiente</span>
+                        <span id="pendienteDisplay" class="font-bold text-red-600 text-lg">L. 0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área de Carga -->
+            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Columna Efectivo -->
+                    <div>
+                        <h4 class="font-bold text-gray-700 mb-2 text-sm flex items-center"><i
+                                class="fas fa-money-bill-wave mr-2 text-green-600"></i> Efectivo</h4>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">L.</span>
+                            <input type="number" id="montoEfectivoCuadre" step="0.01" min="0"
+                                class="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-green-500"
+                                placeholder="0.00">
+                        </div>
+                        <button type="button" id="btnAgregarEfectivo"
+                            class="mt-2 w-full bg-green-100 text-green-700 py-1 rounded text-xs font-bold hover:bg-green-200 border border-green-200">
+                            <i class="fas fa-plus"></i> Agregar Efectivo
+                        </button>
+                    </div>
+
+                    <!-- Columna Banco -->
+                    <div>
+                        <h4 class="font-bold text-gray-700 mb-2 text-sm flex items-center"><i
+                                class="fas fa-university mr-2 text-blue-600"></i> Banco</h4>
+                        <div class="relative mb-2">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">L.</span>
+                            <input type="number" id="montoBancoCuadre" step="0.01" min="0"
+                                class="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-blue-500"
+                                placeholder="0.00">
+                        </div>
+                        <select id="bancoIdCuadre"
+                            class="w-full text-xs px-2 py-1.5 border border-gray-300 rounded mb-2">
+                            <option value="">Seleccione Banco...</option>
+                        </select>
+                        <input type="text" id="refBancoCuadre"
+                            class="w-full text-xs px-2 py-1.5 border border-gray-300 rounded mb-2"
+                            placeholder="Ref/Comprobante">
+
+                        <button type="button" id="btnAgregarBanco"
+                            class="w-full bg-blue-100 text-blue-700 py-1 rounded text-xs font-bold hover:bg-blue-200 border border-blue-200">
+                            <i class="fas fa-plus"></i> Agregar Depósito
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Items a Procesar -->
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">A Registrar</label>
+                <div class="border rounded-lg overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100 text-gray-600">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Tipo</th>
+                                <th class="px-3 py-2 text-left">Detalle</th>
+                                <th class="px-3 py-2 text-right">Monto</th>
+                                <th class="px-3 py-2 w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaItemsCuadre" class="divide-y divide-gray-100">
+                            <!-- Items via JS -->
+                            <tr id="emptyRow">
+                                <td colspan="4" class="px-3 py-4 text-center text-gray-400 text-xs italic">Agregue
+                                    montos arriba</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="bg-indigo-50 font-bold text-indigo-900">
+                            <tr>
+                                <td colspan="2" class="px-3 py-2 text-right">Total:</td>
+                                <td class="px-3 py-2 text-right" id="granTotalCuadre">L. 0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-2">
+                <button type="button" id="btnCancelarCuadre"
+                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">Cancelar</button>
+                <button type="submit"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition btn-save shadow-lg">
+                    <i class="fas fa-check-circle mr-2"></i> Registrar Todo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     const USER_PERMISSIONS = {
         open_cash: <?php echo Auth::hasPermission('caja.open_cash') ? 'true' : 'false'; ?>,

@@ -120,6 +120,16 @@ try {
                 $netoEntregar,
                 "Desembolso préstamo #$prestamoId - Cliente: " . $loan['id_cliente']
             ]);
+
+            // Assign Disbursement Officer (User who operated the cash box)
+            $stmtOficial = $db->prepare("UPDATE prestamos SET oficial_desembolsos_id = ? WHERE id = ?");
+            $stmtOficial->execute([$userId, $prestamoId]);
+        }
+
+        // If changing to 'Activo', record disbursement date
+        if ($nuevoEstado === 'Activo') {
+            $stmtDate = $db->prepare("UPDATE prestamos SET fecha_desembolso = NOW() WHERE id = ?");
+            $stmtDate->execute([$prestamoId]);
         }
 
         // Update loan status

@@ -10,26 +10,53 @@ $type = $_GET['type'];
 $prestamoId = intval($_GET['id']);
 
 $db = getDB();
-$stmt = $db->prepare("SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion 
-                      FROM prestamos p
-                      JOIN clientes c ON p.id_cliente = c.id
-                      WHERE p.id = ?");
-$stmt->execute([$prestamoId]);
-$loan = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($type === 'ticket_pago') {
+    // ID es de la Cuota
+    $stmt = $db->prepare("SELECT c.*, p.modalidad, p.plazo_meses, p.total_a_pagar, 
+                          cl.nombre_completo, cl.numero_documento, cl.direccion, p.id as prestamo_real_id
+                          FROM cuotas c
+                          JOIN prestamos p ON c.prestamo_id = p.id
+                          JOIN clientes cl ON p.id_cliente = cl.id
+                          WHERE c.id = ?");
+    $stmt->execute([$prestamoId]);
+    $loan = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Calcular Saldo Restante
+    if ($loan) {
+        $stmtSaldo = $db->prepare("SELECT SUM(monto_cuota) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada'");
+        $stmtSaldo->execute([$loan['prestamo_real_id']]);
+        $loan['saldo_restante'] = $stmtSaldo->fetchColumn() ?: 0;
+    }
+
+} else {
+    // ID es de Préstamo (Lógica Original)
+    $stmt = $db->prepare("SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion 
+                          FROM prestamos p
+                          JOIN clientes c ON p.id_cliente = c.id
+                          WHERE p.id = ?");
+    $stmt->execute([$prestamoId]);
+    $loan = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
 if (!$loan)
-    die("Préstamo no encontrado");
+    die("Registro no encontrado");
 
-// Breakdown
-$interes = number_format($loan['tasa_interes'] ?? 4.00, 2);
-$gastos = number_format($loan['tasa_gastos'] ?? 4.00, 2);
-$comision = number_format($loan['tasa_comision'] ?? 3.00, 2);
-$tasaTotal = number_format($loan['tasa_total'], 2);
-$monto = number_format($loan['monto_capital'], 2);
-$totalPagar = number_format($loan['total_a_pagar'], 2);
-$cuota = number_format($loan['valor_cuota'], 2);
-$plazo = $loan['plazo_meses'];
-$modalidad = $loan['modalidad'];
+// Breakdown (Solo si es préstamo completo, para evitar warnings en ticket)
+if ($type !== 'ticket_pago') {
+    $interes = number_format($loan['tasa_interes'] ?? 4.00, 2);
+    $gastos = number_format($loan['tasa_gastos'] ?? 4.00, 2);
+    $comision = number_format($loan['tasa_comision'] ?? 3.00, 2);
+    $tasaTotal = number_format($loan['tasa_total'], 2);
+    $monto = number_format($loan['monto_capital'], 2);
+    $totalPagar = number_format($loan['total_a_pagar'], 2);
+    $cuota = number_format($loan['valor_cuota'], 2);
+    $plazo = $loan['plazo_meses'];
+    $modalidad = $loan['modalidad'];
+} else {
+    // Vars for ticket template check
+    $totalPagar = number_format($loan['total_a_pagar'], 2);
+    $modalidad = $loan['modalidad'];
+}
 
 ?>
 <!DOCTYPE html>
@@ -203,20 +230,17 @@ $modalidad = $loan['modalidad'];
             </div>
         </div>
 
-    <?php elseif ($type === 'plan'): ?>
-        <div class="header">PLAN DE PAGOS PROYECTADO</div>
+    <?php elseif ($type === 'plan'):
+        // Fetch real cuotas
+        $stmtCuotas = $db->prepare("SELECT * FROM cuotas WHERE prestamo_id = ? ORDER BY numero_cuota ASC");
+        $stmtCuotas->execute([$prestamoId]);
+        $cuotasReales = $stmtCuotas->fetchAll(PDO::FETCH_ASSOC);
+        ?>
+        <div class="header">PLAN DE PAGOS AUTORIZADO</div>
         <div class="content">
-            <p><strong>Cliente:</strong>
-                <?php echo $loan['nombre_completo']; ?>
-            </p>
-            <p><strong>Deuda Total:</strong> L
-                <?php echo $totalPagar; ?>
-            </p>
-            <p><strong>Cuota
-                    <?php echo $modalidad; ?>:
-                </strong> L
-                <?php echo $cuota; ?>
-            </p>
+            <p><strong>Cliente:</strong> <?php echo $loan['nombre_completo']; ?></p>
+            <p><strong>Deuda Total:</strong> L <?php echo $totalPagar; ?></p>
+            <p><strong>Modalidad:</strong> <?php echo $modalidad; ?></p>
 
             <table class="table">
                 <thead>
@@ -224,76 +248,92 @@ $modalidad = $loan['modalidad'];
                         <th>Nº Cuota</th>
                         <th>Fecha Vencimiento</th>
                         <th>Valor Cuota</th>
-                        <th>Saldo Pendiente</th>
+                        <th>Estado</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php
-                    // Logic to generate projected schedule skipping weekends
-                    $currentDate = new DateTime();
-                    $saldo = floatval($loan['total_a_pagar']);
-                    $cuotaVal = floatval($loan['valor_cuota']);
-
-                    // Simple estimation of number of quotas based on modality
-                    $numCuotas = 0;
-                    $daysAdd = 1;
-
-                    switch ($loan['modalidad']) {
-                        case 'Diario':
-                            $numCuotas = $plazo * 20;
-                            $daysAdd = 1;
-                            break;
-                        case 'Semanal':
-                            $numCuotas = $plazo * 4;
-                            $daysAdd = 7;
-                            break;
-                        case 'Catorcenal':
-                            $numCuotas = $plazo * 2;
-                            $daysAdd = 14;
-                            break;
-                        case 'Mensual':
-                            $numCuotas = $plazo * 1;
-                            $daysAdd = 30;
-                            break; // Approx
-                    }
-
-                    // Loop
-                    for ($i = 1; $i <= $numCuotas; $i++) {
-                        // Logic to skip weekends
-                        do {
-                            $currentDate->modify("+$daysAdd day");
-                            $dow = $currentDate->format('N'); // 1 (Mon) to 7 (Sun)
-                        } while ($loan['modalidad'] === 'Diario' && ($dow == 6 || $dow == 7));
-
-                        // For other modalities, user usually wants simple jumps, but let's ensure not Sunday if Daily?
-                        // Usually Daily implies "business days". Weekly usually implies "Same day next week".
-                        // Let's stick to simple logic: Daily skips Sat/Sun. Others are fixed intervals.
-                
-                        $saldo -= $cuotaVal;
-                        if ($saldo < 0)
-                            $saldo = 0;
-                        ?>
+                    <?php if (count($cuotasReales) > 0): ?>
+                        <?php foreach ($cuotasReales as $c): ?>
+                            <tr>
+                                <td><?php echo $c['numero_cuota']; ?></td>
+                                <td><?php echo date('d/m/Y', strtotime($c['fecha_vencimiento'])); ?></td>
+                                <td>L <?php echo number_format($c['monto_cuota'], 2); ?></td>
+                                <td><?php echo ucfirst($c['estado']); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                         <tr>
-                            <td>
-                                <?php echo $i; ?>
-                            </td>
-                            <td>
-                                <?php echo $currentDate->format('d/m/Y'); ?>
-                            </td>
-                            <td>L
-                                <?php echo number_format($cuotaVal, 2); ?>
-                            </td>
-                            <td>L
-                                <?php echo number_format($saldo, 2); ?>
-                            </td>
+                            <td colspan="4">No se encontraron cuotas generadas.</td>
                         </tr>
-                        <?php
-                        if ($saldo <= 0)
-                            break;
-                    }
-                    ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+
+    <?php elseif ($type === 'recibo_entrega'): ?>
+        <div class="header">RECIBO CONFORME DE DESEMBOLSO</div>
+        <div class="content">
+            <p style="text-align: right;"><strong>Fecha:</strong> <?php echo date('d/m/Y'); ?></p>
+            <p style="text-align: right;"><strong>Monto Recibido: L
+                    <?php echo number_format($loan['neto_entregar'] ?? $loan['monto_capital'], 2); ?></strong></p>
+
+            <p>Yo, <strong><?php echo $loan['nombre_completo']; ?></strong>, con Documento Nacional de Identificación (DNI)
+                <strong><?php echo $loan['numero_documento']; ?></strong>, declaro haber recibido de <strong>SISTEMA
+                    FINANCIERA</strong>
+                la cantidad de <strong><?php echo number_format($loan['neto_entregar'] ?? $loan['monto_capital'], 2); ?>
+                    Lempiras</strong>
+                en efectivo / cheque / transferencia, correspondiente al desembolso del préstamo No.
+                <?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?>.
+            </p>
+
+            <p>Firmo la presente en señal de conformidad y aceptación de los fondos recibidos.</p>
+        </div>
+
+        <div class="signatures">
+            <div class="sig-block">
+                ENTREGADO POR<br>
+                OFICIAL DE DESEMBOLSOS
+            </div>
+            <div class="sig-block">
+                <?php echo $loan['nombre_completo']; ?><br>
+                RECIBÍ CONFORME<br>
+                DNI: <?php echo $loan['numero_documento']; ?>
+            </div>
+        </div>
+    <?php elseif ($type === 'ticket_pago'): ?>
+        <div class="ticket"
+            style="width: 300px; margin: 0 auto; border: 1px dashed black; padding: 10px; font-family: monospace;">
+            <div class="header" style="margin-bottom: 10px;">
+                SISTEMA FINANCIERA<br>
+                COMPROBANTE DE PAGO
+            </div>
+            <div class="content" style="font-size: 14px;">
+                <p>Fecha: <?php echo date('d/m/Y H:i'); ?><br>
+                    Recibo #: <?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?></p>
+
+                <p>Cliente: <?php echo $loan['nombre_completo']; ?></p>
+
+                <hr style="border-top: 1px dashed #000;">
+
+                <p><strong>Concepto:</strong><br>
+                    Pago Cuota #<?php echo $loan['numero_cuota']; ?><br>
+                    Préstamo #<?php echo $loan['prestamo_real_id']; ?><br>
+                    (<?php echo $modalidad; ?>)</p>
+
+                <p style="text-align: right; font-size: 18px; margin: 10px 0;">
+                    <strong>IMPORTE: L <?php echo number_format($loan['monto_pagado'], 2); ?></strong>
+                </p>
+
+                <hr style="border-top: 1px dashed #000;">
+
+                <p>Saldo Restante Préstamo:<br>
+                    <strong>L <?php echo number_format($loan['saldo_restante'], 2); ?></strong>
+                </p>
+
+                <p style="text-align: center; margin-top: 20px; font-size: 12px;">
+                    *** GRACIAS POR SU PAGO ***
+                </p>
+            </div>
         </div>
     <?php endif; ?>
 

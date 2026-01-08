@@ -683,3 +683,328 @@ $('#depositoBancoForm').on('submit', function (e) {
     });
 });
 
+
+/* ==========================================================================
+   REDEFINICIÓN Y NUEVAS FUNCIONES DE CUADRE
+   ========================================================================== */
+
+function renderEstadoCaja() {
+    let html = '';
+
+    const saldoBoveda = parseFloat(cajaActual.saldo_boveda || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+    const saldoActualCaja = parseFloat(cajaActual.saldo_caja || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+    const horaApertura = cajaActual.hora_apertura ? new Date(cajaActual.hora_apertura).toLocaleString('es-HN') : '-';
+    const saldoApertura = cajaActual.saldo_apertura_fisico ? parseFloat(cajaActual.saldo_apertura_fisico).toLocaleString('es-HN', { minimumFractionDigits: 2 }) : '0.00';
+
+    if (!cajaActual || cajaActual.estado === 'Cerrado') {
+        html = `
+            <div class="flex justify-center items-center h-64">
+                 <div class="bg-white rounded-lg shadow-lg p-8 border-t-8 border-gray-400 text-center max-w-md w-full">
+                    <div class="mb-4 inline-block p-4 bg-gray-100 rounded-full">
+                        <i class="fas fa-store-slash text-gray-500 text-4xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Caja Cerrada</h3>
+                    <p class="text-gray-500 mb-6">Debe abrir la caja para iniciar operaciones y movimientos de fondos.</p>
+                    ${USER_PERMISSIONS.open_cash ?
+                `<button id="btnAbrirCaja" class="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition font-semibold shadow-md transform hover:-translate-y-1">
+                        <i class="fas fa-key mr-2"></i> Abrir Caja del Día
+                    </button>` : '<p class="text-red-500 font-semibold">No tiene permisos para abrir la caja.</p>'}
+                 </div>
+            </div>
+        `;
+    } else {
+        html = `
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="bg-green-600 text-white px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-check-circle text-3xl"></i>
+                            <div>
+                                <h3 class="text-xl font-bold">Caja Abierta</h3>
+                                <p class="text-green-100 text-sm">Apertura: ${horaApertura}</p>
+                            </div>
+                        </div>
+                        ${USER_PERMISSIONS.close_cash ?
+                `<button id="btnCerrarCaja" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
+                            <i class="fas fa-lock"></i> Cerrar Caja
+                        </button>` : ''}
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-600 mb-1">Saldo Apertura</p>
+                            <p class="text-2xl font-bold text-gray-900">L. ${saldoApertura}</p>
+                        </div>
+                        <div class="text-center p-4 bg-blue-50 rounded-lg">
+                            <p class="text-sm text-gray-600 mb-1">Saldo Caja Actual</p>
+                            <p class="text-2xl font-bold text-blue-600">L. ${saldoActualCaja}</p>
+                        </div>
+                        <div class="text-center p-4 bg-purple-50 rounded-lg">
+                            <p class="text-sm text-gray-600 mb-1">Saldo Bóveda</p>
+                            <p class="text-2xl font-bold text-purple-600">L. ${saldoBoveda}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 justify-center border-t pt-4">
+                        ${USER_PERMISSIONS.pull_funds_bank ?
+                `<button id="btnJalarFondos" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                            <i class="fas fa-download"></i>
+                            <span>Jalar Fondos Banco</span>
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.withdraw_vault ?
+                `<button id="btnRetiroBoveda" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <span>Retirar de Bóveda a Caja</span>
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.return_vault ?
+                `<button id="btnDevolucionBoveda" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                            <i class="fas fa-undo"></i>
+                            <span>Devolver a Bóveda</span>
+                        </button>` : ''}
+
+                        ${USER_PERMISSIONS.return_bank ?
+                `<button id="btnDepositoBanco" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                            <i class="fas fa-university"></i>
+                            <span>Devolver a Banco</span>
+                        </button>` : ''}
+
+                        <button id="btnCuadreAsesores" class="bg-indigo-700 hover:bg-indigo-800 text-white px-4 py-2 rounded-lg transition flex items-center space-x-2 shadow-sm">
+                            <i class="fas fa-user-shield"></i>
+                            <span>Cuadre Asesores</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    $('#estadoCajaContainer').html(html);
+
+    $('#btnAbrirCaja').on('click', abrirModalApertura);
+    $('#btnCerrarCaja').on('click', abrirModalCierre);
+    $('#btnJalarFondos').on('click', abrirModalFondos);
+    $('#btnRetiroBoveda').on('click', abrirModalRetiro);
+    $('#btnDevolucionBoveda').on('click', abrirModalDevolucion);
+    $('#btnDepositoBanco').on('click', abrirModalDeposito);
+    $('#btnCuadreAsesores').on('click', abrirModalCuadre);
+}
+
+// --- LOGICA CUADRE ASESORES (CARRITO) ---
+
+let asesoresData = [];
+let itemsCuadre = []; // Lista de partidas a registrar
+
+function abrirModalCuadre() {
+    // Reset Todo
+    itemsCuadre = [];
+    renderItemsCuadre();
+    $('#cuadreAsesoresForm')[0].reset();
+
+    $('#recaudadoHoyDisplay').text('L. 0.00');
+    $('#entregadoHoyDisplay').text('L. 0.00');
+    $('#pendienteDisplay').text('L. 0.00');
+    $('#infoRecaudadoContainer').addClass('hidden');
+
+    cargarBancosCuadre();
+
+    // Cargar Asesores
+    let url = BASE_URL + '/app/api/caja/get_asesores_recaudo.php?v=' + new Date().getTime();
+    if (typeof cajaActual !== 'undefined' && cajaActual && cajaActual.id_agencia) {
+        url += '&id_agencia=' + cajaActual.id_agencia;
+    }
+
+    $.get(url, function (res) {
+        if (res.success) {
+            asesoresData = res.data;
+            if (asesoresData.length === 0) {
+                $('#asesorIdCuadre').html('<option value="">No hay asesores encontrados</option>');
+                return;
+            }
+            let ops = '<option value="">Seleccione Asesor...</option>';
+            res.data.forEach(a => {
+                ops += `<option value="${a.id_usuario}">${a.nombre_completo}</option>`;
+            });
+            $('#asesorIdCuadre').html(ops);
+        } else {
+            $('#asesorIdCuadre').html(`<option value="">Error: ${res.message || 'Desconocido'}</option>`);
+        }
+    }).fail(function (jqXHR, textStatus, errorThrown) {
+        console.error("Error cargando asesores:", textStatus, errorThrown);
+        $('#asesorIdCuadre').html('<option value="">Error de conexión / Server</option>');
+    });
+
+    $('#modalCuadreAsesores').removeClass('hidden').addClass('flex');
+}
+
+$('#asesorIdCuadre').on('change', function () {
+    const id = $(this).val();
+    const asesor = asesoresData.find(a => a.id_usuario == id);
+    if (asesor) {
+        const monto = parseFloat(asesor.recaudado_hoy || 0);
+        const entregado = parseFloat(asesor.entregado_hoy || 0);
+        const pendiente = parseFloat(asesor.pendiente || 0);
+
+        $('#recaudadoHoyDisplay').text('L. ' + monto.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+        $('#entregadoHoyDisplay').text('L. ' + entregado.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+        $('#pendienteDisplay').text('L. ' + pendiente.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+        $('#infoRecaudadoContainer').removeClass('hidden');
+    } else {
+        $('#infoRecaudadoContainer').addClass('hidden');
+    }
+});
+
+function actualizarDatosAsesor(asesorId) {
+    if (!asesorId) return;
+    $.get(BASE_URL + '/app/api/caja/get_asesores_recaudo.php', function (res) {
+        if (res.success) {
+            asesoresData = res.data;
+            $('#asesorIdCuadre').trigger('change');
+        }
+    });
+}
+
+function cargarBancosCuadre() {
+    $.get(BASE_URL + '/app/api/boveda/get_bancos.php', function (res) {
+        if (res.success) {
+            let ops = '<option value="">Seleccione Banco...</option>';
+            if (res.data.bancos) {
+                res.data.bancos.forEach(b => {
+                    ops += `<option value="${b.id}">${b.nombre_banco} - ${b.numero_cuenta}</option>`;
+                });
+            }
+            $('#bancoIdCuadre').html(ops);
+        }
+    });
+}
+
+// --- GESTIÓN DE ITEMS ---
+
+// Agregar Efectivo
+$('#btnAgregarEfectivo').on('click', function () {
+    const monto = parseFloat($('#montoEfectivoCuadre').val());
+    if (!monto || monto <= 0) { Swal.fire('Error', 'Monto inválido', 'error'); return; }
+
+    itemsCuadre.push({
+        tipo: 'efectivo',
+        monto: monto,
+        detalle: 'Efectivo'
+    });
+
+    $('#montoEfectivoCuadre').val('');
+    renderItemsCuadre();
+});
+
+// Agregar Deposito
+$('#btnAgregarBanco').on('click', function () {
+    const monto = parseFloat($('#montoBancoCuadre').val());
+    const bancoId = $('#bancoIdCuadre').val();
+    const bancoTexto = $('#bancoIdCuadre option:selected').text();
+    const ref = $('#refBancoCuadre').val();
+
+    if (!monto || monto <= 0) { Swal.fire('Error', 'Monto inválido', 'error'); return; }
+    if (!bancoId) { Swal.fire('Error', 'Seleccione banco', 'error'); return; }
+    if (!ref) { Swal.fire('Error', 'Ingrese referencia', 'error'); return; }
+
+    itemsCuadre.push({
+        tipo: 'banco',
+        monto: monto,
+        banco_id: bancoId,
+        referencia: ref,
+        detalle: `Banco: ${bancoTexto} (Ref: ${ref})`
+    });
+
+    $('#montoBancoCuadre').val('');
+    $('#refBancoCuadre').val('');
+    $('#bancoIdCuadre').val('');
+    renderItemsCuadre();
+});
+
+// Eliminar Item
+$(document).on('click', '.btn-del-item', function () {
+    const idx = $(this).data('idx');
+    itemsCuadre.splice(idx, 1);
+    renderItemsCuadre();
+});
+
+function renderItemsCuadre() {
+    let html = '';
+    let total = 0;
+
+    if (itemsCuadre.length === 0) {
+        html = '<tr id="emptyRow"><td colspan="4" class="px-3 py-4 text-center text-gray-400 text-xs italic">Agregue montos arriba</td></tr>';
+    } else {
+        itemsCuadre.forEach((item, idx) => {
+            total += item.monto;
+            const icon = item.tipo === 'efectivo' ? '<i class="fas fa-money-bill text-green-600"></i>' : '<i class="fas fa-university text-blue-600"></i>';
+
+            html += `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-xs">${icon} ${item.tipo}</td>
+                    <td class="px-3 py-2 text-xs text-gray-600 truncate max-w-[150px]" title="${item.detalle}">${item.detalle}</td>
+                    <td class="px-3 py-2 text-right font-medium">L. ${item.monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-3 py-2 text-center">
+                        <button type="button" class="text-red-400 hover:text-red-600 btn-del-item" data-idx="${idx}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    $('#listaItemsCuadre').html(html);
+    $('#granTotalCuadre').text('L. ' + total.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+}
+
+
+$('#btnCerrarModalCuadre, #btnCancelarCuadre').on('click', function () {
+    $('#modalCuadreAsesores').removeClass('flex').addClass('hidden');
+});
+
+$('#cuadreAsesoresForm').on('submit', function (e) {
+    e.preventDefault();
+
+    const asesorId = $('#asesorIdCuadre').val();
+
+    if (!asesorId) { Swal.fire('Error', 'Seleccione un asesor', 'error'); return; }
+    if (itemsCuadre.length === 0) { Swal.fire('Error', 'Agregue al menos un monto a la lista', 'error'); return; }
+
+    const payload = {
+        asesor_id: asesorId,
+        items: itemsCuadre
+    };
+
+    $.ajax({
+        url: BASE_URL + '/app/api/caja/procesar_cuadre_asesor.php',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function (res) {
+            if (res.success) {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Movimientos registrados',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    toast: true
+                });
+
+                // Limpiar todo después de éxito
+                itemsCuadre = [];
+                renderItemsCuadre();
+
+                // Actualizar saldos en pantalla sin cerrar modal
+                actualizarDatosAsesor(asesorId);
+                cargarEstadoCaja();
+            } else {
+                Swal.fire('Error', res.message, 'error');
+            }
+        },
+        error: function () { Swal.fire('Error', 'Error de conexión', 'error'); }
+    });
+});

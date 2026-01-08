@@ -3,8 +3,8 @@
  * API: Listar usuarios activos
  */
 
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
 
 header('Content-Type: application/json');
 
@@ -13,9 +13,11 @@ try {
 
     $db = getDB();
 
-    $sql = "SELECT u.id_usuario, u.username, u.email, u.estado,
+    $sql = "SELECT u.id_usuario, u.username, u.estado,
+            c.email,
+            c.id_agencia,
             r.nombre_rol as rol_nombre,
-            COALESCE(c.nombre_completo, u.nombre_completo, u.username) as nombre_completo,
+            COALESCE(c.nombre_completo, u.username) as nombre_completo,
             COALESCE(c.puesto_cargo, r.nombre_rol, 'Sin Puesto') as puesto_cargo
             FROM usuarios u
             LEFT JOIN roles r ON u.id_rol = r.id_rol
