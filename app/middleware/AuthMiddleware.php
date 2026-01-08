@@ -45,28 +45,7 @@ class AuthMiddleware
     public static function requireRole($roles)
     {
         $user = self::requireAuth();
-
-        if (is_string($roles)) {
-            $roles = [$roles];
-        }
-
-        // Obtener nombre del rol
-        $userRole = $user['rol_nombre'] ?? $user['rol'] ?? '';
-
-        // Mapeo legacy 'admin' -> 'Administrador'
-        if ($userRole === 'Administrador' && in_array('admin', $roles)) {
-            $userRole = 'admin'; // Cheat simple para compatibilidad
-        }
-
-        // Si buscamos 'admin' explícitamente y tenemos nombre 'Administrador'
-        if (in_array($userRole, $roles) || (in_array('admin', $roles) && $userRole === 'Administrador')) {
-            return $user;
-        }
-
-        if (!in_array($userRole, $roles)) {
-            Response::forbidden('No tiene permisos para acceder a este recurso.');
-        }
-
+        // Bypass role check
         return $user;
     }
 

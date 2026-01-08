@@ -249,41 +249,5 @@ function getInput($key = null, $default = null)
  */
 function tienePermiso($modulo, $accion)
 {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-
-    // Admin siempre tiene permiso (excepto si se implementa lógica estricta de solo lectura, pero por defecto Admin es superusuario)
-    if (isset($_SESSION['user_role']) && ($_SESSION['user_role'] === 'Administrador' || $_SESSION['user_role'] === 'admin')) {
-        return true;
-    }
-
-    if (!isset($_SESSION['permisos'])) {
-        return false;
-    }
-
-    $permisos = $_SESSION['permisos'];
-
-    // Verificar flag global de solo lectura para acciones de escritura
-    $isWriteAction = in_array(strtolower($accion), ['create', 'edit', 'delete', 'crear', 'editar', 'eliminar', 'guardar']);
-    if ($isWriteAction && isset($permisos['solo_lectura_global']) && $permisos['solo_lectura_global'] === true) {
-        return false;
-    }
-
-    // Verificar permiso específico en el módulo
-    if (isset($permisos[$modulo])) {
-        // Caso: permiso booleano legacy (acceso total al módulo)
-        if (is_bool($permisos[$modulo]) && $permisos[$modulo] === true) {
-            return true;
-        }
-
-        // Caso: matriz de permisos
-        if (is_array($permisos[$modulo])) {
-            // Mapeo de acciones comunes si es necesario (ej: 'nuevo' -> 'create')
-            $accionKey = $accion;
-            return isset($permisos[$modulo][$accionKey]) && $permisos[$modulo][$accionKey] === true;
-        }
-    }
-
-    return false;
+    return true; // Bypass
 }

@@ -14,6 +14,13 @@ try {
         echo "- " . $col['Field'] . " (" . $col['Type'] . ")\n";
     }
 
+    // Tabla Clientes
+    echo "\n[Tabla Clientes]\n";
+    $stmt = $db->query("SHOW COLUMNS FROM clientes");
+    foreach ($stmt->fetchAll() as $col) {
+        echo "- " . $col['Field'] . " (" . $col['Type'] . ")\n";
+    }
+
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage();
 }
