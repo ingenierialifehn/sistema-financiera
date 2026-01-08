@@ -30,6 +30,18 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
+            <!-- Dashboard Gerencial -->
+            <?php
+            $userRole = $_SESSION['rol_nombre'] ?? '';
+            if (stripos($userRole, 'Admin') !== false || stripos($userRole, 'Gerente') !== false):
+                ?>
+                <a href="<?php echo base_url('public/admin/dashboard_gerencial.php'); ?>"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'dashboard_gerencial.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-chart-pie w-5"></i>
+                    <span>Dashboard Gerencial</span>
+                </a>
+            <?php endif; ?>
+
 
 
 

@@ -25,7 +25,14 @@ WHERE p.estado = 'Listo para Entrega'";
 $params = [];
 
 // If not Admin, filter by assignee
-if ($userRole !== 'Administrador') {
+// If not Admin, filter by assignee
+if ($userRole !== 'Administrador' && $userRole !== 'Gerente General') {
+    // Privacy: Only show loans from my agency
+    $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
+    $sql .= " AND c.id_agencia = ?";
+    $params[] = $sessionAgencia;
+
+    // Assignment: Only show loans assigned to me
     $sql .= " AND p.oficial_desembolsos_id = ?";
     $params[] = $userId;
 }

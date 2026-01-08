@@ -73,9 +73,20 @@ try {
     }
 
     // Filtro Agencia (si aplica)
-    if ($agenciaId) {
+    // Filtro Agencia (Lógica de Privacidad)
+    $canViewAll = (stripos($rol, 'Administrador') !== false || stripos($rol, 'Gerente') !== false);
+
+    if (!$canViewAll) {
+        // Rol Operativo: Forzar Agencia de Sesión
+        $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
         $sql .= " AND cl.id_agencia = ?";
-        $params[] = $agenciaId;
+        $params[] = $sessionAgencia;
+    } else {
+        // Rol Gerencial: Permitir filtro opcional
+        if ($agenciaId && $agenciaId !== 'todas') {
+            $sql .= " AND cl.id_agencia = ?";
+            $params[] = $agenciaId;
+        }
     }
 
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC";
