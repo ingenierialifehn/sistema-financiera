@@ -17,9 +17,14 @@ $nombreAgencia = isset($_SESSION['nombre_agencia']) ? $_SESSION['nombre_agencia'
 require_once __DIR__ . '/../../app/config/database.php';
 $db = getDB();
 
-$sql = "SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion 
+$sql = "SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion,
+        p.asesor_creditos_id, p.oficial_desembolsos_id,
+        u1.username as asesor_nombre,
+        u2.username as oficial_nombre
         FROM prestamos p
         JOIN clientes c ON p.id_cliente = c.id
+        LEFT JOIN usuarios u1 ON p.asesor_creditos_id = u1.id_usuario
+        LEFT JOIN usuarios u2 ON p.oficial_desembolsos_id = u2.id_usuario
         WHERE p.estado = 'Pendiente de Operaciones' 
         AND c.id_agencia = ?
         ORDER BY p.updated_at DESC";
@@ -43,6 +48,10 @@ $stmtRuta->execute([$idAgencia]);
 $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
+<script>
+    const BASE_URL = '<?php echo BASE_URL; ?>';
+</script>
+
 <div class="container mx-auto px-4 py-6">
     <div class="flex justify-between items-center mb-6">
         <div>
@@ -196,12 +205,25 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
 <!-- Modal Formalización -->
 <div id="modalFormalize" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full" style="z-index: 50;">
-    <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white mb-10">
         <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="text-xl font-bold text-gray-800">Formalización de Expediente</h3>
             <button onclick="closeModalFormalize()" class="text-gray-400 hover:text-gray-600">
                 <i class="fas fa-times"></i>
             </button>
+        </div>
+
+        <!-- Vista Previa del Calendario de Cuotas -->
+        <div class="mb-6 bg-blue-50 p-4 rounded-lg">
+            <h4 class="font-semibold text-blue-900 mb-3 flex items-center">
+                <i class="fas fa-calendar-alt mr-2"></i> Vista Previa del Plan de Pagos
+            </h4>
+            <div id="vistaPreviewCuotas" class="bg-white rounded p-3 max-h-60 overflow-y-auto">
+                <p class="text-gray-500 text-center">Cargando calendario...</p>
+            </div>
+            <p class="text-xs text-blue-600 mt-2">
+                <i class="fas fa-info-circle"></i> Este calendario fue generado automáticamente por el Analista
+            </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -248,6 +270,33 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
 
+        <!-- Asignación de Personal -->
+        <div class="mt-6 pt-4 border-t">
+            <h4 class="font-semibold text-gray-700 mb-3">3. Asignación de Personal</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Asesor de Créditos (Cobro) <span class="text-red-500">*</span>
+                    </label>
+                    <select id="asesor_creditos_id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        onchange="validateChecklist()">
+                        <option value="">Seleccione un asesor...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Oficial de Desembolsos (Entrega) <span class="text-red-500">*</span>
+                    </label>
+                    <select id="oficial_desembolsos_id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        onchange="validateChecklist()">
+                        <option value="">Seleccione un oficial...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="mt-8 pt-4 border-t flex justify-end">
             <button id="btnSendToDelivery" onclick="sendToDelivery()" disabled 
                 class="bg-gray-300 text-gray-500 px-6 py-2 rounded font-bold cursor-not-allowed transition">
@@ -259,13 +308,121 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
 <script>
     let currentLoan = null;
+    let availableUsers = [];
+
+    // Load available users on page load
+    $(document).ready(function() {
+        loadAvailableUsers();
+    });
+
+    async function loadAvailableUsers() {
+        try {
+            const response = await fetch('<?php echo BASE_URL; ?>/app/api/usuarios/list.php');
+            const result = await response.json();
+            if (result.success) {
+                availableUsers = result.data;
+            }
+        } catch (e) {
+            console.error('Error loading users:', e);
+        }
+    }
 
     function openFormalize(loan) {
         currentLoan = loan;
+        
         // Reset Modal
         document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+        
+        // Load users into selects with smart filtering
+        const asesorSelect = document.getElementById('asesor_creditos_id');
+        const oficialSelect = document.getElementById('oficial_desembolsos_id');
+        
+        asesorSelect.innerHTML = '<option value="">Seleccione un asesor...</option>';
+        oficialSelect.innerHTML = '<option value="">Seleccione un oficial...</option>';
+        
+        // Helper to populate select
+        const populateSelect = (select, keywords) => {
+            const recommended = [];
+            const others = [];
+            
+            availableUsers.forEach(user => {
+                const text = `${user.nombre_completo} (${user.puesto_cargo || user.rol_nombre || 'Sin puesto'})`;
+                const searchStr = (user.puesto_cargo + ' ' + (user.rol_nombre || '')).toLowerCase();
+                const isRecommended = keywords.some(k => searchStr.includes(k));
+                
+                const option = `<option value="${user.id_usuario}">${text}</option>`;
+                
+                if (isRecommended) recommended.push(option);
+                else others.push(option);
+            });
+            
+            if (recommended.length > 0) {
+                select.innerHTML += `<optgroup label="Recomendados">${recommended.join('')}</optgroup>`;
+                select.innerHTML += `<optgroup label="Otros">${others.join('')}</optgroup>`;
+            } else {
+                select.innerHTML += others.join('');
+            }
+        };
+
+        // Keywords for Asesor
+        populateSelect(asesorSelect, ['asesor', 'crédito', 'credito', 'cobrador', 'promotor']);
+        
+        // Keywords for Oficial
+        populateSelect(oficialSelect, ['oficial', 'desembolso', 'cajero', 'operaciones', 'caja']);
+
+        // Pre-select if already assigned
+        if (loan.asesor_creditos_id) {
+            asesorSelect.value = loan.asesor_creditos_id;
+        }
+        if (loan.oficial_desembolsos_id) {
+            oficialSelect.value = loan.oficial_desembolsos_id;
+        }
+
+        // Load cuotas preview
+        loadCuotasPreview(loan.id);
+        
         validateChecklist();
         $('#modalFormalize').removeClass('hidden');
+    }
+
+    async function loadCuotasPreview(prestamoId) {
+        const container = document.getElementById('vistaPreviewCuotas');
+        container.innerHTML = '<p class="text-gray-500 text-center"><i class="fas fa-spinner fa-spin"></i> Cargando...</p>';
+        
+        try {
+            const response = await fetch(`<?php echo BASE_URL; ?>/app/api/prestamos/cuotas.php?prestamo_id=${prestamoId}`);
+            const result = await response.json();
+            
+            if (result.success && result.data.cuotas && result.data.cuotas.length > 0) {
+                const cuotas = result.data.cuotas;
+                let html = '<table class="min-w-full text-xs">';
+                html += '<thead class="bg-gray-100"><tr>';
+                html += '<th class="px-2 py-1 text-left">#</th>';
+                html += '<th class="px-2 py-1 text-left">Fecha Vencimiento</th>';
+                html += '<th class="px-2 py-1 text-right">Monto</th>';
+                html += '</tr></thead><tbody>';
+                
+                cuotas.forEach((cuota, idx) => {
+                    const fecha = new Date(cuota.fecha_vencimiento).toLocaleDateString('es-HN');
+                    const monto = parseFloat(cuota.monto_cuota).toLocaleString('es-HN', {minimumFractionDigits: 2});
+                    const bgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                    html += `<tr class="${bgClass}">`;
+                    html += `<td class="px-2 py-1">${cuota.numero_cuota}</td>`;
+                    html += `<td class="px-2 py-1">${fecha}</td>`;
+                    html += `<td class="px-2 py-1 text-right">L ${monto}</td>`;
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                html += `<p class="text-xs text-gray-600 mt-2 text-center">Total de ${cuotas.length} cuotas</p>`;
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<p class="text-orange-600 text-center"><i class="fas fa-exclamation-triangle"></i> No se encontraron cuotas generadas</p>';
+            }
+        } catch (e) {
+            console.error('Error loading cuotas:', e);
+            container.innerHTML = '<p class="text-red-600 text-center"><i class="fas fa-times"></i> Error al cargar cuotas</p>';
+        }
     }
 
     function closeModalFormalize() {
@@ -276,9 +433,14 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
     function validateChecklist() {
         const checks = ['check_dni', 'check_recibo', 'check_negocio', 'check_contrato'];
         const allChecked = checks.every(id => document.getElementById(id).checked);
+        
+        // Also validate personnel assignment
+        const asesorSelected = document.getElementById('asesor_creditos_id').value !== '';
+        const oficialSelected = document.getElementById('oficial_desembolsos_id').value !== '';
+        
         const btn = document.getElementById('btnSendToDelivery');
         
-        if (allChecked) {
+        if (allChecked && asesorSelected && oficialSelected) {
             btn.disabled = false;
             btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
             btn.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700', 'shadow-lg', 'transform', 'hover:scale-105');
@@ -298,9 +460,12 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
     async function sendToDelivery() {
         if (!currentLoan) return;
         
+        const asesorId = document.getElementById('asesor_creditos_id').value;
+        const oficialId = document.getElementById('oficial_desembolsos_id').value;
+        
         const confirm = await Swal.fire({
             title: '¿Confirmar Envío?',
-            text: "El préstamo pasará a estado 'Listo para Entrega' y el cajero podrá desembolsarlo.",
+            text: "El préstamo pasará a estado 'Listo para Entrega' y el oficial de desembolsos podrá entregarlo.",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#10B981',
@@ -310,6 +475,23 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
         if (confirm.isConfirmed) {
             try {
+                // First, assign personnel
+                const assignResponse = await fetch('<?php echo BASE_URL; ?>/app/api/prestamos/asignar_personal.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        prestamo_id: currentLoan.id,
+                        asesor_creditos_id: asesorId,
+                        oficial_desembolsos_id: oficialId
+                    })
+                });
+                const assignRes = await assignResponse.json();
+                
+                if (!assignRes.success) {
+                    throw new Exception('Error al asignar personal: ' + assignRes.message);
+                }
+
+                // Then, update status
                 const response = await fetch('<?php echo BASE_URL; ?>/app/api/prestamos/update_status.php', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -321,7 +503,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                 const res = await response.json();
                 
                 if (res.success) {
-                    await Swal.fire('¡Enviado!', 'El expediente ha sido enviado a caja.', 'success');
+                    await Swal.fire('¡Enviado!', 'El expediente ha sido enviado a desembolso.', 'success');
                     location.reload();
                 } else {
                     Swal.fire('Error', res.message, 'error');

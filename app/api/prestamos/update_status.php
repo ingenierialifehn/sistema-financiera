@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../../core/PrestamoHelper.php';
 
 header('Content-Type: application/json');
 
@@ -21,7 +22,7 @@ try {
 
     $prestamoId = intval($data['prestamo_id']);
     $nuevoEstado = $data['nuevo_estado'];
-    $validStates = ['Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Rechazado', 'Listo para Entrega'];
+    $validStates = ['Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Rechazado', 'Listo para Entrega', 'Activo'];
 
     if (!in_array($nuevoEstado, $validStates)) {
         throw new Exception("Estado inválido");
@@ -33,6 +34,40 @@ try {
     $db->beginTransaction();
 
     try {
+        // If changing to 'Pendiente de Operaciones', generate payment schedule (cuotas)
+        if ($nuevoEstado === 'Pendiente de Operaciones') {
+            // Get loan details
+            $stmtLoan = $db->prepare("SELECT * FROM prestamos WHERE id = ?");
+            $stmtLoan->execute([$prestamoId]);
+            $loan = $stmtLoan->fetch(PDO::FETCH_ASSOC);
+
+            if (!$loan) {
+                throw new Exception("Préstamo no encontrado");
+            }
+
+            // Delete existing cuotas if any (in case of re-analysis)
+            $stmtDelete = $db->prepare("DELETE FROM cuotas WHERE prestamo_id = ?");
+            $stmtDelete->execute([$prestamoId]);
+
+            // Generate cuotas based on modality
+            $montoCuota = floatval($loan['valor_cuota']);
+            $periodoMeses = intval($loan['plazo_meses']);
+            $fechaInicio = date('Y-m-d'); // Today
+            $diaPago = intval(date('d')); // Current day of month
+            $modalidad = strtolower($loan['modalidad']);
+
+            // Generate cuotas using PrestamoHelper
+            PrestamoHelper::generateCuotasModalidad(
+                $db,
+                $prestamoId,
+                $montoCuota,
+                $periodoMeses,
+                $fechaInicio,
+                $diaPago,
+                $modalidad
+            );
+        }
+
         // If changing to 'Listo para Entrega', deduct from cash
         if ($nuevoEstado === 'Listo para Entrega') {
             // Get loan details

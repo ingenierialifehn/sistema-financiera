@@ -6,12 +6,14 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/Helpers.php';
 
-class PrestamoHelper {
-    
+class PrestamoHelper
+{
+
     /**
      * Generar cuotas automáticamente para un préstamo (mensual por compatibilidad)
      */
-    public static function generateCuotas($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago) {
+    public static function generateCuotas($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago)
+    {
         try {
             // Calcular fecha de inicio del primer pago
             $fechaInicioObj = new DateTime($fechaInicio);
@@ -22,12 +24,12 @@ class PrestamoHelper {
                 $fechaPrimerPago->format('m'),
                 min($diaPago, 28) // Asegurar que el día no exceda 28
             );
-            
+
             // Generar cuotas
             for ($i = 1; $i <= $periodoMeses; $i++) {
                 $fechaVencimiento = clone $fechaPrimerPago;
                 $fechaVencimiento->modify('+' . ($i - 1) . ' month');
-                
+
                 // Ajustar día si es necesario (para evitar problemas con meses de 30/31 días)
                 $dia = min($diaPago, 28);
                 $fechaVencimiento->setDate(
@@ -35,7 +37,14 @@ class PrestamoHelper {
                     $fechaVencimiento->format('m'),
                     $dia
                 );
-                
+
+                // Regla: Ajuste de sábado a viernes
+                if ($fechaVencimiento->format('N') == 6) {
+                    $fechaVencimiento->modify('-1 day');
+                } elseif ($fechaVencimiento->format('N') == 7) {
+                    $fechaVencimiento->modify('+1 day');
+                }
+
                 $stmt = $db->prepare("
                     INSERT INTO cuotas (
                         prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado
@@ -43,7 +52,7 @@ class PrestamoHelper {
                         :prestamo_id, :numero_cuota, :monto_cuota, :fecha_vencimiento, 'pendiente'
                     )
                 ");
-                
+
                 $stmt->execute([
                     'prestamo_id' => $prestamoId,
                     'numero_cuota' => $i,
@@ -51,19 +60,20 @@ class PrestamoHelper {
                     'fecha_vencimiento' => $fechaVencimiento->format('Y-m-d')
                 ]);
             }
-            
+
             return true;
-            
+
         } catch (Exception $e) {
             error_log("Error generando cuotas: " . $e->getMessage());
             throw $e;
         }
     }
-    
+
     /**
      * Calcular número de cuotas según modalidad
      */
-    public static function calculateNumeroCuotas($periodoMeses, $modalidad) {
+    public static function calculateNumeroCuotas($periodoMeses, $modalidad)
+    {
         switch ($modalidad) {
             case 'diario':
                 $diasLaborales = getConfig('mes_laboral_dias', 20);
@@ -81,7 +91,8 @@ class PrestamoHelper {
     /**
      * Calcular última fecha de vencimiento por modalidad (sin escribir en BD)
      */
-    public static function calcularUltimaFechaVencimiento($periodoMeses, $fechaInicio, $diaPago, $modalidad) {
+    public static function calcularUltimaFechaVencimiento($periodoMeses, $fechaInicio, $diaPago, $modalidad)
+    {
         if ($modalidad === 'mensual') {
             $fechaInicioObj = new DateTime($fechaInicio);
             $fechaPrimerPago = clone $fechaInicioObj;
@@ -103,10 +114,12 @@ class PrestamoHelper {
 
         if ($modalidad === 'diario') {
             $fecha->modify('+1 day');
-            while (in_array($fecha->format('N'), [6,7])) { $fecha->modify('+1 day'); }
+            while (in_array($fecha->format('N'), [6, 7])) {
+                $fecha->modify('+1 day');
+            }
             $cont = 0;
             while ($cont < $numeroCuotas) {
-                if (!in_array($fecha->format('N'), [6,7])) {
+                if (!in_array($fecha->format('N'), [6, 7])) {
                     $ultima = clone $fecha;
                     $cont++;
                 }
@@ -132,7 +145,8 @@ class PrestamoHelper {
     /**
      * Generar cuotas por modalidad
      */
-    public static function generateCuotasModalidad($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago, $modalidad) {
+    public static function generateCuotasModalidad($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago, $modalidad)
+    {
         if ($modalidad === 'mensual') {
             return self::generateCuotas($db, $prestamoId, $montoCuota, $periodoMeses, $fechaInicio, $diaPago);
         }
@@ -146,12 +160,12 @@ class PrestamoHelper {
             if ($modalidad === 'diario') {
                 // iniciar el siguiente día hábil
                 $fecha->modify('+1 day');
-                while (in_array($fecha->format('N'), [6,7])) { // 6=sábado, 7=domingo
+                while (in_array($fecha->format('N'), [6, 7])) { // 6=sábado, 7=domingo
                     $fecha->modify('+1 day');
                 }
                 while ($i <= $numeroCuotas) {
                     // Insertar solo L-V
-                    if (!in_array($fecha->format('N'), [6,7])) {
+                    if (!in_array($fecha->format('N'), [6, 7])) {
                         self::insertCuota($db, $prestamoId, $i, $montoCuota, $fecha);
                         $i++;
                     }
@@ -161,14 +175,36 @@ class PrestamoHelper {
                 // iniciar a la semana siguiente
                 $fecha->modify('+7 day');
                 for ($i = 1; $i <= $numeroCuotas; $i++) {
-                    self::insertCuota($db, $prestamoId, $i, $montoCuota, $fecha);
+                    // Copia para ajuste sin afectar el ciclo
+                    $fechaPago = clone $fecha;
+
+                    // Regla: Ajuste de sábado a viernes
+                    if ($fechaPago->format('N') == 6) { // 6 = Sábado
+                        $fechaPago->modify('-1 day');
+                    } elseif ($fechaPago->format('N') == 7) { // 7 = Domingo
+                        $fechaPago->modify('+1 day'); // Mover a Lunes (estándar si no se especificó)
+                    }
+
+                    self::insertCuota($db, $prestamoId, $i, $montoCuota, $fechaPago);
+
+                    // Avanzar fecha base 7 días
                     $fecha->modify('+7 day');
                 }
             } elseif ($modalidad === 'catorcenal') {
                 // iniciar a los 14 días
                 $fecha->modify('+14 day');
                 for ($i = 1; $i <= $numeroCuotas; $i++) {
-                    self::insertCuota($db, $prestamoId, $i, $montoCuota, $fecha);
+                    // Copia para ajuste
+                    $fechaPago = clone $fecha;
+
+                    // Regla: Ajuste de sábado a viernes
+                    if ($fechaPago->format('N') == 6) {
+                        $fechaPago->modify('-1 day');
+                    } elseif ($fechaPago->format('N') == 7) {
+                        $fechaPago->modify('+1 day');
+                    }
+
+                    self::insertCuota($db, $prestamoId, $i, $montoCuota, $fechaPago);
                     $fecha->modify('+14 day');
                 }
             }
@@ -183,7 +219,8 @@ class PrestamoHelper {
     /**
      * Insert helper
      */
-    private static function insertCuota($db, $prestamoId, $numeroCuota, $montoCuota, DateTime $fechaVencimiento) {
+    private static function insertCuota($db, $prestamoId, $numeroCuota, $montoCuota, DateTime $fechaVencimiento)
+    {
         $stmt = $db->prepare("
             INSERT INTO cuotas (
                 prestamo_id, numero_cuota, monto_cuota, fecha_vencimiento, estado
@@ -202,23 +239,26 @@ class PrestamoHelper {
     /**
      * Calcular monto total del préstamo
      */
-    public static function calculateMontoTotal($montoPrestado, $tasaInteres, $periodoMeses) {
+    public static function calculateMontoTotal($montoPrestado, $tasaInteres, $periodoMeses)
+    {
         // Interés simple: monto_total = monto_prestado * (1 + (tasa_interes / 100) * periodo_meses / 12)
         $interes = $montoPrestado * ($tasaInteres / 100) * ($periodoMeses / 12);
         return $montoPrestado + $interes;
     }
-    
+
     /**
      * Calcular monto de cuota (mensual por periodoMeses)
      */
-    public static function calculateMontoCuota($montoTotal, $periodoMeses) {
+    public static function calculateMontoCuota($montoTotal, $periodoMeses)
+    {
         return $montoTotal / $periodoMeses;
     }
 
     /**
      * Calcular monto de cuota por número de cuotas
      */
-    public static function calculateMontoCuotaPorCuotas($montoTotal, $numeroCuotas) {
+    public static function calculateMontoCuotaPorCuotas($montoTotal, $numeroCuotas)
+    {
         return $montoTotal / max(1, intval($numeroCuotas));
     }
 }
