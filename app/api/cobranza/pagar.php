@@ -21,8 +21,9 @@ try {
     $db = getDB();
     $db->beginTransaction();
 
-    // 1. Obtener datos de la cuota
-    $stmt = $db->prepare("SELECT c.*, p.id as prestamo_id, cl.id_agencia, cl.nombre_completo 
+    // 1. Obtener datos de la cuota + ASIGNACIÓN DE CARTERA
+    $stmt = $db->prepare("SELECT c.*, p.id as prestamo_id, cl.id_agencia, cl.nombre_completo,
+                          cl.cobrador_id, p.asesor_creditos_id, p.oficial_desembolsos_id
                           FROM cuotas c
                           JOIN prestamos p ON c.prestamo_id = p.id
                           JOIN clientes cl ON p.id_cliente = cl.id
@@ -33,6 +34,18 @@ try {
     if (!$cuota) {
         throw new Exception("Cuota no encontrada");
     }
+
+    // --- SEGURIDAD CARTERA ESTRICTA ---
+    // Regla: Solo el usuario asignado (Cobrador, Asesor) puede cobrar.
+    // EXCLUIMOS Oficial de Desembolso.
+
+    if (
+        $cuota['cobrador_id'] != $userId &&
+        $cuota['asesor_creditos_id'] != $userId
+    ) {
+        throw new Exception("Seguridad: No está autorizado para cobrar esta cartera. Cliente asignado a otro asesor.");
+    }
+    // --------------------------
 
     if ($cuota['estado'] === 'pagada') {
         throw new Exception("Esta cuota ya está pagada");

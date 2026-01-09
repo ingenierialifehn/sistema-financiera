@@ -16,10 +16,8 @@ try {
     $asesorId = $_GET['asesor_id'] ?? null;
     $fecha = $_GET['fecha'] ?? date('Y-m-d'); // Default hoy
 
-    // Restricción por Rol
-    if (stripos($rol, 'Asesor') !== false || stripos($rol, 'Oficial de Credito') !== false) {
-        $asesorId = $userId;
-    }
+    // Modificación ESTRICTA: Solo ver datos de mi usuario
+    $asesorId = ($userId && $userId > 0) ? $userId : -1;
 
     $db = getDB();
 
@@ -41,16 +39,16 @@ try {
 
     // Filtros
     // Prioridad: Si es MI cliente (Asesor), ignoro agencia para verlo siempre.
-    if ($agenciaId && !$asesorId) {
+    if ($agenciaId && $agenciaId !== 'todas') {
         $sql .= " AND cl.id_agencia = ?";
         $params[] = $agenciaId;
     }
 
-    if ($asesorId) {
-        $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
-        $params[] = $asesorId;
-        $params[] = $asesorId;
-    }
+    // Filtro OBLIGATORIO
+    $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ? OR cl.cobrador_id = ?)";
+    $params[] = $asesorId;
+    $params[] = $asesorId;
+    $params[] = $asesorId;
 
     // Ordenar: Primero los que tienen fecha (mora/hoy), al final los sin fecha
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC, cl.nombre_completo ASC";

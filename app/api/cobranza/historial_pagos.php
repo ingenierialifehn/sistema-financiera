@@ -39,24 +39,29 @@ try {
 
     $params = [$fechaFiltro];
 
-    // Filtros de Rol (Asesor ve solo lo suyo)
-    if (stripos($rol, 'Asesor') !== false || stripos($rol, 'Oficial') !== false) {
-        $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
-        $params[] = $userId;
-        $params[] = $userId;
-    }
+    // ==========================================
+    // SEGURIDAD ESTRICTA: SOLO MI HISTORIAL
+    // ==========================================
 
-    // Filtro Agencia (Lógica de Privacidad)
-    $canViewAll = (stripos($rol, 'Administrador') !== false || stripos($rol, 'Gerente') !== false);
-    if (!$canViewAll) {
-        $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
+    // Regla: Veo el pago SI:
+    // 1. Soy quien cobró el dinero (c.usuario_cobro_id)
+    // 2. O soy el Asesor de Crédito del préstamo (p.asesor_creditos_id)
+    // 3. O soy el Oficial de Desembolso (p.oficial_desembolsos_id)
+    // 4. O soy el Cobrador asignado al cliente (cl.cobrador_id)
+
+    $idFiltro = (isset($userId) && intval($userId) > 0) ? intval($userId) : -1;
+
+    $sql .= " AND (c.usuario_cobro_id = ? OR p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ? OR cl.cobrador_id = ?)";
+    $params[] = $idFiltro;
+    $params[] = $idFiltro;
+    $params[] = $idFiltro;
+    $params[] = $idFiltro;
+
+    // Filtro de Agencia: Aunque ya filtramos por usuario, reforzamos (opcional)
+    // Si el usuario tiene sesión de agencia, filtramos por ella también para evitar mezclas raras
+    if (isset($_SESSION['id_agencia']) && $_SESSION['id_agencia']) {
         $sql .= " AND cl.id_agencia = ?";
-        $params[] = $sessionAgencia;
-    } else {
-        if ($agenciaId && $agenciaId !== 'todas') {
-            $sql .= " AND cl.id_agencia = ?";
-            $params[] = $agenciaId;
-        }
+        $params[] = $_SESSION['id_agencia'];
     }
 
     $sql .= " GROUP BY p.id, c.fecha_pago_real ORDER BY c.fecha_pago_real DESC";

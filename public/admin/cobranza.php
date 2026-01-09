@@ -48,13 +48,12 @@ try {
     $sqlCount = "SELECT COUNT(DISTINCT p.id_cliente) FROM prestamos p JOIN clientes cl ON p.id_cliente = cl.id WHERE p.estado = 'Activo'";
 
     // Role Filter (Personalized view for Asesores/Oficiales)
-    $uRol = $user['rol_nombre'] ?? '';
-    if (stripos($uRol, 'Asesor') !== false || stripos($uRol, 'Oficial') !== false) {
-        $sqlCount .= " AND (p.asesor_creditos_id = $userId OR p.oficial_desembolsos_id = $userId)";
-    }
+    // Filtro ESTRICTO por Usuario (Contador Inicial)
+    // Eliminamos excepciones de Rol Admin/Gerente. Solo cuenta lo mío.
+    $sqlCount .= " AND (p.asesor_creditos_id = $userId OR p.oficial_desembolsos_id = $userId OR cl.cobrador_id = $userId)";
 
-    // Agency Filter (Non-Admin)
-    if (!empty($user['id_agencia']) && stripos($uRol, 'Admin') === false) {
+    // Filtro Agencia (Ya redundante si filtramos por usuario, pero por consistencia)
+    if (!empty($user['id_agencia'])) {
         $sqlCount .= " AND cl.id_agencia = " . intval($user['id_agencia']);
     }
 
@@ -99,6 +98,8 @@ require_once __DIR__ . '/includes/layout.php';
                     class="border-gray-300 rounded text-sm px-3 py-1 bg-gray-50 text-gray-700 focus:ring-2 focus:ring-indigo-200 <?php echo $isAsesor ? 'bg-gray-100 cursor-not-allowed opacity-75' : ''; ?>"
                     onchange="refreshCurrentView()">
             </div>
+            <!-- Filtros de Agencia y Asesor OCULTOS por seguridad estricta -->
+            <!-- 
             <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase">Agencia</label>
                 <select id="filtroAgencia"
@@ -115,6 +116,10 @@ require_once __DIR__ . '/includes/layout.php';
                     <option value="">Todos</option>
                 </select>
             </div>
+            -->
+            <!-- Inputs ocultos para mantener compatibilidad JS mínima si fuese requerida (aunque la API ignora) -->
+            <input type="hidden" id="filtroAgencia" value="">
+            <input type="hidden" id="filtroAsesor" value="">
         </div>
 
         <!-- Tabs -->
@@ -349,9 +354,39 @@ require_once __DIR__ . '/includes/layout.php';
     const USER_ID = '<?php echo $_SESSION['id_usuario'] ?? ''; ?>';
     const IS_MOBILE = window.innerWidth < 768;
 
+    // Verificar si el asesor está bloqueado
+    let asesorBloqueado = false;
+
     document.addEventListener('DOMContentLoaded', () => {
+        verificarBloqueoAsesor();
         loadAgencias(); // Chain: loadAgencias -> loadAsesores -> refreshCurrentView -> switchTab
     });
+
+    async function verificarBloqueoAsesor() {
+        try {
+            const response = await fetch(`${window.BASE_URL}/app/api/caja/verificar_bloqueo_asesor.php`);
+            const data = await response.json();
+
+            if (data.success && data.bloqueado) {
+                asesorBloqueado = true;
+                // Mostrar alerta permanente
+                const alertaHtml = `
+                    <div class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-lg max-w-md">
+                        <div class="flex items-center">
+                            <i class="fas fa-lock text-2xl mr-3"></i>
+                            <div>
+                                <p class="font-bold">Cuadre Realizado</p>
+                                <p class="text-sm">${data.mensaje}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('afterbegin', alertaHtml);
+            }
+        } catch (error) {
+            console.error('Error verificando bloqueo:', error);
+        }
+    }
     async function switchTab(tab) {
         currentTab = tab;
         const activeClass = 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center shadow-sm border border-gray-100';
@@ -842,6 +877,17 @@ require_once __DIR__ . '/includes/layout.php';
     const infoCalc = document.getElementById('modal-calc-info');
 
     function openModal(prestamoId, nombre, cuotaMonto, fechaVenc, saldoCap, saldoBal, clienteId) {
+        // Verificar si el asesor está bloqueado
+        if (asesorBloqueado) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Cuadre Realizado',
+                text: 'Ya realizaste tu cuadre del día. No puedes hacer más cobros.',
+                confirmButtonText: 'Entendido'
+            });
+            return;
+        }
+
         document.getElementById('modal-title').innerText = `Cobrar a ${nombre}`;
         document.getElementById('cobro_prestamo_id').value = prestamoId;
         document.getElementById('cobro_cuota_monto').value = cuotaMonto;

@@ -85,9 +85,12 @@ try {
     $params = [$fechaFiltro]; // Para DATEDIFF
 
     // ============================================
-    // MODO DESARROLLO: Restricciones deshabilitadas
-    // TODO: Habilitar restricciones antes de producción
     // ============================================
+    // SEGURIDAD ESTRICTA: CADA USUARIO SOLO VE SU CARTERA
+    // ============================================
+
+    // Regla universal: Solo ver clientes propios
+    $cobradorId = $userId;
 
     // Filtro de agencia (opcional para todos)
     if ($agenciaId && $agenciaId !== 'todas') {
@@ -95,14 +98,16 @@ try {
         $params[] = $agenciaId;
     }
 
-    // Filtro de cobrador/asesor (opcional para todos)
-    $cobradorId = $_GET['cobrador_id'] ?? null;
-    if ($cobradorId) {
-        $sql .= " AND (cl.cobrador_id = ? OR p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
-        $params[] = $cobradorId;
-        $params[] = $cobradorId;
-        $params[] = $cobradorId;
-    }
+    // Filtro OBLIGATORIO de cobrador/asesor
+    // El usuario solo puede ver clientes donde sea Cobrador Asignado o Asesor de Crédito.
+    // EXCLUIMOS oficial_desembolsos_id porque el Admin suele desembolsar pero no cobra.
+
+    // Validación EXTRA: Asegurar que el ID sea válido. Si es 0 o null, usamos -1 para bloquear todo.
+    $idFiltroSeguro = (isset($cobradorId) && intval($cobradorId) > 0) ? intval($cobradorId) : -1;
+
+    $sql .= " AND (cl.cobrador_id = ? OR p.asesor_creditos_id = ?)";
+    $params[] = $idFiltroSeguro;
+    $params[] = $idFiltroSeguro;
 
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC";
 

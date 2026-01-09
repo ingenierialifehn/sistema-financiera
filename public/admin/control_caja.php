@@ -566,9 +566,13 @@ if (!$idAgencia) {
             <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
                 <button type="button" onclick="$('#modalCuadreAsesores').addClass('hidden')"
                     class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 font-medium transition-colors">Cancelar</button>
-                <button type="submit"
+                <button type="submit" name="action" value="registrar"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 shadow-md font-medium transition-transform transform hover:scale-105 flex items-center">
                     <i class="fas fa-share-alt mr-2"></i> Registrar y Distribuir
+                </button>
+                <button type="button" id="btnCuadrarAsesor"
+                    class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 shadow-md font-medium transition-transform transform hover:scale-105 flex items-center">
+                    <i class="fas fa-lock mr-2"></i> Cuadrar Asesor
                 </button>
             </div>
         </form>

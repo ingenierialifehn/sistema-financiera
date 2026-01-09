@@ -1083,3 +1083,109 @@ $('#cuadreAsesoresForm').on('submit', function (e) {
         error: function () { Swal.fire('Error', 'Error de conexión', 'error'); }
     });
 });
+
+// Botón "Cuadrar Asesor" - Bloquea al asesor para cobros
+$('#btnCuadrarAsesor').on('click', function () {
+    const asesorId = $('#asesorIdCuadre').val();
+
+    let isListaVacia = itemsCuadre.length === 0;
+
+    if (!asesorId) {
+        Swal.fire('Error', 'Seleccione un asesor', 'error');
+        return;
+    }
+
+    // Si la lista está vacía, preguntar confirmación especial
+    if (isListaVacia) {
+        // Verificar si ya ha entregado algo hoy (usando los datos cargados)
+        const entregadoPrevio = asesorSeleccionadoStats ? asesorSeleccionadoStats.entregadoBase : 0;
+
+        if (entregadoPrevio <= 0) {
+            Swal.fire('Error', 'No hay montos registrados ni entregas previas para cuadrar.', 'error');
+            return;
+        }
+    }
+
+    // Calcular totales
+    let montoEfectivo = 0;
+    let montoBanco = 0;
+    let bancoId = null;
+    let referenciaBanco = null;
+
+    itemsCuadre.forEach(item => {
+        if (item.tipo === 'efectivo') {
+            montoEfectivo += item.monto;
+        } else if (item.tipo === 'banco') {
+            montoBanco += item.monto;
+            bancoId = item.banco_id; // Tomamos el último banco (podrías mejorar esto)
+            referenciaBanco = item.referencia;
+        }
+    });
+
+    // Mensaje dinámico
+    let mensajeConfirm = '';
+    if (isListaVacia) {
+        mensajeConfirm = `<p class="text-orange-600 font-bold">¡Atención! No está registrando nuevos montos.</p>
+                          <p>Se realizará el cuadre y bloqueo usando solo las entregas previas.</p>`;
+    } else {
+        mensajeConfirm = `<p class="mt-2"><strong>Nuevo Monto a Registrar:</strong> L ${(montoEfectivo + montoBanco).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>`;
+    }
+
+    // Confirmar acción
+    Swal.fire({
+        title: '¿Cuadrar Asesor?',
+        html: `<p>Esta acción bloqueará al asesor para que no pueda hacer más cobros hoy.</p>
+               ${mensajeConfirm}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#DC2626',
+        cancelButtonColor: '#6B7280',
+        confirmButtonText: 'Sí, cuadrar y bloquear',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const payload = {
+                id_asesor: asesorId,
+                monto_efectivo: montoEfectivo,
+                monto_banco: montoBanco,
+                banco_id: bancoId,
+                referencia_banco: referenciaBanco,
+                observaciones: `Cuadre realizado con ${itemsCuadre.length} movimiento(s)`
+            };
+
+            $.ajax({
+                url: BASE_URL + '/app/api/caja/cuadrar_asesor.php',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Cuadre Exitoso!',
+                            html: `<p>${res.message}</p>
+                                   <p class="mt-2"><strong>Recaudado:</strong> L ${res.data.monto_recaudado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                                   <p><strong>Entregado:</strong> L ${res.data.monto_entregado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                                   <p><strong>Diferencia:</strong> L ${res.data.diferencia.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>`,
+                            confirmButtonText: 'Entendido'
+                        });
+
+                        // Limpiar formulario
+                        itemsCuadre = [];
+                        renderItemsCuadre();
+                        $('#cuadreAsesoresForm')[0].reset();
+                        $('#modalCuadreAsesores').removeClass('flex').addClass('hidden');
+
+                        // Actualizar estado de caja
+                        cargarEstadoCaja();
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
+                },
+                error: function (xhr) {
+                    Swal.fire('Error', xhr.responseJSON?.message || 'Error de conexión', 'error');
+                }
+            });
+        }
+    });
+});

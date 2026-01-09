@@ -411,6 +411,11 @@ $currentUser = $user ?? [];
                             <div class="label">Monto principal</div>
                         </div>
                         <div class="stat-card warning">
+                            <h3>Total Intereses (11%)</h3>
+                            <div class="value" id="total-intereses-completo">L 0.00</div>
+                            <div class="label">Interés + Gastos + Comisión</div>
+                        </div>
+                        <div class="stat-card">
                             <h3>Interés (4%)</h3>
                             <div class="value" id="total-interes">L 0.00</div>
                         </div>
@@ -680,6 +685,13 @@ $currentUser = $user ?? [];
                     // Actualizar stats
                     document.getElementById('total-cobrado').textContent = formatMoney(data.total_cobrado);
                     document.getElementById('total-capital').textContent = formatMoney(data.desglose.capital);
+                    
+                    // Calcular Total Intereses (11%) = Interés + Gastos + Comisión
+                    const totalInteresesCompleto = parseFloat(data.desglose.interes) + 
+                                                   parseFloat(data.desglose.gastos) + 
+                                                   parseFloat(data.desglose.comision);
+                    document.getElementById('total-intereses-completo').textContent = formatMoney(totalInteresesCompleto);
+                    
                     document.getElementById('total-interes').textContent = formatMoney(data.desglose.interes);
                     document.getElementById('total-gastos').textContent = formatMoney(data.desglose.gastos);
                     document.getElementById('total-comision').textContent = formatMoney(data.desglose.comision);
