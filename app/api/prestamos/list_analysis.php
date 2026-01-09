@@ -23,10 +23,11 @@ try {
     $agenciaId = isset($_GET['agencia_id']) && !empty($_GET['agencia_id']) ? intval($_GET['agencia_id']) : null;
     $enRuta = isset($_GET['en_ruta']) && $_GET['en_ruta'] == '1';
 
-    $sql = "SELECT p.*, p.comentario_analisis, p.comentario_verificacion, c.nombre_completo as cliente_nombre, c.numero_documento, a.nombre_agencia 
+    $sql = "SELECT p.*, p.comentario_analisis, p.comentario_verificacion, c.nombre_completo as cliente_nombre, c.numero_documento, a.nombre_agencia, u.username as creado_por
             FROM prestamos p
             JOIN clientes c ON p.id_cliente = c.id
             JOIN agencias a ON c.id_agencia = a.id_agencia
+            LEFT JOIN usuarios u ON p.asesor_creditos_id = u.id_usuario
             WHERE 1=1";
 
     $params = [];

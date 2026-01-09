@@ -2,61 +2,93 @@
 require_once __DIR__ . '/../../app/config/config.php';
 require_once __DIR__ . '/../../app/config/database.php';
 
-if (!isset($_GET['type']) || !isset($_GET['id'])) {
+if (!isset($_GET['type']) || (!isset($_GET['id']) && !isset($_GET['ids']))) {
     die("Faltan parámetros");
 }
 
 $type = $_GET['type'];
-$id = intval($_GET['id']);
+$ids = [];
+if (isset($_GET['ids'])) {
+    $ids = explode(',', $_GET['ids']);
+} elseif (isset($_GET['id'])) {
+    $ids = [intval($_GET['id'])];
+}
 
 $db = getDB();
 $loan = null;
 $isNewPayment = false;
 
+// Variables for Aggregated Receipt
+$agg = [
+    'capital' => 0,
+    'interes' => 0,
+    'gastos' => 0,
+    'comision' => 0,
+    'total' => 0,
+    'conceptos' => [],
+    'cuotas_nums' => []
+];
+
 if ($type === 'ticket_pago') {
-    // 1. Intentar buscar en tabla PAGOS (Nuevo Sistema con Desglose)
-    try {
-        $stmtP = $db->prepare("SELECT p.*, pr.modalidad, pr.plazo_meses, pr.total_a_pagar, 
-                               cl.nombre_completo, cl.numero_documento, cl.direccion, p.prestamo_id as prestamo_real_id
-                               FROM pagos p
-                               JOIN prestamos pr ON p.prestamo_id = pr.id
-                               JOIN clientes cl ON pr.id_cliente = cl.id
-                               WHERE p.id = ?");
-        $stmtP->execute([$id]);
-        $pagoRecord = $stmtP->fetch(PDO::FETCH_ASSOC);
+    // 1. Fetch ALL involved records from 'cuotas'
+    // We treat 'cuotas' rows as the payment records.
+    $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+    $sql = "SELECT c.*, p.modalidad, p.plazo_meses, p.total_a_pagar, p.monto_capital, p.fecha_desembolso,
+            cl.nombre_completo, cl.numero_documento, cl.direccion, p.id as prestamo_real_id
+            FROM cuotas c
+            JOIN prestamos p ON c.prestamo_id = p.id
+            JOIN clientes cl ON p.id_cliente = cl.id
+            WHERE c.id IN ($placeholders)";
 
-        if ($pagoRecord) {
-            $loan = $pagoRecord;
-            $isNewPayment = true;
-            // Calcular Saldo Restante
-            $stmtSaldo = $db->prepare("SELECT IFNULL(SUM(monto_cuota - monto_pagado),0) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada'");
-            $stmtSaldo->execute([$loan['prestamo_real_id']]);
-            $loan['saldo_restante'] = $stmtSaldo->fetchColumn();
+    $stmt = $db->prepare($sql);
+    $stmt->execute($ids);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (count($rows) > 0) {
+        $loan = $rows[0]; // Take client/loan info from first record
+        $isNewPayment = true; // Force new format for breakdown
+
+        foreach ($rows as $r) {
+            $agg['total'] += floatval($r['monto_pagado']);
+            // If fields are null (old data), treat as 0 or fallback? 
+            // Assuming data written by process_payment has these fields.
+            $agg['capital'] += floatval($r['capital_cuota'] ?? 0);
+            $agg['interes'] += floatval($r['interes_cuota'] ?? 0);
+            $agg['gastos'] += floatval($r['gastos_cuota'] ?? 0);
+            $agg['comision'] += floatval($r['comision_cuota'] ?? 0);
+
+            if ($r['numero_cuota'] == 0) {
+                $agg['conceptos'][] = "Abono Capital";
+            } else {
+                $agg['cuotas_nums'][] = "#" . $r['numero_cuota'];
+            }
         }
-    } catch (Exception $e) { /* Ignore */
-    }
 
-    // 2. Fallback: Sistema Antiguo (ID = Cuota ID)
-    if (!$isNewPayment) {
-        $stmt = $db->prepare("SELECT c.*, p.modalidad, p.plazo_meses, p.total_a_pagar, 
-                              cl.nombre_completo, cl.numero_documento, cl.direccion, p.id as prestamo_real_id
-                              FROM cuotas c
-                              JOIN prestamos p ON c.prestamo_id = p.id
-                              JOIN clientes cl ON p.id_cliente = cl.id
-                              WHERE c.id = ?");
-        $stmt->execute([$id]);
-        $loan = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($loan) {
-            $stmtSaldo = $db->prepare("SELECT SUM(monto_cuota) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada'");
-            $stmtSaldo->execute([$loan['prestamo_real_id']]);
-            $loan['saldo_restante'] = $stmtSaldo->fetchColumn() ?: 0;
-            $loan['monto_total'] = $loan['monto_pagado']; // Map for compatibility
+        // Finalize Concept String
+        if (!empty($agg['cuotas_nums'])) {
+            $agg['conceptos'][] = "Cuota(s) " . implode(', ', $agg['cuotas_nums']);
         }
+        $loan['concepto_unificado'] = implode(' + ', $agg['conceptos']);
+
+        // Calculate Remaining Balance (of the LOAN)
+        // Sum of all non-paid quotas
+        $stmtSaldo = $db->prepare("SELECT IFNULL(SUM(monto_cuota - monto_pagado),0) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada'");
+        $stmtSaldo->execute([$loan['prestamo_real_id']]);
+        $loan['saldo_restante'] = $stmtSaldo->fetchColumn();
+
+        // Map aggregated values to keys used in template
+        $loan['monto_total'] = $agg['total'];
+        $loan['abono_capital'] = $agg['capital'];
+        $loan['interes_pagado'] = $agg['interes'];
+        $loan['gastos_financieros'] = $agg['gastos'];
+        $loan['comision_papeleria'] = $agg['comision'];
+        $loan['fecha_pago'] = $rows[0]['fecha_pago_real'] ?? date('Y-m-d H:i:s');
     }
 
 } else {
-    // ID es de Préstamo (Contratos/Pagares)
+    // Normal single-record logic for other types (Contrato, etc)
+    $id = $ids[0];
+    // ... existing logic for other types ...
     $stmt = $db->prepare("SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion 
                           FROM prestamos p
                           JOIN clientes c ON p.id_cliente = c.id
@@ -163,12 +195,14 @@ if ($type !== 'ticket_pago') {
             <p>Entre los suscritos, por una parte <strong>SISTEMA FINANCIERA</strong>, y por la otra
                 <strong><?php echo $loan['nombre_completo']; ?></strong> con DNI
                 <strong><?php echo $loan['numero_documento']; ?></strong> (en adelante "EL DEUDOR"), convienen celebrar el
-                presente Contrato de Préstamo sujeto a las siguientes cláusulas:</p>
+                presente Contrato de Préstamo sujeto a las siguientes cláusulas:
+            </p>
             <div class="clause"><span class="clause-title">PRIMERA (MONTO):</span> La Financiera otorga al Deudor un
                 préstamo por la suma de <strong>L <?php echo $monto; ?></strong>.</div>
             <div class="clause"><span class="clause-title">SEGUNDA (PLAZO Y MODALIDAD):</span> El plazo para el pago total
                 será de <strong><?php echo $plazo; ?> meses</strong>, pagaderos en cuotas
-                <strong><?php echo $modalidad; ?>s</strong>.</div>
+                <strong><?php echo $modalidad; ?>s</strong>.
+            </div>
             <div class="clause"><span class="clause-title">TERCERA (INTERESES Y GASTOS):</span> El crédito devengará una
                 Tasa Global del <strong><?php echo $tasaTotal; ?>%</strong> mensual, desglozada de la siguiente manera:
                 <ul>
@@ -196,7 +230,8 @@ if ($type !== 'ticket_pago') {
                 incondicionalmente a la orden de <strong>SISTEMA FINANCIERA</strong> la suma principal de <strong>L
                     <?php echo $totalPagar; ?></strong>.</p>
             <p>Este valor será pagado mediante cuotas <strong><?php echo $modalidad; ?>s</strong> de L
-                <?php echo $cuota; ?>.</p>
+                <?php echo $cuota; ?>.
+            </p>
             <p>La falta de pago de cualquiera de las cuotas pactadas hará exigible el saldo total insoluto de inmediato, sin
                 necesidad de requerimiento judicial o extrajudicial.</p>
             <p>En caso de cobro judicial, seré responsable de todas las costas procesales y honorarios de abogados.</p>
@@ -204,7 +239,8 @@ if ($type !== 'ticket_pago') {
         <div class="signatures">
             <div class="sig-block"></div>
             <div class="sig-block"><?php echo $loan['nombre_completo']; ?><br>Firma del Deudor<br>DNI:
-                <?php echo $loan['numero_documento']; ?></div>
+                <?php echo $loan['numero_documento']; ?>
+            </div>
         </div>
 
     <?php elseif ($type === 'plan'):
@@ -255,13 +291,15 @@ if ($type !== 'ticket_pago') {
                     FINANCIERA</strong> la cantidad de
                 <strong><?php echo number_format($loan['neto_entregar'] ?? $loan['monto_capital'], 2); ?> Lempiras</strong>
                 en efectivo / cheque / transferencia, correspondiente al desembolso del préstamo No.
-                <?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?>.</p>
+                <?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?>.
+            </p>
             <p>Firmo la presente en señal de conformidad y aceptación de los fondos recibidos.</p>
         </div>
         <div class="signatures">
             <div class="sig-block">ENTREGADO POR<br>OFICIAL DE DESEMBOLSOS</div>
             <div class="sig-block"><?php echo $loan['nombre_completo']; ?><br>RECIBÍ CONFORME<br>DNI:
-                <?php echo $loan['numero_documento']; ?></div>
+                <?php echo $loan['numero_documento']; ?>
+            </div>
         </div>
 
     <?php elseif ($type === 'ticket_pago'): ?>
@@ -271,15 +309,23 @@ if ($type !== 'ticket_pago') {
                 SISTEMA FINANCIERA<br>COMPROBANTE DE PAGO
             </div>
             <div class="content" style="font-size: 14px;">
-                <p>Fecha: <?php echo date('d/m/Y H:i', strtotime($isNewPayment ? $loan['fecha_pago'] : 'now')); ?><br>
-                    Recibo #: <?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?></p>
+                <p>Fecha: <?php echo date('d/m/Y H:i', strtotime($loan['fecha_pago'])); ?><br>
+                    Recibo #: <?php echo str_pad($ids[0], 6, '0', STR_PAD_LEFT); ?></p>
                 <p>Cliente: <?php echo $loan['nombre_completo']; ?></p>
 
                 <hr style="border-top: 1px dashed #000;">
 
+                <p style="margin-bottom: 5px;">
+                    <strong>Préstamo #<?php echo $loan['prestamo_real_id']; ?></strong> (<?php echo $loan['modalidad']; ?>)<br>
+                    Monto Or.: L <?php echo number_format($loan['monto_capital'], 2); ?><br>
+                    Fecha Ot.: <?php echo date('d/m/Y', strtotime($loan['fecha_desembolso'])); ?>
+                </p>
+
+                <hr style="border-top: 1px dashed #000;">
+
                 <p><strong>Concepto:</strong><br>
-                    Abono a Préstamo #<?php echo $loan['prestamo_real_id']; ?><br>
-                    (<?php echo $modalidad; ?>)</p>
+                    <?php echo $loan['concepto_unificado']; ?>
+                </p>
 
                 <?php if ($isNewPayment): ?>
                     <!-- Desglose Nuevo -->
@@ -290,19 +336,22 @@ if ($type !== 'ticket_pago') {
                             </td>
                         </tr>
                         <tr>
-                            <td style="border:none;">Interés (4%):</td>
+                            <td style="border:none;">Interés:</td>
                             <td style="text-align:right; border:none;">L
-                                <?php echo number_format($loan['interes_pagado'], 2); ?></td>
+                                <?php echo number_format($loan['interes_pagado'], 2); ?>
+                            </td>
                         </tr>
                         <tr>
-                            <td style="border:none;">Gastos (4%):</td>
+                            <td style="border:none;">Gastos Admin:</td>
                             <td style="text-align:right; border:none;">L
-                                <?php echo number_format($loan['gastos_financieros'], 2); ?></td>
+                                <?php echo number_format($loan['gastos_financieros'], 2); ?>
+                            </td>
                         </tr>
                         <tr>
-                            <td style="border:none;">Comisión (3%):</td>
+                            <td style="border:none;">Comisión:</td>
                             <td style="text-align:right; border:none;">L
-                                <?php echo number_format($loan['comision_papeleria'], 2); ?></td>
+                                <?php echo number_format($loan['comision_papeleria'], 2); ?>
+                            </td>
                         </tr>
                     </table>
                 <?php else: ?>

@@ -21,16 +21,16 @@ try {
 
     // Consulta: Cuotas pagadas o parciales
     // Se asume que fecha_pago_real indica cuándo se recibió el dinero
+    // Consulta: Agrupada por Transacción (Fecha exacta + Préstamo)
+    // Para evitar mostrar múltiples filas por un solo pago dividido
     $sql = "SELECT 
-                c.id as cuota_id, 
-                c.numero_cuota, 
-                c.monto_pagado, 
+                GROUP_CONCAT(c.id) as cuota_ids,
                 c.fecha_pago_real,
-                c.estado,
+                SUM(c.monto_pagado) as monto_pagado_total,
                 cl.nombre_completo, 
                 cl.numero_documento,
                 p.id as prestamo_id,
-                p.modalidad
+                GROUP_CONCAT(c.numero_cuota ORDER BY c.numero_cuota ASC) as cuotas_nums
             FROM cuotas c
             JOIN prestamos p ON c.prestamo_id = p.id
             JOIN clientes cl ON p.id_cliente = cl.id
@@ -46,41 +46,56 @@ try {
         $params[] = $userId;
     }
 
-    // Filtro Agencia
     // Filtro Agencia (Lógica de Privacidad)
     $canViewAll = (stripos($rol, 'Administrador') !== false || stripos($rol, 'Gerente') !== false);
-
     if (!$canViewAll) {
-        // Rol Operativo: Forzar Agencia de Sesión
         $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
         $sql .= " AND cl.id_agencia = ?";
         $params[] = $sessionAgencia;
     } else {
-        // Rol Gerencial: Permitir filtro opcional
         if ($agenciaId && $agenciaId !== 'todas') {
             $sql .= " AND cl.id_agencia = ?";
             $params[] = $agenciaId;
         }
     }
 
-    $sql .= " ORDER BY c.fecha_pago_real DESC, c.id DESC";
+    $sql .= " GROUP BY p.id, c.fecha_pago_real ORDER BY c.fecha_pago_real DESC";
 
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Formateo
+    // Formateo
     foreach ($data as &$row) {
-        // Campos originales
-        $row['monto_fmt'] = number_format($row['monto_pagado'], 2);
+        $montoTotal = floatval($row['monto_pagado_total']);
+        $row['monto_fmt'] = number_format($montoTotal, 2);
+
         $row['fecha_fmt'] = date('d/m/Y H:i', strtotime($row['fecha_pago_real']));
 
         // Aliases para compatibilidad con el frontend
-        $row['id'] = $row['cuota_id'];  // Para el ticket
-        $row['fecha_hora'] = $row['fecha_pago_real'];  // Para mostrar
-        $row['cliente'] = $row['nombre_completo'];  // Para mostrar
-        $row['monto'] = $row['monto_pagado'];  // Para mostrar
-        $row['concepto'] = "Cuota #{$row['numero_cuota']} - Préstamo #{$row['prestamo_id']}";
+        $row['id'] = $row['cuota_ids'];  // ID ahora contiene "1,5,6" (CSV)
+        $row['fecha_hora'] = $row['fecha_pago_real'];
+        $row['cliente'] = $row['nombre_completo'];
+        $row['monto'] = $montoTotal;
+
+        // Generar Concepto Amigable
+        $nums = explode(',', $row['cuotas_nums']);
+        $hasAbono = in_array('0', $nums);
+        $cleanNums = array_filter($nums, fn($n) => $n != '0');
+
+        $conceptParts = [];
+        if (!empty($cleanNums)) {
+            $conceptParts[] = "Cuota(s): " . implode(', ', $cleanNums);
+        }
+        if ($hasAbono) {
+            $conceptParts[] = "Abono Capital";
+        }
+        $conceptTxt = implode(' + ', $conceptParts);
+        if (empty($conceptTxt))
+            $conceptTxt = "Pago General";
+
+        $row['concepto'] = "$conceptTxt - Préstamo #{$row['prestamo_id']}";
     }
 
     echo json_encode(['success' => true, 'data' => $data]);

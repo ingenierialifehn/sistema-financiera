@@ -25,6 +25,27 @@ try {
     $totalRecaudado = 0;
 }
 
+// Count Assigned/Visible Clients
+$clientesCount = 0;
+try {
+    $sqlCount = "SELECT COUNT(DISTINCT p.id_cliente) FROM prestamos p JOIN clientes cl ON p.id_cliente = cl.id WHERE p.estado = 'Activo'";
+
+    // Role Filter (Personalized view for Asesores/Oficiales)
+    $uRol = $user['rol_nombre'] ?? '';
+    if (stripos($uRol, 'Asesor') !== false || stripos($uRol, 'Oficial') !== false) {
+        $sqlCount .= " AND (p.asesor_creditos_id = $userId OR p.oficial_desembolsos_id = $userId)";
+    }
+
+    // Agency Filter (Non-Admin)
+    if (!empty($user['id_agencia']) && stripos($uRol, 'Admin') === false) {
+        $sqlCount .= " AND cl.id_agencia = " . intval($user['id_agencia']);
+    }
+
+    $clientesCount = $db->query($sqlCount)->fetchColumn();
+} catch (Exception $e) {
+    $clientesCount = 0;
+}
+
 $pageTitle = "Gestión de Cobranza";
 require_once __DIR__ . '/includes/layout.php';
 ?>
@@ -39,6 +60,8 @@ require_once __DIR__ . '/includes/layout.php';
             </h1>
             <p class="text-sm text-gray-500 mt-1">Recaudado hoy: <span id="total-recaudado-display"
                     class="font-bold text-green-600">L <?php echo number_format($totalRecaudado, 2); ?></span></p>
+            <p class="text-xs text-gray-400 mt-1">Clientes Asignados: <span
+                    class="font-bold text-gray-600"><?php echo intval($clientesCount); ?></span></p>
         </div>
         <div class="flex gap-2">
             <a href="../../app/api/fix_assignments.php"
@@ -420,7 +443,7 @@ require_once __DIR__ . '/includes/layout.php';
                             <td class="px-6 py-4 text-sm text-gray-500">${h.concepto || 'Pago Recibido'}</td>
                             <td class="px-6 py-4 text-right text-sm font-bold text-green-600">L ${parseFloat(montoShow).toFixed(2)}</td>
                             <td class="px-6 py-4 text-center">
-                                <button onclick="window.open('${baseUrl}/public/admin/print_docs.php?type=ticket_pago&id=${idShow}', '_blank')" class="text-indigo-600 hover:text-indigo-900" title="Reimprimir Ticket"><i class="fas fa-print"></i></button>
+                                <button onclick="window.open('${baseUrl}/public/admin/print_docs.php?type=ticket_pago&ids=${idShow}', '_blank')" class="text-indigo-600 hover:text-indigo-900" title="Reimprimir Ticket"><i class="fas fa-print"></i></button>
                             </td>
                         </tr>
                      `;
@@ -447,7 +470,7 @@ require_once __DIR__ . '/includes/layout.php';
                         
                         <div class="flex justify-between items-center mt-2">
                             <div class="text-xl font-extrabold text-green-600">L ${parseFloat(montoShow).toFixed(2)}</div>
-                            <button onclick="window.open('${baseUrl}/public/admin/print_docs.php?type=ticket_pago&id=${idShow}', '_blank')" 
+                            <button onclick="window.open('${baseUrl}/public/admin/print_docs.php?type=ticket_pago&ids=${idShow}', '_blank')" 
                                 class="bg-gray-100 hover:bg-gray-200 text-indigo-600 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center">
                                 <i class="fas fa-print mr-2"></i> Ticket
                             </button>
@@ -468,6 +491,7 @@ require_once __DIR__ . '/includes/layout.php';
     }
 
     function renderTable(data) {
+        const baseUrl = window.BASE_URL;
         const tbody = document.getElementById('tablaCobros');
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="p-12 text-center text-gray-400 flex flex-col items-center"><i class="fas fa-search text-3xl mb-2"></i><span>No se encontraron préstamos activos.</span></td></tr>';
@@ -518,13 +542,18 @@ require_once __DIR__ . '/includes/layout.php';
             html += `
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 table-row-animate">
             <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-bold text-gray-900">${r.nombre_completo}</div>
+                <div class="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    ${r.nombre_completo}
+                    <a href="${baseUrl}/public/admin/ficha_cliente.php?id=${r.id_cliente}" class="text-gray-400 hover:text-indigo-600 transition" title="Ver Ficha">
+                        <i class="fas fa-external-link-alt text-xs"></i>
+                    </a>
+                </div>
                 <div class="text-xs text-gray-500">${numeroDni}</div>
                 <!-- Risk Badge -->
                 ${getRiskBadge(r.categoria_riesgo, r.dias_mora_global)}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 font-medium">L ${capital}</div>
+                <div class="text-sm text-gray-900 font-medium">Monto: L ${capital}</div>
                 <div class="text-xs text-gray-500">Préstamo #${r.prestamo_id} | ${modalidad}</div>
                 <div class="mt-1 w-24 bg-gray-200 rounded-full h-1">
                     <div class="bg-indigo-500 h-1 rounded-full" style="width: ${Math.min(100, (r.pagadas / r.total_cuotas) * 100)}%"></div>
@@ -588,8 +617,14 @@ require_once __DIR__ . '/includes/layout.php';
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
                 <div class="flex justify-between items-start mb-2">
                     <div>
-                        <h3 class="font-bold text-gray-900 text-lg leading-tight">${r.nombre_completo}</h3>
+                        <h3 class="font-bold text-gray-900 text-lg leading-tight flex items-center gap-2">
+                            ${r.nombre_completo}
+                            <a href="${baseUrl}/public/admin/ficha_cliente.php?id=${r.id_cliente}" class="text-indigo-400 hover:text-indigo-700 transition" title="Ver Ficha">
+                                <i class="fas fa-external-link-alt text-sm"></i>
+                            </a>
+                        </h3>
                         <p class="text-xs text-gray-500">${numeroDni}</p>
+                        <p class="text-xs text-indigo-600 font-medium mt-1">L ${capital} (${r.modalidad || 'N/A'})</p>
                     </div>
                     ${riskBadge}
                 </div>
@@ -748,9 +783,8 @@ require_once __DIR__ . '/includes/layout.php';
 
                 // Generar Tickets Automáticos
                 if (result.pagos_ids && result.pagos_ids.length > 0) {
-                    result.pagos_ids.forEach(id => {
-                        window.open(`${BASE_URL}/public/admin/print_docs.php?type=ticket_pago&id=${id}`, '_blank');
-                    });
+                    const ids = result.pagos_ids.join(',');
+                    window.open(`${BASE_URL}/public/admin/print_docs.php?type=ticket_pago&ids=${ids}`, '_blank');
                 }
 
                 Swal.fire({

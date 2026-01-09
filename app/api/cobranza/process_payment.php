@@ -24,6 +24,7 @@ try {
         throw new Exception("El monto debe ser mayor a 0.");
     }
 
+    $paidIds = []; // Initialize ID capture
     $db->beginTransaction();
 
     // 1. Obtener Datos Préstamo
@@ -75,6 +76,7 @@ try {
             $fecha,
             $userId
         ]);
+        $paidIds[] = $db->lastInsertId();
 
         $msg = "Abono a Capital registrado exitosamente como cuota extraordinaria (L " . number_format($montoRecibido, 2) . ")";
 
@@ -118,6 +120,7 @@ try {
                     WHERE id = ?
                 ");
                 $upd->execute([$fecha, $userId, $cuota['id']]);
+                $paidIds[] = $cuota['id'];
 
                 $detallesPago[] = "Cuota #{$cuota['numero_cuota']} pagada (L " . number_format($saldoCuota, 2) . ")";
             } else {
@@ -189,6 +192,7 @@ try {
                     $userId,
                     $cuota['id']
                 ]);
+                $paidIds[] = $cuota['id'];
 
                 // 2. INSERTAR NUEVA CUOTA (El SALDO pendiente)
                 $ins = $db->prepare("
@@ -233,9 +237,9 @@ try {
     $hoySql = date('Y-m-d');
 
     // Get User Context for correct filtering
-    $stmtUser = $db->prepare("SELECT id_agencia, (SELECT nombre_rol FROM roles WHERE id = usuarios.id_rol) as rol_nombre FROM usuarios WHERE id_usuario = ?");
-    $stmtUser->execute([$userId]);
-    $uData = $stmtUser->fetch(PDO::FETCH_ASSOC);
+    // Get User Context for correct filtering
+    // Use Auth helper to get agency info correctly (since id_agencia is in colaboradores table, not directly in usuarios)
+    $uData = Auth::checkSession();
 
     $sqlTotal = "
         SELECT IFNULL(SUM(c.monto_pagado), 0) 
@@ -258,7 +262,8 @@ try {
     echo json_encode([
         'success' => true,
         'message' => $msg,
-        'nuevo_total_hoy' => $nuevoTotal
+        'nuevo_total_hoy' => $nuevoTotal,
+        'pagos_ids' => $paidIds
     ]);
 
 } catch (Exception $e) {

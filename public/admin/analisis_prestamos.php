@@ -292,7 +292,12 @@ $pageTitle = 'Análisis de Préstamos';
                             <!-- Risk Badge -->
                             ${getRiskBadge(row.categoria_riesgo, row.dias_mora_global)}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${row.nombre_agencia || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">${row.nombre_agencia || 'N/A'}</div>
+                            <div class="text-xs text-gray-500 mt-1" title="Solicitado por">
+                                <i class="fas fa-user-pen mr-1"></i>${row.creado_por || 'Sistema'}
+                            </div>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">${monto}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.modalidad} (${row.plazo_meses} meses)</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fecha}</td>
