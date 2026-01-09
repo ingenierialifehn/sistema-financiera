@@ -23,15 +23,15 @@ $currentUser = $user ?? [];
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        <script>
-        // Configuración Híbrida de BASE_URL
-            // PC (Localhost): Usa la configuración exacta de PHP para máxima estabilidad.
-            // Móvil (IP): Calcula dinámicamente para evitar errores de conexión cruzada.
-            const PHP_BASE_URL = '<?php echo BASE_URL; ?>';
-            let BASE_URL = PHP_BASE_URL;
 
-            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-             const protocol = window.location.protocol;
+        // Configuración Híbrida de BASE_URL
+        // PC (Localhost): Usa la configuración exacta de PHP para máxima estabilidad.
+        // Móvil (IP): Calcula dinámicamente para evitar errores de conexión cruzada.
+        const PHP_BASE_URL = '<?php echo BASE_URL; ?>';
+        let BASE_URL = PHP_BASE_URL;
+
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            const protocol = window.location.protocol;
             const host = window.location.host;
             const pathname = window.location.pathname;
 
@@ -39,16 +39,16 @@ $currentUser = $user ?? [];
             let publicIndex = pathname.indexOf('/public');
             if (publicIndex !== -1) {
                 let basePath = pathname.substring(0, publicIndex);
-            BASE_URL = protocol + '//' + host + basePath;
-             } else {
+                BASE_URL = protocol + '//' + host + basePath;
+            } else {
                 // Soporte para Virtual Hosts donde public es la raíz
                 BASE_URL = protocol + '//' + host;
-             }
+            }
         }
 
-            const USER_AGENCIA_ID = <?php echo $userAgenciaId ? $userAgenciaId : 'null'; ?>;
-            console.log('BASE_URL:', BASE_URL);
-            console.log('USER_AGENCIA_ID:', USER_AGENCIA_ID);
+        const USER_AGENCIA_ID = <?php echo $userAgenciaId ? $userAgenciaId : 'null'; ?>;
+        console.log('BASE_URL:', BASE_URL);
+        console.log('USER_AGENCIA_ID:', USER_AGENCIA_ID);
     </script>
 </head>
 
@@ -589,19 +589,19 @@ $currentUser = $user ?? [];
         // Prueba simple del botón
         document.addEventListener('DOMContentLoaded', function () {
             console.log('DOM loaded');
-        const btnNuevo = document.getElementById('btnNuevoCliente');
-        const modal = document.getElementById('modalCliente');
-        console.log('Button found:', btnNuevo !== null);
-        console.log('Modal found:', modal !== null);
+            const btnNuevo = document.getElementById('btnNuevoCliente');
+            const modal = document.getElementById('modalCliente');
+            console.log('Button found:', btnNuevo !== null);
+            console.log('Modal found:', modal !== null);
 
-        if (btnNuevo) {
-            btnNuevo.addEventListener('click', function () {
-                console.log('Button clicked!');
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                }
-            });
+            if (btnNuevo) {
+                btnNuevo.addEventListener('click', function () {
+                    console.log('Button clicked!');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                    }
+                });
             }
         });
     </script>

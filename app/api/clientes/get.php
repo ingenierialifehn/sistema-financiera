@@ -34,10 +34,13 @@ try {
             c.*,
             a.nombre_agencia as agencia_nombre,
             u.id_usuario as cobrador_id,
-            col.nombre_completo as cobrador_nombre
+            col.nombre_completo as cobrador_nombre,
+            col_creator.nombre_completo as creado_por_nombre
         FROM clientes c
         LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
         LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
+        LEFT JOIN usuarios u_creator ON c.usuario_id = u_creator.id_usuario
+        LEFT JOIN colaboradores col_creator ON u_creator.id_colaborador = col_creator.id_colaborador
         LEFT JOIN agencias a ON c.id_agencia = a.id_agencia
         WHERE c.id = :id
     ";

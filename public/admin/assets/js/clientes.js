@@ -424,6 +424,7 @@ function renderClientes(clientes) {
                     ${estadoBadge}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${hasMissingData(cliente) ? '<span class="text-yellow-500 mr-2" title="Datos faltantes"><i class="fas fa-exclamation-triangle"></i></span>' : ''}
                     <button onclick="verFicha(${cliente.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Ver Ficha">
                         <i class="fas fa-eye"></i>
                     </button>
@@ -458,7 +459,10 @@ function renderClientes(clientes) {
                                 <p class="text-blue-100 text-sm">${cliente.codigo_cliente || 'Sin cÃ³digo'}</p>
                             </div>
                         </div>
-                        ${estadoBadge}
+                        <div class="flex items-center gap-2">
+                             ${hasMissingData(cliente) ? '<i class="fas fa-exclamation-triangle text-yellow-300 text-lg animate-pulse" title="Datos faltantes"></i>' : ''}
+                             ${estadoBadge}
+                        </div>
                     </div>
                 </div>
                 
@@ -495,6 +499,21 @@ function renderClientes(clientes) {
 
     $('#clientesTableBody').html(htmlTable);
     $('#clientesCardsContainer').html(htmlCards);
+}
+
+function hasMissingData(cliente) {
+    // Campos que si faltan general alerta (excluyendo email y ubicación)
+    // Ubicación asumimos: direccion, departamento, municipio, barrio, punto_referencia, gps_coordenadas
+    // Mandatory fields are enforced on save, so we check "optional" fields that are not location/email.
+    // Candidates: genero, tipo_vivienda.
+    const fieldsToCheck = ['genero', 'tipo_vivienda'];
+
+    for (const field of fieldsToCheck) {
+        if (!cliente[field] || cliente[field] === '') {
+            return true;
+        }
+    }
+    return false;
 }
 
 function loadAgencias() {
@@ -675,21 +694,22 @@ function loadClienteData(id) {
 $('#formCliente').on('submit', function (e) {
     e.preventDefault();
 
-    // Validar campos requeridos manualmente
-    // Solo validamos lo esencial para permitir guardar borradores
+    // Validar campos requeridos
     const requiredFields = [
         { id: 'nombre_completo', label: 'Nombre Completo', tab: 'datos-personales' },
-        { id: 'numero_documento', label: 'NÃºmero de Documento', tab: 'datos-personales' }
+        { id: 'numero_documento', label: 'Número de Documento', tab: 'datos-personales' },
+        { id: 'fecha_nacimiento', label: 'Fecha de Nacimiento', tab: 'datos-personales' },
+        { id: 'telefono', label: 'Teléfono', tab: 'datos-personales' },
+        { id: 'ocupacion', label: 'Ocupación', tab: 'datos-personales' }
     ];
 
     for (const field of requiredFields) {
         if (!$('#' + field.id).val()) {
             Swal.fire({
-                title: 'Error',
+                title: 'Campo Requerido',
                 text: `El campo ${field.label} es obligatorio`,
-                icon: 'error'
+                icon: 'warning'
             }).then(() => {
-                // Cambiar a la pestaÃ±a correspondiente
                 $(`.tab-button[data-tab="${field.tab.replace('tab-', '')}"]`).click();
                 setTimeout(() => $('#' + field.id).focus(), 300);
             });
@@ -697,29 +717,29 @@ $('#formCliente').on('submit', function (e) {
         }
     }
 
-    // Validar DNI duplicado
-    if ($('#dniError').is(':visible')) {
-        Swal.fire('Error', 'El DNI ingresado ya estÃ¡ registrado', 'error');
+    // Validar Edad (18 - 69 años)
+    const fechaNac = new Date($('#fecha_nacimiento').val());
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - fechaNac.getFullYear();
+    const m = hoy.getMonth() - fechaNac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < fechaNac.getDate())) {
+        edad--;
+    }
+
+    if (edad < 18 || edad >= 70) {
+        Swal.fire({
+            title: 'Edad Inválida',
+            text: `El cliente tiene ${edad} años. Solo se permiten clientes entre 18 y 69 años.`,
+            icon: 'error'
+        });
         return;
     }
 
-    // Validar imÃ¡genes requeridas - COMENTADO TEMPORALMENTE
-    // Hasta que se agreguen las columnas a la tabla clientes
-    /*
-    if (!isEditMode) {
-        const requiredImages = ['foto_dni_frontal', 'foto_dni_reverso', 'foto_perfil', 'foto_casa', 'foto_recibo'];
-        const missingImages = requiredImages.filter(function (field) {
-            return !uploadedFiles[field];
-        });
-
-        if (missingImages.length > 0) {
-            Swal.fire('Error', 'Debes cargar todas las imÃ¡genes requeridas', 'error');
-            // Cambiar a tab de documentaciÃ³n
-            $('.tab-button[data-tab="documentacion"]').click();
-            return;
-        }
+    // Validar DNI duplicado
+    if ($('#dniError').is(':visible')) {
+        Swal.fire('Error', 'El DNI ingresado ya está registrado', 'error');
+        return;
     }
-    */
 
     // Preparar FormData
     const formData = new FormData();
@@ -733,7 +753,6 @@ $('#formCliente').on('submit', function (e) {
 
     campos.forEach(function (campo) {
         const valor = $('#' + campo).val();
-        // Enviar SIEMPRE, incluso si estÃ¡ vacÃ­o
         formData.append(campo, valor || '');
     });
 
@@ -744,7 +763,7 @@ $('#formCliente').on('submit', function (e) {
     const gpsValue = $('#gps_coordenadas').val();
     formData.append('gps_coordenadas', gpsValue || '');
 
-    // Agregar ID si es ediciÃ³n
+    // Agregar ID si es edición
     if (isEditMode) {
         formData.append('id', $('#clienteId').val());
     }
@@ -768,7 +787,7 @@ $('#formCliente').on('submit', function (e) {
         success: function (response) {
             if (response.success) {
                 Swal.fire({
-                    title: 'Â¡Ã‰xito!',
+                    title: '¡Éxito!',
                     text: isEditMode ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente',
                     icon: 'success',
                     showCancelButton: true,
@@ -787,7 +806,7 @@ $('#formCliente').on('submit', function (e) {
             }
         },
         error: function (xhr) {
-            const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexiÃ³n';
+            const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexión';
             Swal.fire('Error', msg, 'error');
         }
     });

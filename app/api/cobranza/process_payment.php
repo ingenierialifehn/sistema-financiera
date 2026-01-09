@@ -138,10 +138,11 @@ try {
         // Regla: Se registra como una cuota extra pagada, 100% capital, 0% interés.
 
         // 1. Validar si tiene cuotas en mora
-        $stmtMora = $db->prepare("SELECT COUNT(*) FROM cuotas WHERE prestamo_id = ? AND estado = 'en_mora'");
+        // Una cuota está en mora si no está pagada y su fecha de vencimiento es anterior a HOY.
+        $stmtMora = $db->prepare("SELECT COUNT(*) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada' AND fecha_vencimiento < CURDATE()");
         $stmtMora->execute([$prestamoId]);
         if ($stmtMora->fetchColumn() > 0) {
-            throw new Exception("No es posible realizar abonos a capital: El préstamo tiene cuotas en mora. Debe ponerse al día primero.");
+            throw new Exception("No es posible realizar abonos a capital: El préstamo tiene cuotas vencidas. Debe ponerse al día primero.");
         }
 
         // 2. Registrar el abono como una cuota especial

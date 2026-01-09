@@ -224,7 +224,7 @@ $pageTitle = 'Ficha del Cliente';
                                         ${cliente.email ? `<i class="fas fa-envelope text-blue-600 mr-2"></i><a href="mailto:${cliente.email}" class="underline decoration-dotted">${cliente.email}</a>` : 'N/A'}
                                     </p>
                                 </div>
-                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                 <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
                                     <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Ocupación</label>
                                     <p class="text-gray-900 font-semibold mt-1">${cliente.ocupacion || 'N/A'}</p>
                                 </div>
@@ -232,6 +232,12 @@ $pageTitle = 'Ficha del Cliente';
                                     <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Agencia</label>
                                     <p class="text-gray-900 font-semibold mt-1">
                                         <i class="fas fa-building text-purple-600 mr-2"></i>${cliente.agencia_nombre || 'N/A'}
+                                    </p>
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Registrado Por</label>
+                                    <p class="text-gray-900 font-semibold mt-1">
+                                        <i class="fas fa-user-edit text-orange-500 mr-2"></i>${cliente.creado_por_nombre || 'N/A'}
                                     </p>
                                 </div>
                             </div>
@@ -847,7 +853,7 @@ $pageTitle = 'Ficha del Cliente';
                                 <input type="hidden" name="garantias_existing_foto[]" value="${g.foto || ''}">
                                 <label class="flex items-center justify-center w-full px-2 py-1 bg-white border border-yellow-300 rounded shadow-sm text-xs font-medium text-yellow-700 hover:bg-yellow-50 cursor-pointer transition">
                                     <i class="fas fa-camera mr-2"></i> Cambiar Foto
-                                    <input type="file" name="garantias_fotos[]" accept="image/*" class="hidden"
+                                    <input type="file" name="garantias_fotos[]" accept="image/*" capture="environment" class="hidden"
                                         onchange="previewGarantiaImage(this, 'preview-${id}')">
                                 </label>
                              </div>
@@ -955,7 +961,7 @@ $pageTitle = 'Ficha del Cliente';
                                 <label class="block text-gray-600 text-xs font-bold mb-1">Evidencia</label>
                                 <label class="flex items-center justify-center w-full px-2 py-1 bg-white border border-yellow-300 rounded shadow-sm text-xs font-medium text-yellow-700 hover:bg-yellow-50 cursor-pointer transition">
                                     <i class="fas fa-camera mr-2"></i> Subir Foto
-                                    <input type="file" name="garantias_fotos[]" accept="image/*" class="hidden"
+                                    <input type="file" name="garantias_fotos[]" accept="image/*" capture="environment" class="hidden"
                                         onchange="previewGarantiaImage(this, 'preview-${id}')">
                                 </label>
                              </div>
@@ -1065,7 +1071,7 @@ $pageTitle = 'Ficha del Cliente';
                             Factura Compra)</label>
                         <div class="flex items-center space-x-4">
                             <div class="flex-grow">
-                                <input type="file" name="doc_permiso_operaciones" accept="image/*,.pdf"
+                                <input type="file" name="doc_permiso_operaciones" accept="image/*" capture="environment"
                                     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                     onchange="previewGarantiaImage(this, 'preview-doc')">
                             </div>
@@ -1091,8 +1097,8 @@ $pageTitle = 'Ficha del Cliente';
                             <label
                                 class="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs py-1 px-3 rounded font-bold w-full text-center transition">
                                 <i class="fas fa-upload mr-1"></i> Subir
-                                <input type="file" name="foto_negocio_1" accept="image/*" class="hidden"
-                                    onchange="previewGarantiaImage(this, 'preview-negocio-1')">
+                                <input type="file" name="foto_negocio_1" accept="image/*" capture="environment"
+                                    class="hidden" onchange="previewGarantiaImage(this, 'preview-negocio-1')">
                             </label>
                         </div>
                         <div class="bg-white p-2 rounded border border-gray-200 shadow-sm flex flex-col items-center">
@@ -1104,8 +1110,8 @@ $pageTitle = 'Ficha del Cliente';
                             <label
                                 class="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs py-1 px-3 rounded font-bold w-full text-center transition">
                                 <i class="fas fa-upload mr-1"></i> Subir
-                                <input type="file" name="foto_negocio_2" accept="image/*" class="hidden"
-                                    onchange="previewGarantiaImage(this, 'preview-negocio-2')">
+                                <input type="file" name="foto_negocio_2" accept="image/*" capture="environment"
+                                    class="hidden" onchange="previewGarantiaImage(this, 'preview-negocio-2')">
                             </label>
                         </div>
                         <div class="bg-white p-2 rounded border border-gray-200 shadow-sm flex flex-col items-center">
@@ -1117,8 +1123,8 @@ $pageTitle = 'Ficha del Cliente';
                             <label
                                 class="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs py-1 px-3 rounded font-bold w-full text-center transition">
                                 <i class="fas fa-upload mr-1"></i> Subir
-                                <input type="file" name="foto_negocio_3" accept="image/*" class="hidden"
-                                    onchange="previewGarantiaImage(this, 'preview-negocio-3')">
+                                <input type="file" name="foto_negocio_3" accept="image/*" capture="environment"
+                                    class="hidden" onchange="previewGarantiaImage(this, 'preview-negocio-3')">
                             </label>
                         </div>
                         <div class="bg-white p-2 rounded border border-gray-200 shadow-sm flex flex-col items-center">
@@ -1130,8 +1136,8 @@ $pageTitle = 'Ficha del Cliente';
                             <label
                                 class="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs py-1 px-3 rounded font-bold w-full text-center transition">
                                 <i class="fas fa-upload mr-1"></i> Subir
-                                <input type="file" name="foto_negocio_4" accept="image/*" class="hidden"
-                                    onchange="previewGarantiaImage(this, 'preview-negocio-4')">
+                                <input type="file" name="foto_negocio_4" accept="image/*" capture="environment"
+                                    class="hidden" onchange="previewGarantiaImage(this, 'preview-negocio-4')">
                             </label>
                         </div>
                         <div class="bg-white p-2 rounded border border-gray-200 shadow-sm flex flex-col items-center">
@@ -1143,8 +1149,8 @@ $pageTitle = 'Ficha del Cliente';
                             <label
                                 class="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs py-1 px-3 rounded font-bold w-full text-center transition">
                                 <i class="fas fa-upload mr-1"></i> Subir
-                                <input type="file" name="foto_negocio_5" accept="image/*" class="hidden"
-                                    onchange="previewGarantiaImage(this, 'preview-negocio-5')">
+                                <input type="file" name="foto_negocio_5" accept="image/*" capture="environment"
+                                    class="hidden" onchange="previewGarantiaImage(this, 'preview-negocio-5')">
                             </label>
                         </div>
                     </div>
@@ -1347,93 +1353,8 @@ $pageTitle = 'Ficha del Cliente';
     </script>
 
     <script>
-        // ... (existing functions) ...
+        // Duplicates removed to fix syntax error and enable functionality
 
-        let garantiaCount = 0;
-
-        function addGarantiaRow() {
-            garantiaCount++;
-            const id = garantiaCount;
-
-            const html = `
-                <div id="garantia-row-${id}" class="bg-white p-3 rounded border border-yellow-200 shadow-sm relative transition hover:shadow-md">
-                    <button type="button" onclick="removeGarantiaRow(${id})" class="absolute top-2 right-2 text-red-400 hover:text-red-600">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    
-                    <h5 class="text-xs font-bold text-yellow-700 mb-2 uppercase flex items-center">
-                        <span class="bg-yellow-100 text-yellow-800 rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2">${id}</span>
-                        Detalle de Garantía
-                    </h5>
-                    
-                    <div class="grid grid-cols-12 gap-3 items-start">
-                        <!-- Descripción -->
-                        <div class="col-span-12 md:col-span-5">
-                            <label class="block text-gray-600 text-xs font-bold mb-1">Descripción</label>
-                            <input type="text" name="garantias_descripcion[]" placeholder="Ej. Plancha Industrial 4 quemadores" required
-                                class="text-sm w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none">
-                        </div>
-                        
-                        <!-- Valor -->
-                        <div class="col-span-6 md:col-span-3">
-                            <label class="block text-gray-600 text-xs font-bold mb-1">Valor (L)</label>
-                            <input type="number" step="0.01" name="garantias_valor[]" placeholder="0.00" required
-                                class="text-sm w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-                        </div>
-
-                        <!-- Foto y Preview -->
-                        <div class="col-span-6 md:col-span-4 flex items-center space-x-2">
-                             <div class="flex-grow">
-                                <label class="block text-gray-600 text-xs font-bold mb-1">Evidencia</label>
-                                <input type="file" name="garantias_fotos[]" accept="image/*" 
-                                    class="text-xs w-full text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
-                                    onchange="previewGarantiaImage(this, 'preview-${id}')">
-                             </div>
-                             <div class="flex-shrink-0 w-12 h-12 bg-gray-100 border rounded overflow-hidden flex items-center justify-center">
-                                <img id="preview-${id}" src="" class="hidden w-full h-full object-cover">
-                                <i id="preview-${id}-icon" class="fas fa-camera text-gray-300"></i>
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            $('#garantias-list').append(html);
-        }
-
-        function removeGarantiaRow(id) {
-            $(`#garantia-row-${id}`).remove();
-        }
-
-        function renderBusinessImage(filename, title) {
-            if (!filename) return '';
-            return `
-                <div class="w-16 h-16 border rounded overflow-hidden cursor-pointer hover:opacity-75 relative group"
-                     onclick="verImagen('${BASE_URL}/uploads/negocios/${filename}', '${title}')" title="${title}">
-                     <img src="${BASE_URL}/uploads/negocios/${filename}" class="w-full h-full object-cover">
-                     <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition"></div>
-                </div>
-            `;
-        }
-
-        function previewGarantiaImage(input, previewId) {
-            const preview = document.getElementById(previewId);
-            const icon = document.getElementById(previewId + '-icon');
-
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                    if (icon) icon.classList.add('hidden');
-                }
-                reader.readAsDataURL(input.files[0]);
-            } else {
-                preview.src = '';
-                preview.classList.add('hidden');
-                if (icon) icon.classList.remove('hidden');
-            }
-        }
 
         function setPreviewSource(previewId, filename) {
             const preview = document.getElementById(previewId);

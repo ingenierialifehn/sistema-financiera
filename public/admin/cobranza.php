@@ -13,11 +13,28 @@ $db = getDB();
 $totalRecaudado = 0;
 try {
     $hoy = date('Y-m-d');
-    $sqlTotal = "SELECT IFNULL(SUM(c.monto_pagado),0) FROM cuotas c JOIN prestamos p ON c.prestamo_id = p.id JOIN clientes cl ON p.id_cliente = cl.id WHERE DATE(c.fecha_pago_real) = '$hoy'";
+    $sqlTotal = "SELECT IFNULL(SUM(c.monto_pagado),0) 
+                 FROM cuotas c 
+                 JOIN prestamos p ON c.prestamo_id = p.id 
+                 JOIN clientes cl ON p.id_cliente = cl.id 
+                 WHERE DATE(c.fecha_pago_real) = '$hoy'";
 
-    // Filter by Agency if User has one and is not Admin
-    if (!empty($user['id_agencia']) && stripos($user['rol_nombre'] ?? '', 'Admin') === false) {
-        $sqlTotal .= " AND cl.id_agencia = " . intval($user['id_agencia']);
+    $uRol = $user['rol_nombre'] ?? '';
+    $canViewAll = (stripos($uRol, 'Administrador') !== false || stripos($uRol, 'Gerente') !== false);
+
+    // Si no es admin/gerente, filtrar por usuario asignado
+    if (!$canViewAll) {
+        $sqlTotal .= " AND (cl.cobrador_id = $userId OR p.asesor_creditos_id = $userId OR p.oficial_desembolsos_id = $userId)";
+
+        // También filtrar por agencia
+        if (!empty($user['id_agencia'])) {
+            $sqlTotal .= " AND cl.id_agencia = " . intval($user['id_agencia']);
+        }
+    } else {
+        // Admin/Gerente: solo filtrar por agencia si tiene una asignada
+        if (!empty($user['id_agencia'])) {
+            $sqlTotal .= " AND cl.id_agencia = " . intval($user['id_agencia']);
+        }
     }
 
     $totalRecaudado = $db->query($sqlTotal)->fetchColumn();
@@ -86,16 +103,16 @@ require_once __DIR__ . '/includes/layout.php';
                 <label class="block text-xs font-bold text-gray-400 uppercase">Agencia</label>
                 <select id="filtroAgencia"
                     class="border-gray-300 rounded text-sm px-3 py-1 bg-gray-50 text-gray-700 focus:ring-2 focus:ring-indigo-200 min-w-[200px]"
+                    onchange="loadAsesores(); refreshCurrentView()">
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase">Asesor / Cobrador</label>
+                <select id="filtroAsesor"
+                    class="border-gray-300 rounded text-sm px-3 py-1 bg-gray-50 text-gray-700 focus:ring-2 focus:ring-indigo-200 min-w-[200px]"
                     onchange="refreshCurrentView()">
-                    <option value="">Todas las Agencias</option>
-                    <?php
-                    try {
-                        $ags = $db->query("SELECT id, nombre_agencia FROM agencias")->fetchAll();
-                        foreach ($ags as $a)
-                            echo "<option value='{$a['id']}'>{$a['nombre_agencia']}</option>";
-                    } catch (Exception $e) {
-                    }
-                    ?>
+                    <option value="">Todos</option>
                 </select>
             </div>
         </div>
@@ -329,9 +346,11 @@ require_once __DIR__ . '/includes/layout.php';
 
     // User Session Data
     const USER_AGENCIA_ID = '<?php echo $_SESSION['id_agencia'] ?? ''; ?>';
+    const USER_ID = '<?php echo $_SESSION['id_usuario'] ?? ''; ?>';
+    const IS_MOBILE = window.innerWidth < 768;
 
     document.addEventListener('DOMContentLoaded', () => {
-        switchTab('pendientes');
+        loadAgencias(); // Chain: loadAgencias -> loadAsesores -> refreshCurrentView -> switchTab
     });
     async function switchTab(tab) {
         currentTab = tab;
@@ -399,14 +418,28 @@ require_once __DIR__ . '/includes/layout.php';
 
         const fecha = document.getElementById('filtroFecha').value;
         let agencia = document.getElementById('filtroAgencia').value;
+        let asesorId = document.getElementById('filtroAsesor') ? document.getElementById('filtroAsesor').value : '';
 
-        // Mobile Filter Logic: Force User Agency
-        if (window.innerWidth < 768 && USER_AGENCIA_ID) {
-            agencia = USER_AGENCIA_ID; // Force session agency on mobile
+        /* MODO DESARROLLO: Filtros forzados deshabilitados
+        // Mobile Filter Logic: Force User's Agency and User ID
+        if (window.innerWidth < 768) {
+            if (USER_AGENCIA_ID) {
+                agencia = USER_AGENCIA_ID;
+            }
+            if (USER_ID) {
+                asesorId = USER_ID;
+            }
         }
+        */
 
         // Ensure BASE_URL is available (fallback safe access)
         const baseUrl = (typeof BASE_URL !== 'undefined') ? BASE_URL : '<?php echo BASE_URL; ?>';
+
+        // Update total recaudado based on filters
+        updateTotalRecaudado(fecha, agencia, asesorId, baseUrl);
+
+        // Debug log
+        console.log('FILTROS APLICADOS:', { fecha, agencia, asesorId });
 
         if (currentTab === 'pendientes') {
             document.getElementById('tablaCobros').innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">Cargando...</td></tr>';
@@ -414,6 +447,9 @@ require_once __DIR__ . '/includes/layout.php';
                 const url = new URL(`${baseUrl}/app/api/cobranza/list_grouped.php`);
                 url.searchParams.append('fecha', fecha);
                 if (agencia) url.searchParams.append('agencia_id', agencia);
+                if (asesorId) url.searchParams.append('cobrador_id', asesorId);
+
+                console.log('URL COMPLETA:', url.toString());
 
                 const res = await fetch(url);
                 const data = await res.json();
@@ -424,11 +460,132 @@ require_once __DIR__ . '/includes/layout.php';
                 document.getElementById('tablaCobros').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Error de conexión</td></tr>`;
             }
         } else {
-            loadHistorial(fecha, agencia, baseUrl);
+            loadHistorial(fecha, agencia, baseUrl, asesorId);
         }
     }
 
-    async function loadHistorial(fecha, agencia, baseUrl) {
+    async function updateTotalRecaudado(fecha, agencia, asesorId, baseUrl) {
+        try {
+            const url = new URL(`${baseUrl}/app/api/cobranza/total_recaudado.php`);
+            url.searchParams.append('fecha', fecha);
+            if (agencia) url.searchParams.append('agencia_id', agencia);
+            if (asesorId) url.searchParams.append('cobrador_id', asesorId);
+
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.success) {
+                const displayElement = document.getElementById('total-recaudado-display');
+                if (displayElement) {
+                    displayElement.textContent = 'L ' + parseFloat(data.total).toLocaleString('es-HN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Error actualizando total recaudado:', e);
+        }
+    }
+
+    // Load Agencias
+    async function loadAgencias() {
+        const select = document.getElementById('filtroAgencia');
+        const baseUrl = (typeof BASE_URL !== 'undefined') ? BASE_URL : '<?php echo BASE_URL; ?>';
+        const token = localStorage.getItem('auth_token') || getCookie('auth_token');
+        const isMobile = window.innerWidth < 768;
+
+        try {
+            const res = await fetch(`${baseUrl}/app/api/agencias/list.php`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+            const data = await res.json();
+
+            select.innerHTML = '<option value="">Todas las Agencias</option>';
+
+            if (data.success) {
+                const agencias = data.data;
+
+                agencias.forEach(a => {
+                    const option = document.createElement('option');
+                    option.value = a.id_agencia;
+                    option.textContent = a.nombre_agencia;
+                    select.appendChild(option);
+                });
+
+                /* MODO DESARROLLO: Pre-selección sin deshabilitar
+                if (USER_AGENCIA_ID) {
+                    select.value = USER_AGENCIA_ID;
+                }
+                */
+            } else {
+                select.innerHTML = '<option value="">Error al cargar</option>';
+            }
+        } catch (e) {
+            console.error(e);
+            select.innerHTML = '<option value="">Error de conexión</option>';
+        }
+
+        await loadAsesores();
+        switchTab('pendientes');
+    }
+
+    async function loadAsesores() {
+        const agenciaId = document.getElementById('filtroAgencia').value;
+        const select = document.getElementById('filtroAsesor');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Cargando...</option>';
+        const baseUrl = (typeof BASE_URL !== 'undefined') ? BASE_URL : '<?php echo BASE_URL; ?>';
+        const token = localStorage.getItem('auth_token') || getCookie('auth_token');
+        const isMobile = window.innerWidth < 768;
+
+        try {
+            let url = `${baseUrl}/app/api/usuarios/list.php`;
+            if (agenciaId) {
+                url += `?agencia_id=${agenciaId}`;
+            }
+            const res = await fetch(url, {
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                let html = '<option value="">Todos</option>';
+                data.data.forEach(user => {
+                    html += `<option value="${user.id_usuario}">${user.nombre_completo || user.username} (${user.rol_nombre || 'Usuario'})</option>`;
+                });
+                select.innerHTML = html;
+
+                /* MODO DESARROLLO: Pre-selección sin deshabilitar
+                // On mobile, pre-select current user and disable
+                if (isMobile && USER_ID) {
+                    select.value = USER_ID;
+                    select.disabled = true;
+                    select.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                */
+            } else {
+                select.innerHTML = '<option value="">Error al cargar</option>';
+            }
+        } catch (e) {
+            console.error(e);
+            select.innerHTML = '<option value="">Error de conexión</option>';
+        }
+    }
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }
+
+    async function loadHistorial(fecha, agencia, baseUrl, asesorId) {
         const tbody = document.getElementById('tablaHistorial');
         tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">Cargando historial...</td></tr>';
         try {
@@ -436,6 +593,7 @@ require_once __DIR__ . '/includes/layout.php';
             const url = new URL(`${baseUrl}/app/api/cobranza/historial_pagos.php`);
             url.searchParams.append('fecha', fecha);
             if (agencia) url.searchParams.append('agencia_id', agencia);
+            if (asesorId) url.searchParams.append('cobrador_id', asesorId);
 
             const res = await fetch(url);
             const data = await res.json();
@@ -732,10 +890,10 @@ require_once __DIR__ . '/includes/layout.php';
         const isCancel = document.getElementById('es_cancelacion').checked;
         const inputMonto = document.getElementById('monto_recibido');
         const infoCalc = document.getElementById('modal-calc-info');
-        
+
         if (isCancel) {
             document.getElementById('es_capital').checked = false;
-            
+
             // Show loading
             infoCalc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando monto de cancelación...';
             infoCalc.className = "bg-blue-50 p-2 rounded border border-blue-100 text-xs text-center text-blue-600 font-bold";
@@ -744,11 +902,11 @@ require_once __DIR__ . '/includes/layout.php';
             try {
                 const res = await fetch(`${BASE_URL}/app/api/cobranza/calculate_payoff.php?id=${currentPrestamoId}`);
                 const data = await res.json();
-                
+
                 if (data.success) {
                     const total = parseFloat(data.data.total_cancelacion);
                     inputMonto.value = total.toFixed(2);
-                    
+
                     infoCalc.innerHTML = `
                         <div class="text-left">
                             <p class="font-bold text-red-600 mb-1 border-b border-red-200 pb-1">Desglose Cancelación:</p>
@@ -771,7 +929,7 @@ require_once __DIR__ . '/includes/layout.php';
                 // But let's verify if user can edit? Let's leave enabled for manual override if needed, but standard is exact.
                 // User requirement: "debera cobrar [monto calculado]". implies fixed.
                 // I will enable it just in case, but pre-fill.
-                inputMonto.disabled = false; 
+                inputMonto.disabled = false;
             }
         } else {
             inputMonto.value = '';
@@ -793,7 +951,7 @@ require_once __DIR__ . '/includes/layout.php';
     // Remove old listeners on 'change' if duplicate, but adding new ones is safe or overwrite?
     // The previous code had: document.getElementById('es_capital').addEventListener('change', updateCalc);
     // My new HTML has `onchange="toggleAbonoCapital()"`. I should probably merge logic or ensure `updateCalc` runs.
-    document.getElementById('es_capital').addEventListener('change', updateCalc); 
+    document.getElementById('es_capital').addEventListener('change', updateCalc);
 
     function updateCalc() {
         const val = parseFloat(inputMonto.value) || 0;

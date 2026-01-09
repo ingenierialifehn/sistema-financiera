@@ -16,21 +16,25 @@ $userRole = $user['rol_nombre'];
 $db = getDB();
 
 // Build query
-$sql = "SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion,
-c.id_agencia
+$sql = "SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion, c.id_agencia
 FROM prestamos p
 JOIN clientes c ON p.id_cliente = c.id
 WHERE p.estado = 'Listo para Entrega'";
 
 $params = [];
 
+// Check if user is Admin/Gerente (case-insensitive)
+$isAdmin = (stripos($userRole, 'Administrador') !== false ||
+    stripos($userRole, 'Gerente') !== false);
+
 // If not Admin, filter by assignee
-// If not Admin, filter by assignee
-if ($userRole !== 'Administrador' && $userRole !== 'Gerente General') {
+if (!$isAdmin) {
     // Privacy: Only show loans from my agency
-    $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
-    $sql .= " AND c.id_agencia = ?";
-    $params[] = $sessionAgencia;
+    $sessionAgencia = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? 0;
+    if ($sessionAgencia > 0) {
+        $sql .= " AND c.id_agencia = ?";
+        $params[] = $sessionAgencia;
+    }
 
     // Assignment: Only show loans assigned to me
     $sql .= " AND p.oficial_desembolsos_id = ?";
@@ -70,10 +74,11 @@ require_once __DIR__ . '/includes/layout.php';
         </div>
     </div>
 
-    <!-- Loan Table -->
+    <!-- Loan Table (Desktop) & Cards (Mobile) -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <?php if (!empty($prestamos)): ?>
-            <table class="min-w-full divide-y divide-gray-200">
+            <!-- Desktop Table View -->
+            <table class="hidden md:table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente
@@ -123,6 +128,51 @@ require_once __DIR__ . '/includes/layout.php';
                     <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <!-- Mobile Card View -->
+            <div class="md:hidden divide-y divide-gray-200">
+                <?php foreach ($prestamos as $loan): ?>
+                    <div class="p-4 hover:bg-gray-50">
+                        <!-- Cliente Info -->
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <h3 class="text-base font-bold text-gray-900">
+                                    <?php echo htmlspecialchars($loan['nombre_completo']); ?>
+                                </h3>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    DNI: <?php echo htmlspecialchars($loan['numero_documento']); ?>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Loan Details -->
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div class="bg-green-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 mb-1">Monto a Entregar</p>
+                                <p class="text-lg font-bold text-green-700">
+                                    L <?php echo number_format($loan['neto_entregar'] ?? $loan['monto_capital'], 2); ?>
+                                </p>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 mb-1">Cuota</p>
+                                <p class="text-lg font-bold text-blue-700">
+                                    L <?php echo number_format($loan['valor_cuota'], 2); ?>
+                                </p>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    <?php echo $loan['modalidad']; ?>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Action Button -->
+                        <button onclick='openDelivery(<?php echo json_encode($loan); ?>)'
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Entregar Efectivo
+                        </button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php else: ?>
             <div class="p-8 text-center text-gray-500">
                 <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i>
@@ -183,23 +233,7 @@ require_once __DIR__ . '/includes/layout.php';
 </div>
 
 <script>
-    // Construir BASE_URL dinámicamente para compatibilidad móvil
-    function getBaseUrl() {
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const pathname = window.location.pathname;
-        let basePath = pathname.substring(0, pathname.indexOf('/public'));
-        if (!basePath) {
-            const projectIndex = pathname.indexOf('sistema-financiera');
-            if (projectIndex !== -1) {
-                basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
-            }
-        }
-        return protocol + '//' + host + basePath;
-    }
-    const BASE_URL = getBaseUrl();
-    console.log('BASE_URL:', BASE_URL);
-
+    // BASE_URL is already defined in layout.php
     let currentLoan = null;
 
     function openDelivery(loan) {

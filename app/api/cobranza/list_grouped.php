@@ -68,6 +68,7 @@ try {
                 LIMIT 1
             )
             WHERE p.estado = 'Activo'
+            AND cl.estado = 'activo'
             AND NOT EXISTS (
                 SELECT 1
                 FROM prestamos p2 
@@ -83,28 +84,24 @@ try {
 
     $params = [$fechaFiltro]; // Para DATEDIFF
 
-    // Filtros de Rol
-    if (stripos($rol, 'Asesor') !== false || stripos($rol, 'Oficial') !== false) {
-        $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
-        $params[] = $userId;
-        $params[] = $userId;
+    // ============================================
+    // MODO DESARROLLO: Restricciones deshabilitadas
+    // TODO: Habilitar restricciones antes de producción
+    // ============================================
+
+    // Filtro de agencia (opcional para todos)
+    if ($agenciaId && $agenciaId !== 'todas') {
+        $sql .= " AND cl.id_agencia = ?";
+        $params[] = $agenciaId;
     }
 
-    // Filtro Agencia (si aplica)
-    // Filtro Agencia (Lógica de Privacidad)
-    $canViewAll = (stripos($rol, 'Administrador') !== false || stripos($rol, 'Gerente') !== false);
-
-    if (!$canViewAll) {
-        // Rol Operativo: Forzar Agencia de Sesión
-        $sessionAgencia = $_SESSION['id_agencia'] ?? 0;
-        $sql .= " AND cl.id_agencia = ?";
-        $params[] = $sessionAgencia;
-    } else {
-        // Rol Gerencial: Permitir filtro opcional
-        if ($agenciaId && $agenciaId !== 'todas') {
-            $sql .= " AND cl.id_agencia = ?";
-            $params[] = $agenciaId;
-        }
+    // Filtro de cobrador/asesor (opcional para todos)
+    $cobradorId = $_GET['cobrador_id'] ?? null;
+    if ($cobradorId) {
+        $sql .= " AND (cl.cobrador_id = ? OR p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
+        $params[] = $cobradorId;
+        $params[] = $cobradorId;
+        $params[] = $cobradorId;
     }
 
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC";
