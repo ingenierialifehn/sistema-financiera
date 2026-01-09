@@ -120,9 +120,8 @@ $pageTitle = 'Análisis de Préstamos';
 
                     <select id="gestion_nuevo_estado" name="nuevo_estado"
                         class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-4">
-                        <option value="">Seleccione...</option>
-                        <option value="Solicitado">Solicitado</option>
-                        <option value="En Análisis">En Análisis</option>
+                        <option value="">Seleccione (Mantener actual)...</option>
+                        <!-- Options limited to next steps -->
                         <option value="Verificación de Campo">Verificación de Campo</option>
                         <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
                         <option value="Rechazado">Rechazado</option>
@@ -330,13 +329,54 @@ $pageTitle = 'Análisis de Préstamos';
         let currentPlazo = 0;
         let currentModalidad = '';
 
-        function openGestion(row) {
+        async function openGestion(row) {
+            // Auto-transition: If status is 'Solicitado', mark as 'En Análisis' immediately upon viewing
+            if (row.estado === 'Solicitado') {
+                try {
+                    const statusData = {
+                        prestamo_id: row.id,
+                        nuevo_estado: 'En Análisis'
+                    };
+                    const response = await fetch(BASE_URL + '/app/api/prestamos/update_status.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(statusData)
+                    });
+                    const res = await response.json();
+
+                    if (res.success) {
+                        // Update local state locally to reflect change in Modal immediately
+                        row.estado = 'En Análisis';
+
+                        // Show subtle notification
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000,
+                            timerProgressBar: true
+                        });
+                        Toast.fire({
+                            icon: 'info',
+                            title: 'Estado actualizado a "En Análisis"'
+                        });
+
+                        // Refresh grid in background
+                        loadSolicitudes();
+                    }
+                } catch (e) {
+                    console.error("Auto-status update failed", e);
+                }
+            }
+
             $('#gestion_prestamo_id').val(row.id);
             $('#gestion_cliente').text(row.cliente_nombre);
             $('#gestion_tipo').text(row.tipo_prestamo || 'Nuevo');
             $('#gestion_riesgo_container').html(getRiskBadge(row.categoria_riesgo, row.dias_mora_global));
+
+            // Update UI with (potentially new) status
             $('#gestion_estado_actual').text(row.estado);
-            $('#gestion_nuevo_estado').val(row.estado); // Pre-select current state
+            $('#gestion_nuevo_estado').val(row.estado);
 
             // Load financial data (Editable)
             $('#gestion_monto').val(row.monto_capital);
@@ -348,7 +388,7 @@ $pageTitle = 'Análisis de Préstamos';
             calculateTerms();
 
             // Disable editing Terms if Aprobado
-            const isLocked = ['Aprobado', 'Rechazado'].includes(row.estado); // Simple client-side lock
+            const isLocked = ['Aprobado', 'Rechazado'].includes(row.estado);
             $('#gestion_tasa').prop('disabled', isLocked);
             $('#gestion_monto').prop('disabled', isLocked);
             $('#gestion_plazo').prop('disabled', isLocked);
@@ -357,16 +397,6 @@ $pageTitle = 'Análisis de Préstamos';
             // Populate Comments
             $('#gestion_comentario_analisis').val(row.comentario_analisis || '');
             $('#gestion_comentario_verificacion').val(row.comentario_verificacion || '');
-
-            // Logic for Editing Comments:
-            // Analyst edits 'comentario_analisis'. 
-            // Verifier edits 'comentario_verificacion'.
-            // For now, let's assume if I'm on this page I might be an Analyst.
-            // But if the loan is already in Verification, maybe I can't edit Analysis? 
-            // User requested "Analista pueda editar...". Let's leave Analyst editable.
-
-            // If we wanted to lock specific fields based on role/state, we'd do it here.
-            // e.g. $('#gestion_comentario_verificacion').prop('readonly', true); // Analysts usually verify field data? Or Verifier does.
 
             $('#modalGestion').removeClass('hidden');
         }

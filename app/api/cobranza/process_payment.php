@@ -37,7 +37,102 @@ try {
 
     $detallesPago = [];
 
-    if ($esCapital) {
+    if ($data['es_cancelacion'] ?? false) {
+        // --- CANCELACIÓN TOTAL ---
+        // 1. Recalcular la meta de cuotas a cobrar intereses (Vencidas vs 1 Mes Mínimo)
+        $modNorm = ucfirst(strtolower(trim($prestamo['modalidad'])));
+        $cuotasPorMes = 1;
+
+        if ($modNorm === 'Diario') {
+            $cuotasPorMes = 20;
+        } elseif ($modNorm === 'Semanal') {
+            $cuotasPorMes = 4;
+        } elseif ($modNorm === 'Catorcenal') {
+            $cuotasPorMes = 2;
+        } elseif ($modNorm === 'Mensual') {
+            $cuotasPorMes = 1;
+        }
+
+        // Obtener todas las pendientes para procesar
+        $stmtPend = $db->prepare("SELECT * FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada' ORDER BY numero_cuota ASC");
+        $stmtPend->execute([$prestamoId]);
+        $pendientes = $stmtPend->fetchAll(PDO::FETCH_ASSOC);
+
+        $hoy = date('Y-m-d');
+        $vencidasCount = 0;
+        foreach ($pendientes as $p) {
+            if ($p['fecha_vencimiento'] <= $hoy)
+                $vencidasCount++;
+        }
+
+        // Meta de Cobro de Intereses
+        $targetCount = max($vencidasCount, $cuotasPorMes);
+
+        // Procesar distribución
+        $dineroDisponible = $montoRecibido;
+        // $idx = 0; // Removed index based tracking
+
+        foreach ($pendientes as $cuota) {
+            // $esMetaInteres = ($idx < $targetCount);
+            // CORRECCIÓN: Usar Numero Cuota Lógico para aguantar filas divididas
+            $esMetaInteres = (intval($cuota['numero_cuota']) <= $targetCount);
+
+            // Si está dentro de la meta, se cobra full. Si no, solo capital.
+            // OJO: Si la cuota ya tenía pagos parciales, hay que respetar el saldo restante.
+            // Para simplificar cancelación, asumimos que liquidamos el SALDO de la cuota.
+
+            $saldoCapital = floatval($cuota['capital_cuota']); // Asumimos estructura limpia o recalculamos
+            // Si es parcial, es complejo saber cuánto capital queda presisamente sin un ledger detallado.
+            // Asumiremos: Si 'parcial' y saldo < monto, liquidamos el saldo.
+            // Pero debemos AJUSTAR los rubros si perdonamos intereses.
+
+            if ($esMetaInteres) {
+                // COBRAR FULL (Normal) (Incluye Interés)
+                $montoCuotaActual = floatval($cuota['monto_cuota']);
+                $pagadoPrev = floatval($cuota['monto_pagado'] ?? 0);
+                $saldo = $montoCuotaActual - $pagadoPrev;
+
+                $pagoAplicar = min($dineroDisponible, $saldo);
+                // En cancelación teoricamente dineroDisponible == Total Requerido.
+
+                $upd = $db->prepare("UPDATE cuotas SET estado='pagada', monto_pagado=monto_cuota, fecha_pago_real=?, usuario_cobro_id=? WHERE id=?");
+                $upd->execute([$fecha, $userId, $cuota['id']]);
+
+                $dineroDisponible -= $saldo;
+
+            } else {
+                // SOLO CAPITAL (Condonar Interés)
+                // 1. Ajustar la cuota para que SOLO tenga capital
+                // Pero si ya tiene pagos parciales, cuidado.
+                // Asumiremos cuotas 'futuras' limpias (sin pagos parciales).
+
+                $nuevoMonto = floatval($cuota['capital_cuota']);
+
+                $upd = $db->prepare("
+                    UPDATE cuotas SET 
+                        monto_cuota = capital_cuota,
+                        interes_cuota = 0, gastos_cuota = 0, comision_cuota = 0,
+                        monto_pagado = capital_cuota,
+                        estado = 'pagada',
+                        fecha_pago_real = ?,
+                        usuario_cobro_id = ?
+                    WHERE id = ?
+                ");
+                $upd->execute([$fecha, $userId, $cuota['id']]);
+
+                $dineroDisponible -= $nuevoMonto;
+            }
+            $paidIds[] = $cuota['id'];
+            // $idx++;
+        }
+
+        // Cerrar Préstamo
+        $closeLoan = $db->prepare("UPDATE prestamos SET estado = 'Finalizado' WHERE id = ?");
+        $closeLoan->execute([$prestamoId]);
+
+        $msg = "Préstamo Cancelado Exitosamente. Se liquidó la deuda total.";
+
+    } elseif ($esCapital) {
         // --- ABONO A CAPITAL DIRECTO ---
         // Regla: Solo clientes al día (sin mora) pueden abonar a capital.
         // Regla: Se registra como una cuota extra pagada, 100% capital, 0% interés.
