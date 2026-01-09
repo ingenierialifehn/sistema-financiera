@@ -170,8 +170,8 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
 
                 <!-- Reportes de Agencia -->
-                <a href="reportes-agencia.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes-agencia.php' ? 'bg-indigo-600' : ''; ?>">
+                <a href="reportes_agencia.php"
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_agencia.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-chart-line w-5"></i>
                     <span>Reportes de Agencia</span>
                 </a>
