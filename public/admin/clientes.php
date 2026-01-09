@@ -59,42 +59,67 @@ $currentUser = $user ?? [];
                     <p class="text-gray-600 mt-2">Administra la información de tus clientes</p>
                 </div>
                 <button id="btnNuevoCliente"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition shadow-lg transform hover:-translate-y-1">
-                    <i class="fas fa-user-plus mr-2"></i>Nuevo Cliente
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition shadow-md hover:shadow-lg font-medium text-sm flex items-center gap-2 transform active:scale-95">
+                    <i class="fas fa-user-plus text-blue-200"></i>Nuevo Cliente
                 </button>
             </div>
         </div>
 
         <!-- Filtros y Búsqueda -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-search mr-1"></i>Buscar Cliente
+        <!-- Filtros y Búsqueda -->
+        <!-- Filtros y Búsqueda (Desktop) -->
+        <div class="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                <div class="md:col-span-6">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 ml-1">
+                        <i class="fas fa-search mr-1.5 text-blue-500"></i>Buscar Cliente
                     </label>
-                    <input type="text" id="searchInput" placeholder="Nombre, DNI, código..."
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <div class="relative">
+                        <input type="text" id="searchInput" placeholder="Nombre, DNI o Código..."
+                            class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 focus:bg-white transition-all">
+                        <i class="fas fa-search absolute left-3.5 top-3 text-gray-400"></i>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-filter mr-1"></i>Estado
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 ml-1">
+                        <i class="fas fa-filter mr-1.5 text-blue-500"></i>Estado
                     </label>
                     <select id="filterEstado"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="">Todos</option>
+                        class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer hover:border-blue-300 transition-colors">
+                        <option value="">Todos los estados</option>
                         <option value="activo">Activos</option>
                         <option value="inactivo">Inactivos</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-building mr-1"></i>Agencia
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 ml-1">
+                        <i class="fas fa-building mr-1.5 text-blue-500"></i>Agencia
                     </label>
                     <select id="filterAgencia"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="">Todas</option>
+                        class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer hover:border-blue-300 transition-colors">
+                        <option value="">Todas las agencias</option>
                     </select>
                 </div>
+            </div>
+        </div>
+
+        <!-- Filtros y Búsqueda (Móvil) -->
+        <div class="lg:hidden mb-6">
+            <div class="flex gap-2">
+                <div class="relative flex-grow">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
+                    <input type="text" id="searchInputMobileDisplay" placeholder="Buscar cliente..." readonly
+                        onclick="openMobileFilters()"
+                        class="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                </div>
+                <button onclick="openMobileFilters()"
+                    class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl shadow-sm hover:bg-gray-50 flex items-center justify-center min-w-[50px]">
+                    <i class="fas fa-sliders-h text-lg text-blue-600"></i>
+                </button>
+            </div>
+            <!-- Badges de filtros activos -->
+            <div id="activeFiltersBadges" class="flex flex-wrap gap-2 mt-2 hidden">
+                <!-- Se llenarán dinámicamente -->
             </div>
         </div>
 
@@ -384,12 +409,25 @@ $currentUser = $user ?? [];
                                     <i class="fas fa-id-card mr-1"></i>DNI - Frontal <span class="text-red-500">*</span>
                                 </label>
                                 <div
-                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
-                                    <input type="file" class="file-input hidden" accept="image/*"
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer lg:hover:bg-blue-50 active:bg-blue-100">
+                                    <input type="file" class="file-input hidden" accept="image/*" capture="environment"
                                         data-field="foto_dni_frontal">
                                     <div class="preview-container">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <!-- Desktop View -->
+                                        <div class="hidden lg:block">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar
+                                            </p>
+                                        </div>
+                                        <!-- Mobile View -->
+                                        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                            <div
+                                                class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                                <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                            </div>
+                                            <p class="text-blue-700 font-bold text-lg">Tomar Foto DNI Frontal</p>
+                                            <p class="text-sm text-gray-500">Toca para abrir cámara</p>
+                                        </div>
                                         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                                     </div>
                                 </div>
@@ -401,12 +439,25 @@ $currentUser = $user ?? [];
                                     <i class="fas fa-id-card mr-1"></i>DNI - Reverso <span class="text-red-500">*</span>
                                 </label>
                                 <div
-                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
-                                    <input type="file" class="file-input hidden" accept="image/*"
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer lg:hover:bg-blue-50 active:bg-blue-100">
+                                    <input type="file" class="file-input hidden" accept="image/*" capture="environment"
                                         data-field="foto_dni_posterior">
                                     <div class="preview-container">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <!-- Desktop View -->
+                                        <div class="hidden lg:block">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar
+                                            </p>
+                                        </div>
+                                        <!-- Mobile View -->
+                                        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                            <div
+                                                class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                                <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                            </div>
+                                            <p class="text-blue-700 font-bold text-lg">Tomar Foto DNI Reverso</p>
+                                            <p class="text-sm text-gray-500">Toca para abrir cámara</p>
+                                        </div>
                                         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                                     </div>
                                 </div>
@@ -419,12 +470,25 @@ $currentUser = $user ?? [];
                                         class="text-red-500">*</span>
                                 </label>
                                 <div
-                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
-                                    <input type="file" class="file-input hidden" accept="image/*"
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer lg:hover:bg-blue-50 active:bg-blue-100">
+                                    <input type="file" class="file-input hidden" accept="image/*" capture="environment"
                                         data-field="foto_perfil">
                                     <div class="preview-container">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <!-- Desktop View -->
+                                        <div class="hidden lg:block">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar
+                                            </p>
+                                        </div>
+                                        <!-- Mobile View -->
+                                        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                            <div
+                                                class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                                <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                            </div>
+                                            <p class="text-blue-700 font-bold text-lg">Tomar Foto de Perfil</p>
+                                            <p class="text-sm text-gray-500">Toca para abrir cámara</p>
+                                        </div>
                                         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                                     </div>
                                 </div>
@@ -436,12 +500,25 @@ $currentUser = $user ?? [];
                                     <i class="fas fa-home mr-1"></i>Foto de Casa <span class="text-red-500">*</span>
                                 </label>
                                 <div
-                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
-                                    <input type="file" class="file-input hidden" accept="image/*"
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer lg:hover:bg-blue-50 active:bg-blue-100">
+                                    <input type="file" class="file-input hidden" accept="image/*" capture="environment"
                                         data-field="foto_fachada_casa">
                                     <div class="preview-container">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <!-- Desktop View -->
+                                        <div class="hidden lg:block">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar
+                                            </p>
+                                        </div>
+                                        <!-- Mobile View -->
+                                        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                            <div
+                                                class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                                <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                            </div>
+                                            <p class="text-blue-700 font-bold text-lg">Tomar Foto de Casa</p>
+                                            <p class="text-sm text-gray-500">Toca para abrir cámara</p>
+                                        </div>
                                         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                                     </div>
                                 </div>
@@ -454,12 +531,25 @@ $currentUser = $user ?? [];
                                         class="text-red-500">*</span>
                                 </label>
                                 <div
-                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer">
-                                    <input type="file" class="file-input hidden" accept="image/*"
+                                    class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer lg:hover:bg-blue-50 active:bg-blue-100">
+                                    <input type="file" class="file-input hidden" accept="image/*" capture="environment"
                                         data-field="foto_recibo_servicio">
                                     <div class="preview-container">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                                        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                                        <!-- Desktop View -->
+                                        <div class="hidden lg:block">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar
+                                            </p>
+                                        </div>
+                                        <!-- Mobile View -->
+                                        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                            <div
+                                                class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                                <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                            </div>
+                                            <p class="text-blue-700 font-bold text-lg">Tomar Foto Recibo</p>
+                                            <p class="text-sm text-gray-500">Toca para abrir cámara</p>
+                                        </div>
                                         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                                     </div>
                                 </div>
@@ -505,9 +595,98 @@ $currentUser = $user ?? [];
                     }
                 });
             }
-    });
+        });
     </script>
+    <!-- Modal Filtros Móvil -->
+    <div id="modalMobileFilters"
+        class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex-col justify-end lg:hidden">
+        <div class="bg-white rounded-t-2xl w-full max-h-[90vh] overflow-y-auto animate-slide-up">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <h3 class="text-lg font-bold text-gray-900"><i class="fas fa-filter text-blue-600 mr-2"></i>Filtros</h3>
+                <button onclick="closeMobileFilters()"
+                    class="text-gray-400 hover:text-gray-600 bg-white rounded-full p-2 w-8 h-8 flex items-center justify-center shadow-sm">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <!-- Búsqueda -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                        Búsqueda
+                    </label>
+                    <div class="relative">
+                        <input type="text" id="searchInputMobile" placeholder="Nombre, DNI o Código..."
+                            class="w-full pl-10 pr-4 py-3 text-base border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50">
+                        <i class="fas fa-search absolute left-3.5 top-3.5 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <!-- Estado -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                        Estado del Cliente
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="setMobileFilterState('all')" id="btnStateAll"
+                            class="mobile-filter-btn active py-2 px-3 rounded-lg text-sm font-medium border border-blue-600 bg-blue-50 text-blue-700 text-center transition-all">
+                            Todos
+                        </button>
+                        <button type="button" onclick="setMobileFilterState('activo')" id="btnStateActivo"
+                            class="mobile-filter-btn py-2 px-3 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 text-center hover:bg-gray-50 transition-all">
+                            Activo
+                        </button>
+                        <button type="button" onclick="setMobileFilterState('inactivo')" id="btnStateInactivo"
+                            class="mobile-filter-btn py-2 px-3 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 text-center hover:bg-gray-50 transition-all">
+                            Inactivo
+                        </button>
+                        <input type="hidden" id="filterEstadoMobile" value="">
+                    </div>
+                </div>
+
+                <!-- Agencia -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                        Agencia
+                    </label>
+                    <select id="filterAgenciaMobile"
+                        class="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white appearance-none">
+                        <option value="">Todas las agencias</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-gray-100 bg-gray-50 flex gap-3">
+                <button onclick="resetMobileFilters()"
+                    class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-100 transition">
+                    Limpiar
+                </button>
+                <button onclick="applyMobileFilters()"
+                    class="flex-[2] px-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transform active:scale-95 transition">
+                    Aplicar Filtros
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+    </style>
+
     <script src="assets/js/clientes.js?v=<?php echo time(); ?>&force=1"></script>
 </body>
+
 
 </html>

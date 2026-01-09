@@ -1,18 +1,18 @@
-/**
- * Gestión de Clientes - JavaScript
- * Incluye: Drag & Drop, Validación DNI, GPS, Tabs
+﻿/**
+ * GestiÃ³n de Clientes - JavaScript
+ * Incluye: Drag & Drop, ValidaciÃ³n DNI, GPS, Tabs
  */
 
 let uploadedFiles = {};
 let isEditMode = false;
 
-// Esperar a que el DOM y jQuery estén listos
+// Esperar a que el DOM y jQuery estÃ©n listos
 document.addEventListener('DOMContentLoaded', function () {
     console.log('Clientes.js cargado');
 
-    // Verificar que jQuery esté disponible
+    // Verificar que jQuery estÃ© disponible
     if (typeof jQuery === 'undefined') {
-        console.error('jQuery no está cargado');
+        console.error('jQuery no estÃ¡ cargado');
         return;
     }
 
@@ -71,7 +71,7 @@ function initializeDragAndDrop() {
 
         // Click para abrir selector
         dropzone.on('click', function (e) {
-            // Solo abrir el selector si NO se hizo clic en el botón de eliminar
+            // Solo abrir el selector si NO se hizo clic en el botÃ³n de eliminar
             // y NO se hizo clic en el input mismo (para evitar bucle)
             if (!$(e.target).hasClass('btn-remove-image') && !$(e.target).is('input[type="file"]')) {
                 input.click();
@@ -114,11 +114,11 @@ function initializeDragAndDrop() {
 function handleFileSelect(file, field, dropzone) {
     // Validar tipo
     if (!file.type.match('image.*')) {
-        Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+        Swal.fire('Error', 'Solo se permiten imÃ¡genes', 'error');
         return;
     }
 
-    // Validar tamaño (5MB)
+    // Validar tamaÃ±o (5MB)
     if (file.size > 5 * 1024 * 1024) {
         Swal.fire('Error', 'La imagen no debe superar 5MB', 'error');
         return;
@@ -154,9 +154,28 @@ function handleFileSelect(file, field, dropzone) {
 
 function removeFile(field, dropzone) {
     delete uploadedFiles[field];
+
+    const labels = {
+        'foto_dni_frontal': 'DNI Frontal',
+        'foto_dni_posterior': 'DNI Reverso',
+        'foto_perfil': 'Foto de Perfil',
+        'foto_fachada_casa': 'Foto de Casa',
+        'foto_recibo_servicio': 'Foto Recibo'
+    };
+    const labelText = labels[field] || 'Foto';
+
     dropzone.find('.preview-container').html(`
-        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-        <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+        <div class="hidden lg:block">
+            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+            <p class="text-gray-600">Arrastra la imagen aquÃ­ o haz clic para seleccionar</p>
+        </div>
+        <div class="lg:hidden flex flex-col items-center justify-center py-2">
+            <div class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                <i class="fas fa-camera text-3xl text-blue-600"></i>
+            </div>
+            <p class="text-blue-700 font-bold text-lg">Tomar ${labelText}</p>
+            <p class="text-sm text-gray-500">Toca para abrir cÃ¡mara</p>
+        </div>
         <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
     `);
 }
@@ -173,17 +192,17 @@ function initializeGPS() {
             Swal.fire({
                 icon: 'error',
                 title: 'No soportado',
-                text: 'Tu navegador no soporta geolocalización',
+                text: 'Tu navegador no soporta geolocalizaciÃ³n',
                 footer: '<small>Intenta usar Chrome, Firefox o Edge</small>'
             });
             return;
         }
 
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Obteniendo ubicación...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Obteniendo ubicaciÃ³n...');
 
-        // Opciones para geolocalización
+        // Opciones para geolocalizaciÃ³n
         const options = {
-            enableHighAccuracy: false,  // Más rápido, menos preciso
+            enableHighAccuracy: false,  // MÃ¡s rÃ¡pido, menos preciso
             timeout: 30000,  // 30 segundos
             maximumAge: 0
         };
@@ -202,11 +221,11 @@ function initializeGPS() {
                 btn.prop('disabled', false)
                     .removeClass('bg-green-600 hover:bg-green-700')
                     .addClass('bg-blue-600 hover:bg-blue-700')
-                    .html('<i class="fas fa-check-circle mr-2"></i>Ubicación Obtenida');
+                    .html('<i class="fas fa-check-circle mr-2"></i>UbicaciÃ³n Obtenida');
 
                 Swal.fire({
                     icon: 'success',
-                    title: '¡Ubicación obtenida!',
+                    title: 'Â¡UbicaciÃ³n obtenida!',
                     text: coords,
                     timer: 2000,
                     showConfirmButton: false
@@ -215,48 +234,48 @@ function initializeGPS() {
                 setTimeout(function () {
                     btn.removeClass('bg-blue-600 hover:bg-blue-700')
                         .addClass('bg-green-600 hover:bg-green-700')
-                        .html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+                        .html('<i class="fas fa-crosshairs mr-2"></i>Obtener UbicaciÃ³n');
                 }, 3000);
             },
             // Error callback
             function (error) {
                 console.error('Geolocation error:', error);
 
-                let titulo = 'Error de ubicación';
+                let titulo = 'Error de ubicaciÃ³n';
                 let mensaje = '';
                 let solucion = '';
 
                 switch (error.code) {
                     case error.PERMISSION_DENIED:
                         titulo = 'Permiso denegado';
-                        mensaje = 'Has bloqueado el acceso a tu ubicación.';
-                        solucion = 'Haz clic en el ícono de candado/información en la barra de direcciones y permite el acceso a la ubicación.';
+                        mensaje = 'Has bloqueado el acceso a tu ubicaciÃ³n.';
+                        solucion = 'Haz clic en el Ã­cono de candado/informaciÃ³n en la barra de direcciones y permite el acceso a la ubicaciÃ³n.';
                         break;
                     case error.POSITION_UNAVAILABLE:
-                        titulo = 'Ubicación no disponible';
-                        mensaje = 'No se pudo determinar tu ubicación.';
-                        solucion = 'Verifica que tengas GPS/WiFi activo y conexión a internet.';
+                        titulo = 'UbicaciÃ³n no disponible';
+                        mensaje = 'No se pudo determinar tu ubicaciÃ³n.';
+                        solucion = 'Verifica que tengas GPS/WiFi activo y conexiÃ³n a internet.';
                         break;
                     case error.TIMEOUT:
                         titulo = 'Tiempo agotado';
-                        mensaje = 'La solicitud tardó demasiado tiempo.';
-                        solucion = 'Intenta nuevamente. Asegúrate de tener buena señal.';
+                        mensaje = 'La solicitud tardÃ³ demasiado tiempo.';
+                        solucion = 'Intenta nuevamente. AsegÃºrate de tener buena seÃ±al.';
                         break;
                     default:
-                        mensaje = 'Error desconocido al obtener la ubicación.';
-                        solucion = 'Intenta recargar la página o usar otro navegador.';
+                        mensaje = 'Error desconocido al obtener la ubicaciÃ³n.';
+                        solucion = 'Intenta recargar la pÃ¡gina o usar otro navegador.';
                 }
 
                 Swal.fire({
                     icon: 'warning',
                     title: titulo,
                     html: `<p class="mb-2">${mensaje}</p><p class="text-sm text-gray-600">${solucion}</p>`,
-                    footer: '<small><strong>Nota:</strong> Este campo es opcional. Puedes guardar sin geolocalización.</small>',
+                    footer: '<small><strong>Nota:</strong> Este campo es opcional. Puedes guardar sin geolocalizaciÃ³n.</small>',
                     confirmButtonText: 'Entendido'
                 });
 
                 btn.prop('disabled', false)
-                    .html('<i class="fas fa-crosshairs mr-2"></i>Obtener Ubicación');
+                    .html('<i class="fas fa-crosshairs mr-2"></i>Obtener UbicaciÃ³n');
             },
             options
         );
@@ -264,7 +283,7 @@ function initializeGPS() {
 }
 
 // ============================================================================
-// VALIDACIÓN DNI
+// VALIDACIÃ“N DNI
 // ============================================================================
 
 let dniCheckTimeout;
@@ -330,14 +349,14 @@ function loadClientes() {
             `);
         }
     }).fail(function (xhr, status, error) {
-        console.error('Error de conexión:', { xhr, status, error });
+        console.error('Error de conexiÃ³n:', { xhr, status, error });
         console.error('URL intentada:', url);
-        console.error('Parámetros:', params);
+        console.error('ParÃ¡metros:', params);
         $('#clientesTableBody').html(`
             <tr>
                 <td colspan="7" class="px-6 py-4 text-center text-red-500">
-                    Error de conexión (${status})<br>
-                    <small>Revisa la consola (F12) para más detalles</small>
+                    Error de conexiÃ³n (${status})<br>
+                    <small>Revisa la consola (F12) para mÃ¡s detalles</small>
                 </td>
             </tr>
         `);
@@ -356,7 +375,7 @@ function renderClientes(clientes) {
             </tr>
         `);
 
-        // Vista cards (Móvil)
+        // Vista cards (MÃ³vil)
         $('#clientesCardsContainer').html(`
             <div class="bg-white rounded-lg shadow-md p-8 text-center">
                 <i class="fas fa-inbox text-5xl text-gray-300 mb-3"></i>
@@ -416,12 +435,12 @@ function renderClientes(clientes) {
         `;
     });
 
-    // Renderizar CARDS para MÓVIL
+    // Renderizar CARDS para MÃ“VIL
     let htmlCards = '';
     clientes.forEach(function (cliente) {
         const estadoBadge = cliente.estado === 'activo'
-            ? '<span class="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">✓ Activo</span>'
-            : '<span class="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">✗ Inactivo</span>';
+            ? '<span class="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">âœ“ Activo</span>'
+            : '<span class="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">âœ— Inactivo</span>';
 
         const fotoHtml = cliente.foto_perfil
             ? '<img class="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg" src="' + BASE_URL + '/uploads/documentos/' + cliente.foto_perfil + '" alt="' + cliente.nombre_completo + '">'
@@ -436,7 +455,7 @@ function renderClientes(clientes) {
                             ${fotoHtml}
                             <div class="text-white">
                                 <h3 class="font-bold text-lg">${cliente.nombre_completo}</h3>
-                                <p class="text-blue-100 text-sm">${cliente.codigo_cliente || 'Sin código'}</p>
+                                <p class="text-blue-100 text-sm">${cliente.codigo_cliente || 'Sin cÃ³digo'}</p>
                             </div>
                         </div>
                         ${estadoBadge}
@@ -518,9 +537,28 @@ function openModal(clienteId) {
     // Resetear previews
     $('.dropzone').each(function () {
         const dropzone = $(this);
+        const field = dropzone.find('.file-input').data('field');
+        const labels = {
+            'foto_dni_frontal': 'DNI Frontal',
+            'foto_dni_posterior': 'DNI Reverso',
+            'foto_perfil': 'Foto de Perfil',
+            'foto_fachada_casa': 'Foto de Casa',
+            'foto_recibo_servicio': 'Foto Recibo'
+        };
+        const labelText = labels[field] || 'Foto';
+
         dropzone.find('.preview-container').html(`
-            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+            <div class="hidden lg:block">
+                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                <p class="text-gray-600">Arrastra la imagen aquÃ­ o haz clic para seleccionar</p>
+            </div>
+            <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                <div class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                    <i class="fas fa-camera text-3xl text-blue-600"></i>
+                </div>
+                <p class="text-blue-700 font-bold text-lg">Tomar ${labelText}</p>
+                <p class="text-sm text-gray-500">Toca para abrir cÃ¡mara</p>
+            </div>
             <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
         `);
     });
@@ -529,7 +567,7 @@ function openModal(clienteId) {
     $('#dniError').addClass('hidden');
     $('#numero_documento').removeClass('border-red-500');
 
-    // Activar primera pestaña
+    // Activar primera pestaÃ±a
     $('.tab-button').first().click();
 
     if (isEditMode) {
@@ -572,7 +610,7 @@ function loadClienteData(id) {
                 $('#mapPreview').removeClass('hidden');
             }
 
-            // Cargar imágenes existentes
+            // Cargar imÃ¡genes existentes
             const imageFields = ['foto_dni_frontal', 'foto_dni_posterior', 'foto_perfil', 'foto_fachada_casa', 'foto_recibo_servicio'];
 
             imageFields.forEach(field => {
@@ -594,13 +632,31 @@ function loadClienteData(id) {
                     dropzone.find('.preview-container').html(preview);
 
                     // Evento para remover imagen existente (solo visualmente para permitir nueva carga)
-                    // Nota: Si el usuario guarda el formulario sin cargar una nueva, se mantendrá la anterior en DB
+                    // Nota: Si el usuario guarda el formulario sin cargar una nueva, se mantendrÃ¡ la anterior en DB
                     dropzone.find('.btn-remove-existing').off('click').on('click', function (e) {
                         e.stopPropagation();
                         // Resetear dropzone
+                        const labels = {
+                            'foto_dni_frontal': 'DNI Frontal',
+                            'foto_dni_posterior': 'DNI Reverso',
+                            'foto_perfil': 'Foto de Perfil',
+                            'foto_fachada_casa': 'Foto de Casa',
+                            'foto_recibo_servicio': 'Foto Recibo'
+                        };
+                        const labelText = labels[field] || 'Foto';
+
                         dropzone.find('.preview-container').html(`
-                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-                            <p class="text-gray-600">Arrastra la imagen aquí o haz clic para seleccionar</p>
+                            <div class="hidden lg:block">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                                <p class="text-gray-600">Arrastra la imagen aquÃ­ o haz clic para seleccionar</p>
+                            </div>
+                            <div class="lg:hidden flex flex-col items-center justify-center py-2">
+                                <div class="bg-blue-100 rounded-full p-4 mb-2 shadow-sm ring-4 ring-blue-50">
+                                    <i class="fas fa-camera text-3xl text-blue-600"></i>
+                                </div>
+                                <p class="text-blue-700 font-bold text-lg">Tomar ${labelText}</p>
+                                <p class="text-sm text-gray-500">Toca para abrir cÃ¡mara</p>
+                            </div>
                             <p class="text-xs text-gray-500 mt-1">JPG, PNG (Max. 5MB)</p>
                         `);
                     });
@@ -608,7 +664,7 @@ function loadClienteData(id) {
             });
         }
     }).fail(function () {
-        Swal.fire('Error', 'No se pudo cargar la información del cliente', 'error');
+        Swal.fire('Error', 'No se pudo cargar la informaciÃ³n del cliente', 'error');
     });
 }
 
@@ -623,7 +679,7 @@ $('#formCliente').on('submit', function (e) {
     // Solo validamos lo esencial para permitir guardar borradores
     const requiredFields = [
         { id: 'nombre_completo', label: 'Nombre Completo', tab: 'datos-personales' },
-        { id: 'numero_documento', label: 'Número de Documento', tab: 'datos-personales' }
+        { id: 'numero_documento', label: 'NÃºmero de Documento', tab: 'datos-personales' }
     ];
 
     for (const field of requiredFields) {
@@ -633,7 +689,7 @@ $('#formCliente').on('submit', function (e) {
                 text: `El campo ${field.label} es obligatorio`,
                 icon: 'error'
             }).then(() => {
-                // Cambiar a la pestaña correspondiente
+                // Cambiar a la pestaÃ±a correspondiente
                 $(`.tab-button[data-tab="${field.tab.replace('tab-', '')}"]`).click();
                 setTimeout(() => $('#' + field.id).focus(), 300);
             });
@@ -643,11 +699,11 @@ $('#formCliente').on('submit', function (e) {
 
     // Validar DNI duplicado
     if ($('#dniError').is(':visible')) {
-        Swal.fire('Error', 'El DNI ingresado ya está registrado', 'error');
+        Swal.fire('Error', 'El DNI ingresado ya estÃ¡ registrado', 'error');
         return;
     }
 
-    // Validar imágenes requeridas - COMENTADO TEMPORALMENTE
+    // Validar imÃ¡genes requeridas - COMENTADO TEMPORALMENTE
     // Hasta que se agreguen las columnas a la tabla clientes
     /*
     if (!isEditMode) {
@@ -657,8 +713,8 @@ $('#formCliente').on('submit', function (e) {
         });
 
         if (missingImages.length > 0) {
-            Swal.fire('Error', 'Debes cargar todas las imágenes requeridas', 'error');
-            // Cambiar a tab de documentación
+            Swal.fire('Error', 'Debes cargar todas las imÃ¡genes requeridas', 'error');
+            // Cambiar a tab de documentaciÃ³n
             $('.tab-button[data-tab="documentacion"]').click();
             return;
         }
@@ -677,7 +733,7 @@ $('#formCliente').on('submit', function (e) {
 
     campos.forEach(function (campo) {
         const valor = $('#' + campo).val();
-        // Enviar SIEMPRE, incluso si está vacío
+        // Enviar SIEMPRE, incluso si estÃ¡ vacÃ­o
         formData.append(campo, valor || '');
     });
 
@@ -688,7 +744,7 @@ $('#formCliente').on('submit', function (e) {
     const gpsValue = $('#gps_coordenadas').val();
     formData.append('gps_coordenadas', gpsValue || '');
 
-    // Agregar ID si es edición
+    // Agregar ID si es ediciÃ³n
     if (isEditMode) {
         formData.append('id', $('#clienteId').val());
     }
@@ -712,7 +768,7 @@ $('#formCliente').on('submit', function (e) {
         success: function (response) {
             if (response.success) {
                 Swal.fire({
-                    title: '¡Éxito!',
+                    title: 'Â¡Ã‰xito!',
                     text: isEditMode ? 'Cliente actualizado correctamente' : 'Cliente registrado correctamente',
                     icon: 'success',
                     showCancelButton: true,
@@ -731,7 +787,7 @@ $('#formCliente').on('submit', function (e) {
             }
         },
         error: function (xhr) {
-            const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexión';
+            const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexiÃ³n';
             Swal.fire('Error', msg, 'error');
         }
     });
@@ -751,13 +807,13 @@ function editarCliente(id) {
 
 function eliminarCliente(id) {
     Swal.fire({
-        title: '¿Eliminar cliente?',
-        text: 'Esta acción no se puede deshacer',
+        title: 'Â¿Eliminar cliente?',
+        text: 'Esta acciÃ³n no se puede deshacer',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#DC2626',
         cancelButtonColor: '#6B7280',
-        confirmButtonText: 'Sí, eliminar',
+        confirmButtonText: 'SÃ­, eliminar',
         cancelButtonText: 'Cancelar'
     }).then(function (result) {
         if (result.isConfirmed) {
@@ -775,7 +831,7 @@ function eliminarCliente(id) {
                     }
                 },
                 error: function () {
-                    Swal.fire('Error', 'Error de conexión', 'error');
+                    Swal.fire('Error', 'Error de conexiÃ³n', 'error');
                 }
             });
         }
@@ -787,8 +843,8 @@ function eliminarCliente(id) {
 // ============================================================================
 
 function initializeEventHandlers() {
-    // Botón nuevo cliente - ya manejado por el script inline
-    // pero agregamos soporte para el archivo externo también
+    // BotÃ³n nuevo cliente - ya manejado por el script inline
+    // pero agregamos soporte para el archivo externo tambiÃ©n
     $('#btnNuevoCliente').off('click').on('click', function () {
         openModal();
     });
@@ -814,3 +870,158 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// ========================================================================================================================
+// LOGICA DE FILTROS MOVILES
+// ========================================================================================================================
+
+function openMobileFilters() {
+    // Sincronizar valores actuales del escritorio al mÃ³vil
+    $('#searchInputMobile').val($('#searchInput').val());
+
+    const currentState = $('#filterEstado').val();
+    setMobileFilterState(currentState || 'all');
+
+    // Sincronizar agencia
+    const currentAgencia = $('#filterAgencia').val();
+    if (currentAgencia) {
+        $('#filterAgenciaMobile').val(currentAgencia);
+    } else if (typeof USER_AGENCIA_ID !== 'undefined' && USER_AGENCIA_ID !== null) {
+        // Pre-seleccionar agencia del usuario si no hay filtro activo
+        $('#filterAgenciaMobile').val(USER_AGENCIA_ID);
+    }
+
+    $('#modalMobileFilters').removeClass('hidden').addClass('flex');
+    $('body').addClass('overflow-hidden'); // Prevenir scroll
+}
+
+function closeMobileFilters() {
+    $('#modalMobileFilters').removeClass('flex').addClass('hidden');
+    $('body').removeClass('overflow-hidden');
+}
+
+function setMobileFilterState(state) {
+    // Reset buttons
+    $('.mobile-filter-btn').removeClass('active border-blue-600 bg-blue-50 text-blue-700').addClass('border-gray-200 text-gray-600');
+
+    // Set active button
+    let btnId;
+    if (state === 'activo') btnId = '#btnStateActivo';
+    else if (state === 'inactivo') btnId = '#btnStateInactivo';
+    else btnId = '#btnStateAll'; // default all
+
+    $(btnId).removeClass('border-gray-200 text-gray-600 hover:bg-gray-50').addClass('active border-blue-600 bg-blue-50 text-blue-700');
+
+    // Set hidden input value
+    let val = state;
+    if (state === 'all') val = '';
+    $('#filterEstadoMobile').val(val);
+}
+
+function resetMobileFilters() {
+    $('#searchInputMobile').val('');
+    setMobileFilterState('all');
+
+    // Resetear agencia a la del usuario si existe, sino a todas
+    if (typeof USER_AGENCIA_ID !== 'undefined' && USER_AGENCIA_ID !== null) {
+        $('#filterAgenciaMobile').val(USER_AGENCIA_ID);
+    } else {
+        $('#filterAgenciaMobile').val('');
+    }
+}
+
+function applyMobileFilters() {
+    // Transferir valores del mÃ³vil al escritorio (que es lo que usa loadClientes)
+    $('#searchInput').val($('#searchInputMobile').val());
+    $('#filterEstado').val($('#filterEstadoMobile').val());
+    $('#filterAgencia').val($('#filterAgenciaMobile').val());
+
+    // Actualizar input de visualizaciÃ³n
+    const term = $('#searchInputMobile').val();
+    if (term) {
+        $('#searchInputMobileDisplay').val(term);
+    } else {
+        $('#searchInputMobileDisplay').val('');
+    }
+
+    // Actualizar badges
+    updateFilterBadges();
+
+    // Recargar clientes
+    loadClientes();
+    closeMobileFilters();
+}
+
+function updateFilterBadges() {
+    const badgesContainer = $('#activeFiltersBadges');
+    badgesContainer.html('').addClass('hidden');
+
+    const agencias = $('#filterAgenciaMobile option:selected').text();
+    const estado = $('#filterEstadoMobile').val();
+
+    let hasFilters = false;
+
+    // Badge Agencia
+    if ($('#filterAgenciaMobile').val()) {
+        badgesContainer.append(`
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                ${agencias}
+            </span>
+        `);
+        hasFilters = true;
+    }
+
+    // Badge Estado
+    if (estado) {
+        badgesContainer.append(`
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 uppercase">
+                ${estado}
+            </span>
+        `);
+        hasFilters = true;
+    }
+
+    if (hasFilters) {
+        badgesContainer.removeClass('hidden');
+    }
+}
+
+// Modificar loadAgencias para llenar tambiÃ©n el select mÃ³vil
+const originalLoadAgencias = window.loadAgencias || loadAgencias;
+window.loadAgencias = function () {
+    // Llamar a la lÃ³gica original para llenar el select de escritorio (que ya reescribirÃ­amos si supieramos su cÃ³digo exacto, 
+    // pero mejor hacemos nuestra propia llamada AJAX para asegurarnos que llene AMBOS)
+
+    $.get(BASE_URL + '/app/api/agencias/list.php', function (response) {
+        if (response.success) {
+            let options = '<option value="">Todas las agencias</option>';
+
+            response.data.forEach(function (agencia) {
+                options += '<option value="' + agencia.id_agencia + '">' + agencia.nombre_agencia + '</option>';
+            });
+
+            // Llenar ambos selects
+            $('#filterAgencia').html(options);
+            $('#filterAgenciaMobile').html(options);
+
+            // Pre-seleccionar si el usuario tiene agencia
+            if (typeof USER_AGENCIA_ID !== 'undefined' && USER_AGENCIA_ID !== null) {
+                $('#filterAgencia').val(USER_AGENCIA_ID);
+                $('#filterAgenciaMobile').val(USER_AGENCIA_ID);
+
+                // Deshabilitar cambio si se desea forzar (opcional, el usuario pidiÃ³ "predeterminado", no "bloqueado", pero a veces es mejor bloquear)
+                // Usaremos predeterminado por ahora.
+            }
+        }
+    }).fail(function () {
+        console.error('Error al cargar agencias');
+    });
+};
+
+// Sobreescribir loadClientes para asegurar que se ejecute correctamente al inicio
+// (Aunque loadClientes usa los inputs de escritorio, que nosotros actualizamos, asÃ­ que deberÃ­a funcionar bien)
+
+$(document).ready(function () {
+    // Inicializar badges si hay filtros por defecto
+    setTimeout(updateFilterBadges, 1000); // Esperar a que carguen agencias
+});

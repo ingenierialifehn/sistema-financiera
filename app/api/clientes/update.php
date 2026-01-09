@@ -98,9 +98,18 @@ try {
 
             // Convertir a tipo apropiado sin validar
             if (in_array($field, ['cobrador_id', 'id_agencia'])) {
-                $params[$field] = !empty($data[$field]) ? intval($data[$field]) : null;
-            } elseif ($field === 'fecha_nacimiento') {
-                // Fechas vacías deben ser NULL, no string vacío
+                $val = $data[$field];
+                if ($val === 'null' || $val === '' || $val === null) {
+                    $params[$field] = null;
+                } else {
+                    $params[$field] = intval($val);
+                    // Si es 0 y no debería serlo (por error de conversión), forzar null si se prefiere, 
+                    // pero asumiremos que 0 no es un ID válido.
+                    if ($params[$field] === 0)
+                        $params[$field] = null;
+                }
+            } elseif (in_array($field, ['fecha_nacimiento', 'genero', 'tipo_vivienda'])) {
+                // Fechas y ENUMs opcionales vacíos deben ser NULL, no string vacío
                 $params[$field] = (!empty($data[$field]) && $data[$field] !== '') ? $data[$field] : null;
             } else {
                 // Aceptar el valor tal cual, incluso si está vacío
@@ -198,5 +207,6 @@ try {
 
 } catch (Exception $e) {
     error_log("Error en clientes/update.php: " . $e->getMessage());
-    Response::serverError('Error al actualizar cliente');
+    // Mostrar el mensaje real de la excepción para depuración
+    Response::serverError('Error al actualizar cliente: ' . $e->getMessage());
 }

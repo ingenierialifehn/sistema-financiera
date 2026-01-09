@@ -30,59 +30,77 @@ $pageTitle = 'Ficha del Cliente';
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        const BASE_URL = '<?php echo BASE_URL; ?>';
+        // Construir BASE_URL dinámicamente para compatibilidad móvil
+        function getBaseUrl() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                }
+            }
+            return protocol + '//' + host + basePath;
+        }
+        const BASE_URL = getBaseUrl();
         const CLIENTE_ID = <?php echo $clienteId; ?>;
         const USER_PERMISSIONS = {
             edit_business: <?php echo Auth::hasPermission('clientes.edit_business') ? 'true' : 'false'; ?>,
             delete_business: <?php echo Auth::hasPermission('clientes.delete_business') ? 'true' : 'false'; ?>
         };
+        console.log('BASE_URL:', BASE_URL); // Debug
     </script>
 </head>
 
-<body class="bg-gray-50">
+<body class="bg-gray-50 pb-12">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
-    <div class="ml-64 p-8">
+    <div class="lg:ml-64 p-4 lg:p-8">
         <!-- Header -->
-        <div class="mb-8">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <a href="<?php echo BASE_URL; ?>/public/admin/clientes.php"
-                        class="text-gray-600 hover:text-gray-900">
-                        <i class="fas fa-arrow-left text-2xl"></i>
+        <div class="mb-6 lg:mb-8">
+            <div class="flex flex-col lg:flex-row items-center justify-between gap-4">
+                <div class="flex items-center w-full lg:w-auto">
+                    <a href="javascript:void(0)"
+                        onclick="window.location.href = BASE_URL + '/public/admin/clientes.php'"
+                        class="text-gray-600 hover:text-gray-900 mr-4">
+                        <i class="fas fa-arrow-left text-xl lg:text-2xl"></i>
                     </a>
                     <div>
-                        <h1 class="text-3xl font-bold text-gray-900">
-                            <i class="fas fa-id-card text-blue-600 mr-3"></i>Ficha del Cliente
+                        <h1 class="text-2xl lg:text-3xl font-bold text-gray-900">
+                            <i class="fas fa-id-card text-blue-600 mr-2 lg:mr-3"></i>Ficha del Cliente
                         </h1>
-                        <p class="text-gray-600 mt-1" id="clienteNombre">Cargando...</p>
+                        <p class="text-gray-600 text-sm lg:text-base mt-1" id="clienteNombre">Cargando...</p>
                     </div>
                 </div>
-                <div class="flex gap-3">
+
+                <!-- Botones de Acción (Scroll horizontal en móvil) -->
+                <div class="flex overflow-x-auto pb-2 w-full lg:w-auto gap-2 no-scrollbar">
                     <?php if (Auth::hasPermission('clientes.edit_business') || Auth::hasPermission('clientes.edit')): ?>
                         <button onclick="editarCliente()"
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition shadow-lg">
+                            class="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
                             <i class="fas fa-edit mr-2"></i>Editar
                         </button>
                     <?php endif; ?>
 
                     <?php if (Auth::hasPermission('clientes.print_ficha')): ?>
                         <button onclick="imprimirFicha()"
-                            class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition shadow-lg">
+                            class="whitespace-nowrap bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
                             <i class="fas fa-print mr-2"></i>Imprimir
                         </button>
                     <?php endif; ?>
 
                     <?php if (Auth::hasPermission('clientes.create_business')): ?>
                         <button onclick="openNegocioModal()"
-                            class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition shadow-lg ml-2">
-                            <i class="fas fa-store mr-2"></i>+ Registrar Negocio
+                            class="whitespace-nowrap bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
+                            <i class="fas fa-store mr-2"></i>Negocio
                         </button>
                     <?php endif; ?>
 
                     <button onclick="openPrestamoModal()"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition shadow-lg ml-2">
-                        <i class="fas fa-money-bill-wave mr-2"></i>+ Nuevo Préstamo
+                        class="whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
+                        <i class="fas fa-money-bill-wave mr-2"></i>Préstamo
                     </button>
                 </div>
             </div>
@@ -132,10 +150,10 @@ $pageTitle = 'Ficha del Cliente';
             const html = `
                 <!-- Tarjeta Principal -->
                 <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-6">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-6">
-                                <div class="h-24 w-24 rounded-full border-4 border-white overflow-hidden bg-white">
+                    <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-8 md:px-8 md:py-6">
+                        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6 text-center md:text-left w-full">
+                                <div class="h-28 w-28 md:h-24 md:w-24 rounded-full border-4 border-white overflow-hidden bg-white shadow-md flex-shrink-0">
                                     ${cliente.foto_perfil
                     ? `<img src="${BASE_URL}/uploads/documentos/${cliente.foto_perfil}" class="h-full w-full object-cover" alt="${cliente.nombre_completo}">`
                     : `<div class="h-full w-full flex items-center justify-center bg-blue-100">
@@ -144,120 +162,129 @@ $pageTitle = 'Ficha del Cliente';
                 }
                                 </div>
                                 <div>
-                                    <h2 class="text-2xl font-bold">${cliente.nombre_completo}</h2>
-                                    <p class="text-blue-100 mt-1">Código: ${cliente.codigo_cliente || 'N/A'}</p>
-                                    <p class="text-blue-100">DNI: ${cliente.numero_documento}</p>
+                                    <h2 class="text-2xl font-bold leading-tight">${cliente.nombre_completo}</h2>
+                                    <div class="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
+                                        <span class="bg-white/20 px-2 py-0.5 rounded text-sm backdrop-blur-sm">
+                                            Código: ${cliente.codigo_cliente || 'N/A'}
+                                        </span>
+                                        <span class="bg-white/20 px-2 py-0.5 rounded text-sm backdrop-blur-sm">
+                                            DNI: ${cliente.numero_documento}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end gap-2">
+                            <div class="flex flex-row md:flex-col items-center gap-3 w-full md:w-auto justify-center md:justify-end border-t border-white/20 pt-4 md:border-0 md:pt-0">
                                 ${estadoBadge}
                                 ${getRiskBadge(cliente.categoria_riesgo, cliente.dias_mora_global)}
                             </div>
                         </div>
                     </div>
 
-                    <div class="p-8">
+                    <div class="p-6 md:p-8">
                         <!-- Datos Personales -->
                         <div class="mb-8">
-                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                            <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 flex items-center border-b pb-2">
                                 <i class="fas fa-user text-blue-600 mr-2"></i>
                                 Datos Personales
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Tipo de Documento</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.tipo_documento}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Tipo de Documento</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.tipo_documento}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Número de Documento</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.numero_documento}</p>
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Número de Documento</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.numero_documento}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Fecha de Nacimiento</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.fecha_nacimiento ? new Date(cliente.fecha_nacimiento).toLocaleDateString('es-HN') : 'N/A'}</p>
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Fecha de Nacimiento</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.fecha_nacimiento ? new Date(cliente.fecha_nacimiento).toLocaleDateString('es-HN') : 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Género</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.genero === 'M' ? 'Masculino' : cliente.genero === 'F' ? 'Femenino' : 'N/A'}</p>
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Género</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.genero === 'M' ? 'Masculino' : cliente.genero === 'F' ? 'Femenino' : 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Teléfono</label>
-                                    <p class="text-gray-900 font-semibold">
-                                        <i class="fas fa-phone text-green-600 mr-1"></i>${cliente.telefono || 'N/A'}
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Teléfono</label>
+                                    <p class="text-gray-900 font-semibold mt-1 flex items-center">
+                                        <i class="fas fa-phone text-green-600 mr-2"></i>
+                                        <a href="tel:${cliente.telefono}" class="underline decoration-dotted">${cliente.telefono || 'N/A'}</a>
                                     </p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Email</label>
-                                    <p class="text-gray-900 font-semibold">
-                                        ${cliente.email ? `<i class="fas fa-envelope text-blue-600 mr-1"></i>${cliente.email}` : 'N/A'}
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Email</label>
+                                    <p class="text-gray-900 font-semibold mt-1 text-sm break-all">
+                                        ${cliente.email ? `<i class="fas fa-envelope text-blue-600 mr-2"></i><a href="mailto:${cliente.email}" class="underline decoration-dotted">${cliente.email}</a>` : 'N/A'}
                                     </p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Ocupación</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.ocupacion || 'N/A'}</p>
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Ocupación</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.ocupacion || 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Agencia</label>
-                                    <p class="text-gray-900 font-semibold">
-                                        <i class="fas fa-building text-purple-600 mr-1"></i>${cliente.agencia_nombre || 'N/A'}
+                                <div class="bg-gray-50 p-3 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Agencia</label>
+                                    <p class="text-gray-900 font-semibold mt-1">
+                                        <i class="fas fa-building text-purple-600 mr-2"></i>${cliente.agencia_nombre || 'N/A'}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Ubicación -->
-                        <div class="mb-8 pt-8 border-t">
-                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <div class="mb-8 pt-8 md:border-t md:pt-8">
+                            <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 flex items-center border-b pb-2">
                                 <i class="fas fa-map-marker-alt text-red-600 mr-2"></i>
                                 Ubicación
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div class="md:col-span-3">
-                                    <label class="text-sm font-medium text-gray-500">Dirección</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.direccion || 'N/A'}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                                <div class="md:col-span-3 bg-gray-50 p-4 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Dirección Completa</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.direccion || 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Departamento</label>
+                                <div class="bg-white border md:border-0 p-3 rounded md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Departamento</label>
                                     <p class="text-gray-900 font-semibold">${cliente.departamento || 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Municipio</label>
+                                <div class="bg-white border md:border-0 p-3 rounded md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Municipio</label>
                                     <p class="text-gray-900 font-semibold">${cliente.municipio || 'N/A'}</p>
                                 </div>
-                                <div>
-                                    <label class="text-sm font-medium text-gray-500">Barrio/Colonia</label>
+                                <div class="bg-white border md:border-0 p-3 rounded md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Barrio/Colonia</label>
                                     <p class="text-gray-900 font-semibold">${cliente.barrio || 'N/A'}</p>
                                 </div>
-                                <div class="md:col-span-3">
-                                    <label class="text-sm font-medium text-gray-500">Punto de Referencia</label>
-                                    <p class="text-gray-900 font-semibold">${cliente.punto_referencia || 'N/A'}</p>
+                                <div class="md:col-span-3 bg-gray-50 p-4 rounded-lg md:bg-transparent md:p-0">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Punto de Referencia</label>
+                                    <p class="text-gray-900 font-semibold mt-1">${cliente.punto_referencia || 'N/A'}</p>
                                 </div>
                                 <div>
-                                    <label class="text-sm font-medium text-gray-500">Tipo de Vivienda</label>
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">Tipo de Vivienda</label>
                                     <p class="text-gray-900 font-semibold">${cliente.tipo_vivienda || 'N/A'}</p>
                                 </div>
                                 ${cliente.gps_coordenadas ? `
-                                <div class="md:col-span-3">
-                                    <label class="text-sm font-medium text-gray-500">Coordenadas GPS</label>
-                                    <p class="text-gray-900 font-semibold">
-                                        <i class="fas fa-map-pin text-red-500 mr-1"></i>${cliente.gps_coordenadas}
+                                <div class="md:col-span-3 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                    <label class="text-xs font-bold text-blue-600 uppercase tracking-wide">Coordenadas GPS</label>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-2">
+                                        <p class="text-gray-900 font-mono font-medium">
+                                            <i class="fas fa-satellite-dish text-blue-500 mr-2"></i>${cliente.gps_coordenadas}
+                                        </p>
                                         <a href="https://www.google.com/maps?q=${cliente.gps_coordenadas}" target="_blank" 
-                                            class="ml-3 text-blue-600 hover:text-blue-800">
-                                            <i class="fas fa-external-link-alt mr-1"></i>Ver en Google Maps
+                                            class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded hover:bg-blue-700 transition shadow-sm w-full sm:w-auto">
+                                            <i class="fas fa-map-marked-alt mr-2"></i>Abrir Mapa
                                         </a>
-                                    </p>
+                                    </div>
                                 </div>
                                 ` : ''}
                             </div>
                         </div>
 
                         <!-- Documentación -->
-                        <div class="pt-8 border-t">
-                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <div class="pt-8 md:border-t md:pt-8">
+                            <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 flex items-center border-b pb-2">
                                 <i class="fas fa-file-image text-green-600 mr-2"></i>
                                 Documentación
                             </h3>
-                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 ${renderImageCard('DNI Frontal', cliente.foto_dni_frontal)}
                                 ${renderImageCard('DNI Posterior', cliente.foto_dni_posterior)}
                                 ${renderImageCard('Foto Perfil', cliente.foto_perfil)}
@@ -267,8 +294,8 @@ $pageTitle = 'Ficha del Cliente';
                         </div>
                         
                         <!-- Historial de Préstamos -->
-                        <div class="pt-8 border-t mt-8">
-                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <div class="pt-8 md:border-t md:pt-8 mt-8">
+                            <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 flex items-center border-b pb-2">
                                 <i class="fas fa-money-bill-wave text-orange-600 mr-2"></i>
                                 Historial de Préstamos
                             </h3>
@@ -280,8 +307,8 @@ $pageTitle = 'Ficha del Cliente';
                         </div>
 
                         <!-- Negocios y Garantías -->
-                        <div class="pt-8 border-t mt-8">
-                            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <div class="pt-8 md:border-t md:pt-8 mt-8">
+                            <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 flex items-center border-b pb-2">
                                 <i class="fas fa-briefcase text-yellow-600 mr-2"></i>
                                 Negocios y Garantías
                             </h3>
@@ -300,18 +327,18 @@ $pageTitle = 'Ficha del Cliente';
                         <i class="fas fa-info-circle text-blue-600 mr-2"></i>
                         Información del Sistema
                     </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="text-sm font-medium text-gray-500">Fecha de Registro</label>
-                            <p class="text-gray-900 font-semibold">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="flex justify-between md:block border-b md:border-0 pb-2 md:pb-0">
+                            <span class="text-gray-500 font-medium">Fecha de Registro:</span>
+                            <span class="text-gray-900 font-semibold block md:inline md:ml-2">
                                 ${cliente.created_at ? new Date(cliente.created_at).toLocaleString('es-HN') : 'N/A'}
-                            </p>
+                            </span>
                         </div>
-                        <div>
-                            <label class="text-sm font-medium text-gray-500">Última Actualización</label>
-                            <p class="text-gray-900 font-semibold">
+                        <div class="flex justify-between md:block">
+                            <span class="text-gray-500 font-medium">Última Actualización:</span>
+                            <span class="text-gray-900 font-semibold block md:inline md:ml-2">
                                 ${cliente.updated_at ? new Date(cliente.updated_at).toLocaleString('es-HN') : 'N/A'}
-                            </p>
+                            </span>
                         </div>
                     </div>
                 </div>
