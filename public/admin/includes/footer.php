@@ -3,7 +3,10 @@
 
 <script>
     // Configurar base URL para JavaScript
-    const BASE_URL = '<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>';
+    // Configurar base URL para JavaScript (Safely)
+    if (typeof BASE_URL === 'undefined') {
+        const BASE_URL = '<?php echo htmlspecialchars($baseUrl ?? "", ENT_QUOTES, 'UTF-8'); ?>';
+    }
 
     // Toggle sidebar en móvil
     $(document).ready(function () {

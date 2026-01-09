@@ -67,7 +67,19 @@ try {
                 ORDER BY c2.fecha_vencimiento ASC, c2.numero_cuota ASC
                 LIMIT 1
             )
-            WHERE p.estado = 'Activo'";
+            WHERE p.estado = 'Activo'
+            AND NOT EXISTS (
+                SELECT 1
+                FROM prestamos p2 
+                WHERE p2.id_cliente = p.id_cliente 
+                AND p2.id != p.id
+                AND (
+                    p2.tipo_prestamo = 'Refinanciamiento' 
+                    OR p2.observaciones LIKE '%SOLICITUD DE REFINANCIAMIENTO%'
+                    OR p2.observaciones LIKE '%SOLICITUD DE REESTRUCTURACIÓN%'
+                )
+                AND p2.estado IN ('Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Listo para Entrega')
+            )";
 
     $params = [$fechaFiltro]; // Para DATEDIFF
 

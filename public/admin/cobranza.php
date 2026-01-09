@@ -13,7 +13,14 @@ $db = getDB();
 $totalRecaudado = 0;
 try {
     $hoy = date('Y-m-d');
-    $totalRecaudado = $db->query("SELECT IFNULL(SUM(monto_pagado),0) FROM cuotas WHERE DATE(fecha_pago_real) = '$hoy'")->fetchColumn();
+    $sqlTotal = "SELECT IFNULL(SUM(c.monto_pagado),0) FROM cuotas c JOIN prestamos p ON c.prestamo_id = p.id JOIN clientes cl ON p.id_cliente = cl.id WHERE DATE(c.fecha_pago_real) = '$hoy'";
+
+    // Filter by Agency if User has one and is not Admin
+    if (!empty($user['id_agencia']) && stripos($user['rol_nombre'] ?? '', 'Admin') === false) {
+        $sqlTotal .= " AND cl.id_agencia = " . intval($user['id_agencia']);
+    }
+
+    $totalRecaudado = $db->query($sqlTotal)->fetchColumn();
 } catch (Exception $e) {
     $totalRecaudado = 0;
 }
@@ -35,7 +42,7 @@ require_once __DIR__ . '/includes/layout.php';
         </div>
         <div class="flex gap-2">
             <a href="../../app/api/fix_assignments.php"
-                class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-100 text-sm font-bold transition border border-indigo-200">
+                class="hidden md:inline-flex bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-100 text-sm font-bold transition border border-indigo-200">
                 <i class="fas fa-users-cog mr-2"></i> Asignaciones
             </a>
         </div>
@@ -45,7 +52,7 @@ require_once __DIR__ . '/includes/layout.php';
     <div
         class="flex flex-col md:flex-row gap-4 mb-4 justify-between items-end md:items-center bg-white p-4 rounded shadow-sm">
         <?php $isAsesor = (stripos($userRole ?? '', 'Asesor') !== false || stripos($userRole ?? '', 'Oficial') !== false); ?>
-        <div class="flex gap-4 items-center w-full md:w-auto">
+        <div class="hidden md:flex gap-4 items-center w-full md:w-auto">
             <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase">Fecha</label>
                 <input type="date" id="filtroFecha" value="<?php echo date('Y-m-d'); ?>" <?php echo $isAsesor ? 'disabled' : ''; ?>
@@ -254,21 +261,28 @@ require_once __DIR__ . '/includes/layout.php';
 
 <script>
     // Construir BASE_URL dinámicamente para compatibilidad móvil
-    function getBaseUrl() {
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const pathname = window.location.pathname;
-        let basePath = pathname.substring(0, pathname.indexOf('/public'));
-        if (!basePath) {
-            const projectIndex = pathname.indexOf('sistema-financiera');
-            if (projectIndex !== -1) {
-                basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+    // Configuración Híbrida de BASE_URL GLOBAL
+    // Se usa window.BASE_URL para evitar conflictos de redeclaración
+    if (typeof window.BASE_URL === 'undefined') {
+        window.PHP_BASE_URL = '<?php echo BASE_URL; ?>';
+        window.BASE_URL = window.PHP_BASE_URL;
+
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+
+            let publicIndex = pathname.indexOf('/public');
+            if (publicIndex !== -1) {
+                let basePath = pathname.substring(0, publicIndex);
+                window.BASE_URL = protocol + '//' + host + basePath;
+            } else {
+                window.BASE_URL = protocol + '//' + host;
             }
         }
-        return protocol + '//' + host + basePath;
     }
-    const BASE_URL = getBaseUrl();
-    console.log('BASE_URL:', BASE_URL);
+    // const BASE_URL = window.BASE_URL; // Removed to avoid redeclaration error
+    console.log('BASE_URL:', window.BASE_URL);
 
     let currentTab = 'pendientes';
     // Globals para Refinanciamiento
@@ -277,21 +291,83 @@ require_once __DIR__ . '/includes/layout.php';
     let currentSaldoBalance = 0;
     let currentClienteId = 0;
 
+    // User Session Data
+    const USER_AGENCIA_ID = '<?php echo $_SESSION['id_agencia'] ?? ''; ?>';
+
     document.addEventListener('DOMContentLoaded', () => {
         switchTab('pendientes');
     });
     async function switchTab(tab) {
         currentTab = tab;
-        document.getElementById('tab-pendientes').className = tab === 'pendientes' ? 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center' : 'px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-indigo-600 transition flex items-center';
-        document.getElementById('tab-historial').className = tab === 'historial' ? 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center' : 'px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-indigo-600 transition flex items-center';
-        document.getElementById('view-pendientes').classList.toggle('hidden', tab !== 'pendientes');
-        document.getElementById('view-historial').classList.toggle('hidden', tab !== 'historial');
+        const activeClass = 'px-4 py-2 rounded-md text-sm font-bold shadow bg-white text-indigo-600 transition flex items-center shadow-sm border border-gray-100';
+        const inactiveClass = 'px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-indigo-600 transition flex items-center hover:bg-gray-200';
+
+        document.getElementById('tab-pendientes').className = tab === 'pendientes' ? activeClass : inactiveClass;
+        document.getElementById('tab-historial').className = tab === 'historial' ? activeClass : inactiveClass;
+        const pDesk = document.getElementById('view-pendientes');
+        const hDesk = document.getElementById('view-historial');
+        const pMob = document.getElementById('view-pendientes-cards');
+        const hMob = document.getElementById('view-historial-cards');
+
+        if (tab === 'pendientes') {
+            // Show Pendientes Desktop (keep hidden for mobile, add lg:block for desktop)
+            pDesk.classList.add('hidden');
+            pDesk.classList.add('lg:block');
+            // Hide Historial Desktop
+            hDesk.classList.add('hidden');
+            hDesk.classList.remove('lg:block');
+
+            // Show Pendientes Mobile
+            pMob.classList.remove('hidden');
+            // Hide Historial Mobile
+            hMob.classList.add('hidden');
+        } else {
+            // Hide Pendientes Desktop
+            pDesk.classList.add('hidden');
+            pDesk.classList.remove('lg:block');
+            // Show Historial Desktop
+            hDesk.classList.add('hidden');
+            hDesk.classList.add('lg:block');
+
+            // Hide Pendientes Mobile
+            pMob.classList.add('hidden');
+            // Show Historial Mobile
+            hMob.classList.remove('hidden');
+        }
+
         refreshCurrentView();
     }
 
     async function refreshCurrentView() {
+        // Re-apply visibility logic to ensure persistence during refresh
+        const pDesk = document.getElementById('view-pendientes');
+        const hDesk = document.getElementById('view-historial');
+
+        if (currentTab === 'pendientes') {
+            pDesk.classList.add('hidden');
+            pDesk.classList.add('lg:block');
+            hDesk.classList.add('hidden');
+            hDesk.classList.remove('lg:block');
+
+            document.getElementById('view-pendientes-cards').classList.remove('hidden');
+            document.getElementById('view-historial-cards').classList.add('hidden');
+        } else {
+            pDesk.classList.add('hidden');
+            pDesk.classList.remove('lg:block');
+            hDesk.classList.add('hidden');
+            hDesk.classList.add('lg:block');
+
+            document.getElementById('view-pendientes-cards').classList.add('hidden');
+            document.getElementById('view-historial-cards').classList.remove('hidden');
+        }
+
         const fecha = document.getElementById('filtroFecha').value;
-        const agencia = document.getElementById('filtroAgencia').value;
+        let agencia = document.getElementById('filtroAgencia').value;
+
+        // Mobile Filter Logic: Force User Agency
+        if (window.innerWidth < 768 && USER_AGENCIA_ID) {
+            agencia = USER_AGENCIA_ID; // Force session agency on mobile
+        }
 
         // Ensure BASE_URL is available (fallback safe access)
         const baseUrl = (typeof BASE_URL !== 'undefined') ? BASE_URL : '<?php echo BASE_URL; ?>';
@@ -350,8 +426,40 @@ require_once __DIR__ . '/includes/layout.php';
                      `;
                 });
                 tbody.innerHTML = html;
+
+                // --- RENDER MOBILE CARDS (HISTORIAL) ---
+                const cardsContainer = document.getElementById('view-historial-cards');
+                let cardsHtml = '';
+                data.data.forEach(h => {
+                    const fechaShow = h.fecha_hora || h.fecha_pago || h.fecha;
+                    const clienteShow = h.cliente || h.nombre_completo;
+                    const montoShow = h.monto || h.total_pagado || h.monto_total;
+                    const idShow = h.id;
+
+                    cardsHtml += `
+                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-2 mb-2">
+                            <span class="text-xs font-bold text-gray-400">${fechaShow}</span>
+                            <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Pagado</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">${clienteShow}</h3>
+                        <p class="text-sm text-gray-500 mb-3">${h.concepto || 'Pago Recibido'}</p>
+                        
+                        <div class="flex justify-between items-center mt-2">
+                            <div class="text-xl font-extrabold text-green-600">L ${parseFloat(montoShow).toFixed(2)}</div>
+                            <button onclick="window.open('${baseUrl}/public/admin/print_docs.php?type=ticket_pago&id=${idShow}', '_blank')" 
+                                class="bg-gray-100 hover:bg-gray-200 text-indigo-600 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center">
+                                <i class="fas fa-print mr-2"></i> Ticket
+                            </button>
+                        </div>
+                     </div>
+                     `;
+                });
+                cardsContainer.innerHTML = cardsHtml;
+
             } else {
                 tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 italic">No hay pagos registrados en esta fecha.</td></tr>';
+                document.getElementById('view-historial-cards').innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-history text-3xl text-gray-300 mb-2"></i><p>No hay pagos recientes.</p></div>';
             }
         } catch (e) {
             console.error(e);
@@ -363,6 +471,8 @@ require_once __DIR__ . '/includes/layout.php';
         const tbody = document.getElementById('tablaCobros');
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="p-12 text-center text-gray-400 flex flex-col items-center"><i class="fas fa-search text-3xl mb-2"></i><span>No se encontraron préstamos activos.</span></td></tr>';
+            // Also update mobile view for consistency
+            document.getElementById('view-pendientes-cards').innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-search text-3xl mb-2"></i><p>No se encontraron préstamos activos.</p></div>';
             return;
         }
 
@@ -434,9 +544,91 @@ require_once __DIR__ . '/includes/layout.php';
         </tr>`;
         });
         tbody.innerHTML = html;
-    }
 
-    // ... (skip renderHistorial) ...
+        // --- RENDER MOBILE CARDS (PENDIENTES) ---
+        const cardsContainer = document.getElementById('view-pendientes-cards');
+        if (data.length === 0) {
+            cardsContainer.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-search text-3xl mb-2"></i><p>No se encontraron préstamos activos.</p></div>';
+            return;
+        }
+
+        let cardsHtml = '';
+        data.forEach(r => {
+            const capital = parseFloat(r.monto_capital || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+            const montoCuota = r.monto_cuota ? parseFloat(r.monto_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 }) : '0.00';
+            const saldoCap = r.saldo_capital || 0;
+            const saldoBal = r.saldo_balance || 0;
+            const numeroCuota = r.numero_cuota || '0';
+            const fechaFmt = r.fecha_fmt || 'N/A';
+            const numeroDni = r.numero_documento || 'Sin DNI';
+
+            let accionBtnMobile;
+            let statusBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${r.class_visual}">${r.estado_visual}</span>`;
+
+            if (r.tiene_refinanciamiento) {
+                accionBtnMobile = `<button onclick="Swal.fire('Atención', 'Solicitud de refinanciamiento en proceso.', 'warning')" 
+                    class="w-full bg-gray-300 text-gray-600 font-bold py-3 px-4 rounded-lg shadow-sm text-sm flex justify-center items-center mt-3 cursor-not-allowed">
+                    <i class="fas fa-lock mr-2"></i> En Proceso
+                </button>`;
+            } else if (r.cuota_id) {
+                accionBtnMobile = `<button onclick="openModal(${r.prestamo_id}, '${r.nombre_completo.replace(/'/g, "\\'")}', ${r.monto_cuota}, '${fechaFmt}', ${saldoCap}, ${saldoBal}, ${r.id_cliente})" 
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg shadow-md text-sm flex justify-center items-center mt-3 transition active:scale-95">
+                    <i class="fas fa-hand-holding-usd mr-2"></i> COBRAR CUOTA
+                </button>`;
+            } else {
+                accionBtnMobile = `<button onclick="openModal(${r.prestamo_id}, '${r.nombre_completo.replace(/'/g, "\\'")}', 0, 'N/A', ${saldoCap}, ${saldoBal}, ${r.id_cliente})" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md text-sm flex justify-center items-center mt-3 transition active:scale-95">
+                    <i class="fas fa-plus-circle mr-2"></i> ABONO CAPITAL
+                </button>`;
+            }
+
+            const riskBadge = getRiskBadge(r.categoria_riesgo, r.dias_mora_global);
+
+            cardsHtml += `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <h3 class="font-bold text-gray-900 text-lg leading-tight">${r.nombre_completo}</h3>
+                        <p class="text-xs text-gray-500">${numeroDni}</p>
+                    </div>
+                    ${riskBadge}
+                </div>
+                
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded">Prest #${r.prestamo_id}</span>
+                    ${statusBadge}
+                </div>
+
+                <div class="bg-indigo-50 rounded-lg p-3 mb-3 border border-indigo-100">
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="text-xs text-indigo-500 font-bold uppercase mb-1">Próxima Cuota (#${numeroCuota})</p>
+                            <p class="text-2xl font-extrabold text-indigo-700 leading-none">L ${montoCuota}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 mb-1">Vence</p>
+                            <p class="text-sm font-bold text-gray-800">${fechaFmt}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center text-xs text-gray-500 mb-2">
+                    <span>Progreso:</span>
+                    <span>${parseFloat(r.pagadas)} de ${r.total_cuotas}</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                    <div class="bg-green-500 h-1.5 rounded-full" style="width: ${Math.min(100, (r.pagadas / r.total_cuotas) * 100)}%"></div>
+                </div>
+                
+                ${accionBtnMobile}
+            </div>
+            `;
+        });
+        cardsContainer.innerHTML = cardsHtml;
+
+        // ... (skip renderHistorial) ...
+
+    }
 
     // Modal Logic
     const modal = document.getElementById('modalCobro');

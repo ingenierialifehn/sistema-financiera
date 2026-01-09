@@ -231,12 +231,26 @@ try {
 
     // Calcular total recaudado hoy desde las cuotas pagadas
     $hoySql = date('Y-m-d');
-    $stmtTotal = $db->query("
-        SELECT IFNULL(SUM(monto_pagado), 0) 
-        FROM cuotas 
-        WHERE DATE(fecha_pago_real) = '$hoySql'
-        AND estado IN ('pagada', 'parcial')
-    ");
+
+    // Get User Context for correct filtering
+    $stmtUser = $db->prepare("SELECT id_agencia, (SELECT nombre_rol FROM roles WHERE id = usuarios.id_rol) as rol_nombre FROM usuarios WHERE id_usuario = ?");
+    $stmtUser->execute([$userId]);
+    $uData = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+    $sqlTotal = "
+        SELECT IFNULL(SUM(c.monto_pagado), 0) 
+        FROM cuotas c
+        JOIN prestamos p ON c.prestamo_id = p.id
+        JOIN clientes cl ON p.id_cliente = cl.id
+        WHERE DATE(c.fecha_pago_real) = '$hoySql'
+        AND c.estado IN ('pagada', 'parcial')
+    ";
+
+    if ($uData && !empty($uData['id_agencia']) && stripos($uData['rol_nombre'] ?? '', 'Admin') === false) {
+        $sqlTotal .= " AND cl.id_agencia = " . intval($uData['id_agencia']);
+    }
+
+    $stmtTotal = $db->query($sqlTotal);
     $nuevoTotal = $stmtTotal->fetchColumn();
 
     $db->commit();
