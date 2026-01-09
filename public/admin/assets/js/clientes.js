@@ -310,23 +310,34 @@ function loadClientes() {
     const estado = $('#filterEstado').val() || '';
     const agencia = $('#filterAgencia').val() || '';
 
-    $.get(BASE_URL + '/app/api/clientes/list.php', { search: search, estado: estado, agencia: agencia }, function (response) {
+    const url = BASE_URL + '/app/api/clientes/list.php';
+    const params = { search: search, estado: estado, agencia: agencia };
+
+    console.log('Cargando clientes...', { url, params });
+
+    $.get(url, params, function (response) {
+        console.log('Respuesta recibida:', response);
         if (response.success) {
             renderClientes(response.data.clientes);
         } else {
+            console.error('Error en respuesta:', response.message);
             $('#clientesTableBody').html(`
                 <tr>
                     <td colspan="7" class="px-6 py-4 text-center text-red-500">
-                        Error al cargar clientes
+                        Error al cargar clientes: ${response.message || 'Error desconocido'}
                     </td>
                 </tr>
             `);
         }
-    }).fail(function () {
+    }).fail(function (xhr, status, error) {
+        console.error('Error de conexión:', { xhr, status, error });
+        console.error('URL intentada:', url);
+        console.error('Parámetros:', params);
         $('#clientesTableBody').html(`
             <tr>
                 <td colspan="7" class="px-6 py-4 text-center text-red-500">
-                    Error de conexión
+                    Error de conexión (${status})<br>
+                    <small>Revisa la consola (F12) para más detalles</small>
                 </td>
             </tr>
         `);
@@ -335,6 +346,7 @@ function loadClientes() {
 
 function renderClientes(clientes) {
     if (!clientes || clientes.length === 0) {
+        // Vista tabla (PC)
         $('#clientesTableBody').html(`
             <tr>
                 <td colspan="7" class="px-6 py-4 text-center text-gray-500">
@@ -343,10 +355,19 @@ function renderClientes(clientes) {
                 </td>
             </tr>
         `);
+
+        // Vista cards (Móvil)
+        $('#clientesCardsContainer').html(`
+            <div class="bg-white rounded-lg shadow-md p-8 text-center">
+                <i class="fas fa-inbox text-5xl text-gray-300 mb-3"></i>
+                <p class="text-gray-600">No se encontraron clientes</p>
+            </div>
+        `);
         return;
     }
 
-    let html = '';
+    // Renderizar TABLA para PC
+    let htmlTable = '';
     clientes.forEach(function (cliente) {
         const estadoBadge = cliente.estado === 'activo'
             ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Activo</span>'
@@ -356,7 +377,7 @@ function renderClientes(clientes) {
             ? '<img class="h-10 w-10 rounded-full object-cover" src="' + BASE_URL + '/uploads/documentos/' + cliente.foto_perfil + '" alt="' + cliente.nombre_completo + '">'
             : '<div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center"><i class="fas fa-user text-blue-600"></i></div>';
 
-        html += `
+        htmlTable += `
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${cliente.codigo_cliente || '-'}
@@ -395,7 +416,66 @@ function renderClientes(clientes) {
         `;
     });
 
-    $('#clientesTableBody').html(html);
+    // Renderizar CARDS para MÓVIL
+    let htmlCards = '';
+    clientes.forEach(function (cliente) {
+        const estadoBadge = cliente.estado === 'activo'
+            ? '<span class="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">✓ Activo</span>'
+            : '<span class="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">✗ Inactivo</span>';
+
+        const fotoHtml = cliente.foto_perfil
+            ? '<img class="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg" src="' + BASE_URL + '/uploads/documentos/' + cliente.foto_perfil + '" alt="' + cliente.nombre_completo + '">'
+            : '<div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center border-4 border-white shadow-lg"><i class="fas fa-user text-white text-2xl"></i></div>';
+
+        htmlCards += `
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow">
+                <!-- Header con gradiente -->
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-4 relative">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            ${fotoHtml}
+                            <div class="text-white">
+                                <h3 class="font-bold text-lg">${cliente.nombre_completo}</h3>
+                                <p class="text-blue-100 text-sm">${cliente.codigo_cliente || 'Sin código'}</p>
+                            </div>
+                        </div>
+                        ${estadoBadge}
+                    </div>
+                </div>
+                
+                <!-- Contenido -->
+                <div class="p-4 space-y-3">
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-id-card w-6 text-blue-500"></i>
+                        <span class="ml-2 text-sm"><strong>DNI:</strong> ${cliente.numero_documento}</span>
+                    </div>
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-phone w-6 text-green-500"></i>
+                        <span class="ml-2 text-sm"><strong>Tel:</strong> ${cliente.telefono || 'No registrado'}</span>
+                    </div>
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-building w-6 text-purple-500"></i>
+                        <span class="ml-2 text-sm"><strong>Agencia:</strong> ${cliente.agencia_nombre || 'Sin asignar'}</span>
+                    </div>
+                </div>
+                
+                <!-- Acciones -->
+                <div class="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+                    <button onclick="verFicha(${cliente.id})" 
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-md">
+                        <i class="fas fa-eye mr-2"></i>Ver Ficha
+                    </button>
+                    <button onclick="editarCliente(${cliente.id})" 
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-md">
+                        <i class="fas fa-edit mr-2"></i>Editar
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    $('#clientesTableBody').html(htmlTable);
+    $('#clientesCardsContainer').html(htmlCards);
 }
 
 function loadAgencias() {

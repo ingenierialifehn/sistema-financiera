@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ Test Final</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 0;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .label {
+            font-weight: bold;
+            color: #666;
+            margin-top: 10px;
+            display: block;
+        }
+
+        .value {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>✅ Test Final Móvil</h1>
+
+        <div id="status"></div>
+
+        <span class="label">URL Actual:</span>
+        <div class="value" id="currentUrl"></div>
+
+        <span class="label">Host:</span>
+        <div class="value" id="host"></div>
+
+        <button onclick="goToLogin()">🔐 Ir a Login</button>
+        <button onclick="goToDashboard()">📊 Ir a Dashboard</button>
+        <button onclick="clearAndTest()">🔄 Limpiar y Probar</button>
+    </div>
+
+    <script>
+        // Mostrar info
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('host').textContent = window.location.host;
+
+        // Verificar
+        const isLocalhost = window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1');
+        const statusDiv = document.getElementById('status');
+
+        if (isLocalhost) {
+            statusDiv.innerHTML = '<div class="status error">❌ Estás usando LOCALHOST<br>No funcionará en móvil</div>';
+        } else {
+            statusDiv.innerHTML = '<div class="status success">✅ Usando IP de red<br>Debería funcionar en móvil</div>';
+        }
+
+        function goToLogin() {
+            // Construir URL manteniendo el host actual
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                }
+            }
+
+            const loginUrl = protocol + '//' + host + basePath + '/public/login.php';
+            console.log('Redirigiendo a:', loginUrl);
+            window.location.href = loginUrl;
+        }
+
+        function goToDashboard() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                }
+            }
+
+            const dashboardUrl = protocol + '//' + host + basePath + '/public/admin/dashboard.php';
+            console.log('Redirigiendo a:', dashboardUrl);
+            window.location.href = dashboardUrl;
+        }
+
+        async function clearAndTest() {
+            // Limpiar sesión
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                }
+            }
+
+            const logoutUrl = protocol + '//' + host + basePath + '/app/api/auth/logout.php';
+
+            try {
+                await fetch(logoutUrl);
+                alert('Sesión cerrada. Ahora intenta iniciar sesión de nuevo.');
+                goToLogin();
+            } catch (e) {
+                alert('Error al cerrar sesión: ' + e.message);
+            }
+        }
+    </script>
+</body>
+
+</html>

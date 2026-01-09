@@ -23,15 +23,32 @@ $currentUser = $user ?? [];
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        const BASE_URL = '<?php echo BASE_URL; ?>';
+        // Construir BASE_URL dinámicamente para compatibilidad móvil
+        function getBaseUrl() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                }
+            }
+            return protocol + '//' + host + basePath;
+        }
+        const BASE_URL = getBaseUrl();
         const USER_AGENCIA_ID = <?php echo $userAgenciaId ? $userAgenciaId : 'null'; ?>;
+        console.log('BASE_URL:', BASE_URL);
+        console.log('USER_AGENCIA_ID:', USER_AGENCIA_ID);
     </script>
 </head>
 
 <body class="bg-gray-50">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
+    <?php include __DIR__ . '/includes/header.php'; ?>
 
-    <div class="ml-64 p-8">
+    <div class="lg:ml-64 p-4 lg:p-8">
         <!-- Header -->
         <div class="mb-8">
             <div class="flex items-center justify-between">
@@ -81,8 +98,8 @@ $currentUser = $user ?? [];
             </div>
         </div>
 
-        <!-- Tabla de Clientes -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <!-- Vista de Tabla (PC) - Oculta en móvil -->
+        <div id="vistaTabla" class="hidden lg:block bg-white rounded-lg shadow-md overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -112,6 +129,16 @@ $currentUser = $user ?? [];
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Vista de Tarjetas (Móvil) - Oculta en PC -->
+        <div id="vistaCards" class="lg:hidden space-y-4">
+            <div id="clientesCardsContainer">
+                <div class="bg-white rounded-lg shadow-md p-6 text-center">
+                    <i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+                    <p class="mt-3 text-gray-600">Cargando clientes...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -478,9 +505,9 @@ $currentUser = $user ?? [];
                     }
                 });
             }
-        });
+    });
     </script>
-    <script src="<?php echo BASE_URL; ?>/public/admin/assets/js/clientes.js?v=<?php echo time(); ?>&force=1"></script>
+    <script src="assets/js/clientes.js?v=<?php echo time(); ?>&force=1"></script>
 </body>
 
 </html>

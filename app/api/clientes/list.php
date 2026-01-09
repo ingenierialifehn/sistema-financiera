@@ -41,8 +41,11 @@ try {
 
     // Búsqueda
     if (!empty($search)) {
-        $where[] = "(c.nombre_completo LIKE :search OR c.codigo_cliente LIKE :search OR c.numero_documento LIKE :search OR c.telefono LIKE :search)";
-        $params['search'] = "%{$search}%";
+        $where[] = "(c.nombre_completo LIKE :search1 OR c.codigo_cliente LIKE :search2 OR c.numero_documento LIKE :search3 OR c.telefono LIKE :search4)";
+        $params['search1'] = "%{$search}%";
+        $params['search2'] = "%{$search}%";
+        $params['search3'] = "%{$search}%";
+        $params['search4'] = "%{$search}%";
     }
 
     // Filtro por estado
@@ -85,12 +88,15 @@ try {
             c.referencia_personal,
             c.telefono_referencia,
             c.foto_documento,
+            c.foto_perfil,
             c.estado,
             c.cobrador_id,
             c.id_agencia,
             c.created_at,
-            c.updated_at
+            c.updated_at,
+            a.nombre_agencia as agencia_nombre
         FROM clientes c
+        LEFT JOIN agencias a ON c.id_agencia = a.id_agencia
         {$whereClause}
         ORDER BY c.created_at DESC
         LIMIT :limit OFFSET :offset
@@ -110,8 +116,17 @@ try {
     require_once __DIR__ . '/../../core/ClienteHelper.php';
 
     foreach ($clientes as &$cliente) {
-        $cliente['foto_perfil'] = null;
-        $cliente['agencia_nombre'] = 'Sin asignar';
+        // foto_perfil ya viene de la base de datos
+        // Si está vacío, usar foto_documento como fallback
+        if (empty($cliente['foto_perfil']) && !empty($cliente['foto_documento'])) {
+            $cliente['foto_perfil'] = $cliente['foto_documento'];
+        }
+
+        // agencia_nombre ya viene del JOIN
+        if (!$cliente['agencia_nombre']) {
+            $cliente['agencia_nombre'] = 'Sin asignar';
+        }
+
         $cliente['cobrador_nombre'] = null;
 
         $riesgo = ClienteHelper::calcularCategoriaRiesgo($db, $cliente['id']);

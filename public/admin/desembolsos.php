@@ -183,7 +183,23 @@ require_once __DIR__ . '/includes/layout.php';
 </div>
 
 <script>
-    const BASE_URL = '<?php echo BASE_URL; ?>';
+    // Construir BASE_URL dinámicamente para compatibilidad móvil
+    function getBaseUrl() {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const pathname = window.location.pathname;
+        let basePath = pathname.substring(0, pathname.indexOf('/public'));
+        if (!basePath) {
+            const projectIndex = pathname.indexOf('sistema-financiera');
+            if (projectIndex !== -1) {
+                basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+            }
+        }
+        return protocol + '//' + host + basePath;
+    }
+    const BASE_URL = getBaseUrl();
+    console.log('BASE_URL:', BASE_URL);
+
     let currentLoan = null;
 
     function openDelivery(loan) {

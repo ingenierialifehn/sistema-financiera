@@ -87,7 +87,8 @@ require_once __DIR__ . '/includes/layout.php';
     <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200 min-h-[400px]">
 
         <!-- Vista 1: Pendientes -->
-        <div id="view-pendientes" class="overflow-x-auto transition-opacity duration-300">
+        <!-- Tabla PC -->
+        <div id="view-pendientes" class="hidden lg:block overflow-x-auto transition-opacity duration-300">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-indigo-50">
                     <tr>
@@ -111,8 +112,16 @@ require_once __DIR__ . '/includes/layout.php';
             </table>
         </div>
 
+        <!-- Vista Tarjetas Móvil (Pendientes) -->
+        <div id="view-pendientes-cards" class="lg:hidden space-y-4 p-4 bg-gray-50 min-h-[300px]">
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
+                <p class="mt-2">Cargando...</p>
+            </div>
+        </div>
+
         <!-- Vista 2: Historial -->
-        <div id="view-historial" class="hidden overflow-x-auto transition-opacity duration-300">
+        <div id="view-historial" class="hidden lg:block overflow-x-auto transition-opacity duration-300">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-green-50">
                     <tr>
@@ -132,6 +141,14 @@ require_once __DIR__ . '/includes/layout.php';
                     <!-- Dynamic -->
                 </tbody>
             </table>
+        </div>
+
+        <!-- Vista Tarjetas Móvil (Historial) -->
+        <div id="view-historial-cards" class="hidden lg:hidden space-y-4 p-4 bg-gray-50 min-h-[300px]">
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-history text-3xl text-gray-400"></i>
+                <p class="mt-2">Sin movimientos recientes</p>
+            </div>
         </div>
     </div>
 </div>
@@ -236,7 +253,23 @@ require_once __DIR__ . '/includes/layout.php';
 </div>
 
 <script>
-    // const BASE_URL = '<?php echo BASE_URL; ?>'; // Removed to avoid syntax error
+    // Construir BASE_URL dinámicamente para compatibilidad móvil
+    function getBaseUrl() {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const pathname = window.location.pathname;
+        let basePath = pathname.substring(0, pathname.indexOf('/public'));
+        if (!basePath) {
+            const projectIndex = pathname.indexOf('sistema-financiera');
+            if (projectIndex !== -1) {
+                basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+            }
+        }
+        return protocol + '//' + host + basePath;
+    }
+    const BASE_URL = getBaseUrl();
+    console.log('BASE_URL:', BASE_URL);
+
     let currentTab = 'pendientes';
     // Globals para Refinanciamiento
     let currentPrestamoId = 0;
@@ -335,10 +368,15 @@ require_once __DIR__ . '/includes/layout.php';
 
         let html = '';
         data.forEach(r => {
-            const capital = parseFloat(r.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+            const capital = parseFloat(r.monto_capital || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
             const montoCuota = r.monto_cuota ? parseFloat(r.monto_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 }) : '0.00';
             const saldoCap = r.saldo_capital || 0;
             const saldoBal = r.saldo_balance || 0;
+            const modalidad = r.modalidad || 'N/A';
+            const numeroDni = r.numero_documento || 'Sin DNI';
+            const asesor = r.asesor || 'Sin asignar';
+            const fechaFmt = r.fecha_fmt || 'N/A';
+            const numeroCuota = r.numero_cuota || '0';
 
             let accionBtn, proxCuotaInfo;
 
@@ -350,12 +388,12 @@ require_once __DIR__ . '/includes/layout.php';
             } else if (r.cuota_id) {
                 proxCuotaInfo = `
                 <div>
-                   <span class="text-xs font-bold text-gray-500 uppercase">Cuota #${r.numero_cuota}</span>
+                   <span class="text-xs font-bold text-gray-500 uppercase">Cuota #${numeroCuota}</span>
                    <div class="text-indigo-700 font-bold text-lg">L ${montoCuota}</div>
-                   <div class="text-xs text-gray-400">${r.fecha_fmt}</div>
+                   <div class="text-xs text-gray-400">${fechaFmt}</div>
                 </div>
             `;
-                accionBtn = `<button onclick="openModal(${r.prestamo_id}, '${r.nombre_completo.replace(/'/g, "\\'")}', ${r.monto_cuota}, '${r.fecha_fmt}', ${saldoCap}, ${saldoBal}, ${r.id_cliente})" 
+                accionBtn = `<button onclick="openModal(${r.prestamo_id}, '${r.nombre_completo.replace(/'/g, "\\'")}', ${r.monto_cuota}, '${fechaFmt}', ${saldoCap}, ${saldoBal}, ${r.id_cliente})" 
                 class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded shadow-sm text-sm flex items-center ml-auto transition hover:scale-105">
                 <i class="fas fa-hand-holding-usd mr-2"></i> Cobrar
             </button>`;
@@ -371,13 +409,13 @@ require_once __DIR__ . '/includes/layout.php';
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 table-row-animate">
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-bold text-gray-900">${r.nombre_completo}</div>
-                <div class="text-xs text-gray-500">${r.numero_documento || 'Sin DNI'}</div>
+                <div class="text-xs text-gray-500">${numeroDni}</div>
                 <!-- Risk Badge -->
                 ${getRiskBadge(r.categoria_riesgo, r.dias_mora_global)}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900 font-medium">L ${capital}</div>
-                <div class="text-xs text-gray-500">Préstamo #${r.prestamo_id} | ${r.modalidad}</div>
+                <div class="text-xs text-gray-500">Préstamo #${r.prestamo_id} | ${modalidad}</div>
                 <div class="mt-1 w-24 bg-gray-200 rounded-full h-1">
                     <div class="bg-indigo-500 h-1 rounded-full" style="width: ${Math.min(100, (r.pagadas / r.total_cuotas) * 100)}%"></div>
                 </div>

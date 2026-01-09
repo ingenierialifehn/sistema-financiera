@@ -27,8 +27,20 @@ if (!$user) {
     // Limpiar cualquier dato residual
     session_destroy();
 
-    // Redirigir a login
-    header('Location: ' . base_url('public/login.php') . '?redirect=' . urlencode($_SERVER['REQUEST_URI']));
+    // Redirigir a login usando ruta relativa para compatibilidad móvil
+    $loginPath = '/login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
+
+    // Construir ruta relativa desde la ubicación actual
+    $currentPath = $_SERVER['SCRIPT_NAME'];
+    if (strpos($currentPath, '/public/admin/') !== false) {
+        // Estamos en /public/admin/, subir un nivel
+        $loginPath = '../login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
+    } elseif (strpos($currentPath, '/public/') !== false) {
+        // Estamos en /public/, mismo nivel
+        $loginPath = 'login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
+    }
+
+    header('Location: ' . $loginPath);
     exit;
 }
 
@@ -38,7 +50,7 @@ function requireRole($roles)
     global $user;
 
     if (!$user) {
-        header('Location: ' . base_url('public/login.php'));
+        header('Location: ../login.php');
         exit;
     }
 
@@ -57,10 +69,8 @@ function requireRole($roles)
     if (!in_array($currentRole, $roles)) {
         // Usuario no tiene el rol requerido
         header('HTTP/1.1 403 Forbidden');
-
-        $baseUrl = base_url();
-        $logoutUrl = base_url('public/logout.php');
-        $homeUrl = base_url('public/admin/dashboard.php'); // Default fallback
+        $currentRole = $user['rol_nombre'] ?? 'Usuario';
+        $logoutUrl = '../logout.php';
 
         echo <<<HTML
 <!DOCTYPE html>
@@ -124,15 +134,14 @@ function requireViewPermission($permission)
 
     // Si no está logueado, auth_check principal ya lo manejó, pero por seguridad:
     if (!$user) {
-        header('Location: ' . base_url('public/login.php'));
+        header('Location: ../login.php');
         exit;
     }
 
     if (!Auth::hasPermission($permission)) {
         header('HTTP/1.1 403 Forbidden');
-        $baseUrl = base_url();
-        $logoutUrl = base_url('public/logout.php');
         $currentRole = $user['rol_nombre'] ?? 'Usuario';
+        $logoutUrl = '../logout.php';
 
         echo <<<HTML
 <!DOCTYPE html>

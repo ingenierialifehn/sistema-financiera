@@ -26,25 +26,26 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['user_token'])) {
         // Lógica de redirección basada en permisos o roles
         if (Auth::hasPermission('dashboard') || in_array($rolNombre, ['Administrador', 'admin', 'Supervisor', 'Gerente', 'Cajero', 'Asesor'])) {
             // Todos los roles administrativos van al dashboard admin
-            $redirectUrl = getBaseUrl() . '/public/admin/dashboard.php';
+            $redirectUrl = '/public/admin/dashboard.php';
         } elseif ($rolNombre === 'cobrador' || $rolNombre === 'Cobrador') {
-            $redirectUrl = getBaseUrl() . '/public/cobrador/home.php';
+            $redirectUrl = '/public/cobrador/home.php';
         } else {
             // Cliente por defecto
-            $redirectUrl = getBaseUrl() . '/public/cliente/index.php';
+            $redirectUrl = '/public/cliente/index.php';
         }
 
         if ($redirectUrl) {
-            // Verificar que la URL sea válida antes de redirigir
-            if (strpos($redirectUrl, 'http') === 0) {
-                header('Location: ' . $redirectUrl);
-                exit;
-            } else {
-                // Si la URL no es válida, limpiar sesión y continuar
-                error_log("URL de redirección inválida en login.php: " . $redirectUrl);
-                session_destroy();
-            }
+            // Usar ruta relativa para compatibilidad con acceso móvil
+            // Obtener el directorio base del proyecto
+            $scriptPath = $_SERVER['SCRIPT_NAME'];
+            $basePath = str_replace('/public/login.php', '', $scriptPath);
+            $fullPath = $basePath . $redirectUrl;
+
+            header('Location: ' . $fullPath);
+            exit;
         }
+
+        // Si ya está logueado, redirigir vía JavaScript (ver código al final de la página)
     } else {
         // Token inválido, limpiar sesión
         session_destroy();
@@ -231,18 +232,31 @@ if (empty($baseUrl)) {
             $submitText.text('Iniciando sesión...');
             $submitSpinner.removeClass('hidden');
 
-            // Realizar petición AJAX
-            const baseUrl = '<?php echo htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8'); ?>';
+            // Construir URL base dinámicamente desde la ubicación actual del navegador
+            // Esto permite que funcione tanto con localhost como con IP de red local
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+
+            // Extraer el path base del proyecto (hasta 'sistema-financiera')
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                // Fallback: buscar 'sistema-financiera' en el path
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                } else {
+                    basePath = '';
+                }
+            }
+
+            const baseUrl = protocol + '//' + host + basePath;
 
             // Debug: verificar baseUrl
-            console.log('Base URL:', baseUrl);
-
-            // Validar que baseUrl no esté vacío
-            if (!baseUrl || baseUrl.trim() === '') {
-                console.error('Error: baseUrl está vacío');
-                alert('Error de configuración: URL base no definida');
-                return;
-            }
+            console.log('Base URL construida:', baseUrl);
+            console.log('Protocol:', protocol);
+            console.log('Host:', host);
+            console.log('Base Path:', basePath);
 
             $.ajax({
                 url: baseUrl + '/app/api/auth/login.php',

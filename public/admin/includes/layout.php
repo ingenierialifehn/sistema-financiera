@@ -29,6 +29,29 @@ if (empty($baseUrl)) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <!-- URL Helper para compatibilidad móvil - DEBE CARGARSE PRIMERO -->
+    <script>
+        // Inline URL helper para asegurar que esté disponible inmediatamente
+        function getBaseUrl() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const pathname = window.location.pathname;
+            let basePath = pathname.substring(0, pathname.indexOf('/public'));
+            if (!basePath) {
+                const projectIndex = pathname.indexOf('sistema-financiera');
+                if (projectIndex !== -1) {
+                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
+                } else {
+                    basePath = '';
+                }
+            }
+            return protocol + '//' + host + basePath;
+        }
+        const BASE_URL = getBaseUrl();
+        window.BASE_URL = BASE_URL;
+        console.log('BASE_URL dinámico:', BASE_URL);
+    </script>
     <style>
         /* Estilos adicionales para el sidebar */
         @media (max-width: 1023px) {

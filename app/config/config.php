@@ -79,6 +79,19 @@ if (!function_exists('base_url')) {
 define('SESSION_LIFETIME', 3600 * 8); // 8 horas
 define('TOKEN_EXPIRATION', 3600 * 24); // 24 horas
 
+// Configuración de sesión para acceso móvil en red local
+// Esto permite que las sesiones funcionen tanto con localhost como con IP de red local
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_samesite', 'Lax'); // Permite cookies en red local
+    ini_set('session.cookie_lifetime', SESSION_LIFETIME);
+    ini_set('session.gc_maxlifetime', SESSION_LIFETIME);
+    // No establecer dominio específico para permitir acceso por IP
+    ini_set('session.cookie_domain', '');
+    ini_set('session.cookie_path', '/');
+}
+
 // Configuración de Cloudinary
 define('CLOUDINARY_CLOUD_NAME', '');
 define('CLOUDINARY_API_KEY', '');
