@@ -30,21 +30,28 @@ $pageTitle = 'Ficha del Cliente';
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        // Construir BASE_URL dinámicamente para compatibilidad móvil
-        function getBaseUrl() {
+        // Configuración Híbrida de BASE_URL
+        // PC (Localhost): Usa la configuración exacta de PHP para máxima estabilidad.
+        // Móvil (IP): Calcula dinámicamente para evitar errores de conexión cruzada.
+        const PHP_BASE_URL = '<?php echo BASE_URL; ?>';
+        let BASE_URL = PHP_BASE_URL;
+
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             const protocol = window.location.protocol;
             const host = window.location.host;
             const pathname = window.location.pathname;
-            let basePath = pathname.substring(0, pathname.indexOf('/public'));
-            if (!basePath) {
-                const projectIndex = pathname.indexOf('sistema-financiera');
-                if (projectIndex !== -1) {
-                    basePath = pathname.substring(0, projectIndex + 'sistema-financiera'.length);
-                }
+
+            // Detectar base path buscando '/public'
+            let publicIndex = pathname.indexOf('/public');
+            if (publicIndex !== -1) {
+                let basePath = pathname.substring(0, publicIndex);
+                BASE_URL = protocol + '//' + host + basePath;
+            } else {
+                // Soporte para Virtual Hosts donde public es la raíz
+                BASE_URL = protocol + '//' + host;
             }
-            return protocol + '//' + host + basePath;
         }
-        const BASE_URL = getBaseUrl();
+
         const CLIENTE_ID = <?php echo $clienteId; ?>;
         const USER_PERMISSIONS = {
             edit_business: <?php echo Auth::hasPermission('clientes.edit_business') ? 'true' : 'false'; ?>,
@@ -79,28 +86,28 @@ $pageTitle = 'Ficha del Cliente';
                 <div class="flex overflow-x-auto pb-2 w-full lg:w-auto gap-2 no-scrollbar">
                     <?php if (Auth::hasPermission('clientes.edit_business') || Auth::hasPermission('clientes.edit')): ?>
                         <button onclick="editarCliente()"
-                            class="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
-                            <i class="fas fa-edit mr-2"></i>Editar
+                            class="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition shadow text-xs md:text-sm font-medium">
+                            <i class="fas fa-edit mr-1.5 md:mr-2"></i>Editar
                         </button>
                     <?php endif; ?>
 
                     <?php if (Auth::hasPermission('clientes.print_ficha')): ?>
                         <button onclick="imprimirFicha()"
-                            class="whitespace-nowrap bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
-                            <i class="fas fa-print mr-2"></i>Imprimir
+                            class="hidden md:block whitespace-nowrap bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition shadow text-xs md:text-sm font-medium">
+                            <i class="fas fa-print mr-1.5 md:mr-2"></i>Imprimir
                         </button>
                     <?php endif; ?>
 
                     <?php if (Auth::hasPermission('clientes.create_business')): ?>
                         <button onclick="openNegocioModal()"
-                            class="whitespace-nowrap bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
-                            <i class="fas fa-store mr-2"></i>Negocio
+                            class="whitespace-nowrap bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition shadow text-xs md:text-sm font-medium">
+                            <i class="fas fa-store mr-1.5 md:mr-2"></i>Negocio
                         </button>
                     <?php endif; ?>
 
                     <button onclick="openPrestamoModal()"
-                        class="whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow text-sm font-medium">
-                        <i class="fas fa-money-bill-wave mr-2"></i>Préstamo
+                        class="whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition shadow text-xs md:text-sm font-medium">
+                        <i class="fas fa-money-bill-wave mr-1.5 md:mr-2"></i>Préstamo
                     </button>
                 </div>
             </div>

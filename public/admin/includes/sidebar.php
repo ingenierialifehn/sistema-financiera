@@ -60,7 +60,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 <!-- Colaboradores -->
                 <?php if (Auth::hasPermission('colaboradores')): ?>
                     <a href="colaboradores.php"
-                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
+                        class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
                         <i class="fas fa-users-cog w-5"></i>
                         <span>Colaboradores</span>
                     </a>
@@ -69,7 +69,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 <!-- Agencias -->
                 <?php if (Auth::hasPermission('agencias')): ?>
                     <a href="agencias.php"
-                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
+                        class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
                         <i class="fas fa-building w-5"></i>
                         <span>Agencias</span>
                     </a>
@@ -87,11 +87,11 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
 
             <!-- Gestión de Créditos -->
             <?php if (Auth::hasPermission('prestamos_analisis') || Auth::hasPermission('clientes')): ?>
-                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Gestión de Créditos
                 </div>
                 <a href="analisis_prestamos.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'analisis_prestamos.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'analisis_prestamos.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-search-dollar w-5"></i>
                     <span>Análisis de Préstamos</span>
                 </a>
@@ -99,11 +99,11 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
 
             <!-- Finanzas -->
             <?php if (Auth::hasPermission('tesoreria')): ?>
-                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Finanzas
                 </div>
                 <a href="tesoreria.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-university w-5"></i>
                     <span>Tesorería y Bancos</span>
                 </a>
@@ -112,7 +112,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <!-- Operaciones -->
             <?php if (Auth::hasPermission('operaciones')): ?>
                 <a href="operaciones.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'operaciones.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'operaciones.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-tasks w-5"></i>
                     <span>Operaciones</span>
                 </a>
@@ -139,7 +139,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <!-- Control de Caja -->
             <?php if (Auth::hasPermission('caja')): ?>
                 <a href="control_caja.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'control_caja.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'control_caja.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-cash-register w-5"></i>
                     <span>Control de Caja</span>
                 </a>
@@ -162,16 +162,16 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <!-- Reportes -->
             <!-- Reportes -->
             <?php if (Auth::hasPermission('reportes')): ?>
-                <div class="border-t border-gray-700 my-2"></div>
+                <div class="hidden lg:block border-t border-gray-700 my-2"></div>
                 <a href="reportes.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-file-alt w-5"></i>
                     <span>Reportes</span>
                 </a>
 
                 <!-- Reportes de Agencia -->
                 <a href="reportes-agencia.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes-agencia.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes-agencia.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-chart-line w-5"></i>
                     <span>Reportes de Agencia</span>
                 </a>
@@ -181,7 +181,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <!-- Configuración -->
             <?php if (Auth::hasPermission('configuracion')): ?>
                 <a href="configuracion.php"
-                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'configuracion.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'configuracion.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-cog w-5"></i>
                     <span>Configuración</span>
                 </a>

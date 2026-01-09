@@ -35,7 +35,16 @@ if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQ
     exit;
 }
 
-// Redirigir a login
-header('Location: ' . base_url('public/login.php') . '?logged_out=1');
+// Redirigir a login usando la IP/Host actual para mantener la sesión correcta en móviles
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'];
+// Detectar si estamos en una subcarpeta
+$scriptName = $_SERVER['SCRIPT_NAME'];
+$publicIndex = strpos($scriptName, '/public');
+$basePath = ($publicIndex !== false) ? substr($scriptName, 0, $publicIndex) : '';
+
+$redirectUrl = $protocol . $host . $basePath . '/public/login.php?logged_out=1';
+
+header('Location: ' . $redirectUrl);
 exit;
 
