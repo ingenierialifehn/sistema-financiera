@@ -48,7 +48,8 @@ try {
     $sqlResumen = "SELECT 
                    COUNT(*) as cantidad_prestamos,
                    IFNULL(SUM(monto_capital), 0) as monto_total_colocado,
-                   IFNULL(AVG(monto_capital), 0) as promedio_prestamo
+                   SUM(CASE WHEN tipo_prestamo = 'Refinanciamiento' THEN 1 ELSE 0 END) as cantidad_refinanciamientos,
+                   SUM(CASE WHEN tipo_prestamo != 'Refinanciamiento' OR tipo_prestamo IS NULL THEN 1 ELSE 0 END) as cantidad_nuevos
                    FROM prestamos p
                    INNER JOIN clientes c ON p.id_cliente = c.id
                    WHERE DATE(p.fecha_desembolso) BETWEEN ? AND ?
@@ -72,6 +73,7 @@ try {
                    p.tasa_total,
                    p.total_a_pagar,
                    p.estado,
+                   p.tipo_prestamo,
                    COALESCE(col.nombre_completo, u.username, 'N/A') as oficial_desembolso
                    FROM prestamos p
                    INNER JOIN clientes c ON p.id_cliente = c.id
@@ -129,7 +131,8 @@ try {
             'resumen' => [
                 'cantidad_prestamos' => intval($resumen['cantidad_prestamos']),
                 'monto_total_colocado' => round(floatval($resumen['monto_total_colocado']), 2),
-                'promedio_prestamo' => round(floatval($resumen['promedio_prestamo']), 2)
+                'cantidad_nuevos' => intval($resumen['cantidad_nuevos']),
+                'cantidad_refinanciamientos' => intval($resumen['cantidad_refinanciamientos'])
             ],
             'desembolsos' => $desembolsos,
             'por_modalidad' => $porModalidad

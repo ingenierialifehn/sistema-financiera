@@ -48,6 +48,30 @@ try {
     $stmtCapital->execute([$idAgencia]);
     $capitalCalle = floatval($stmtCapital->fetchColumn());
 
+    // CONTEO POR MODALIDAD EN CARTERA ACTIVA
+    $sqlModalidades = "SELECT 
+                       SUM(CASE WHEN p.modalidad = 'Diario' THEN 1 ELSE 0 END) as diario,
+                       SUM(CASE WHEN p.modalidad = 'Semanal' THEN 1 ELSE 0 END) as semanal,
+                       SUM(CASE WHEN p.modalidad = 'Catorcenal' THEN 1 ELSE 0 END) as catorcenal,
+                       SUM(CASE WHEN p.modalidad = 'Mensual' THEN 1 ELSE 0 END) as mensual
+                       FROM prestamos p
+                       INNER JOIN clientes c ON p.id_cliente = c.id
+                       WHERE p.estado = 'Activo'
+                       AND c.id_agencia = ?";
+
+    $stmtMod = $db->prepare($sqlModalidades);
+    $stmtMod->execute([$idAgencia]);
+    $modalidadesStats = $stmtMod->fetch(PDO::FETCH_ASSOC);
+
+    // Asegurar valores numéricos
+    $modalidadesStats = [
+        'diario' => intval($modalidadesStats['diario'] ?? 0),
+        'semanal' => intval($modalidadesStats['semanal'] ?? 0),
+        'catorcenal' => intval($modalidadesStats['catorcenal'] ?? 0),
+        'mensual' => intval($modalidadesStats['mensual'] ?? 0)
+    ];
+
+
     // OBTENER TODOS LOS PRÉSTAMOS ACTIVOS Y CALCULAR RIESGO
     $sqlPrestamos = "SELECT 
                      p.id,
@@ -384,6 +408,7 @@ try {
             'agencia' => $nombreAgencia,
             'id_agencia' => $idAgencia,
             'capital_calle' => round($capitalCalle, 2),
+            'modalidades_activas' => $modalidadesStats,
             'categorias' => $categoriasCompletas,
             'clientes_mora' => $clientesMora,
             'total_clientes_mora' => count($clientesMora),

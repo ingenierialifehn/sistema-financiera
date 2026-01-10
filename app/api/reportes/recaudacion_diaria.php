@@ -155,10 +155,14 @@ try {
     $transacciones = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
 
     // Calcular desglose para cada transacción si no existe
-    foreach ($transacciones as &$trans) {
+    // Calcular desglose y AGRUPAR transacciones
+    $transaccionesMap = [];
+
+    foreach ($transacciones as $trans) {
         $montoPagado = floatval($trans['monto_pagado']);
         $montoCuota = floatval($trans['monto_cuota'] ?? 0);
 
+        // Calcular desglose individualmente primero
         if (empty($trans['capital_cuota']) || floatval($trans['capital_cuota']) <= 0) {
             // Calcular desglose (Método del Residuo para cuadre exacto)
             $capitalTeorico = $montoPagado / 1.11;
@@ -177,7 +181,67 @@ try {
             $trans['gastos_cuota'] = floatval($trans['gastos_cuota'] ?? 0) * $proporcion;
             $trans['comision_cuota'] = floatval($trans['comision_cuota'] ?? 0) * $proporcion;
         }
+
+        // Clave de agrupación: Mismo Préstamo y Misma Fecha/Hora Exacta
+        $key = $trans['prestamo_id'] . '_' . $trans['fecha_pago'];
+
+        if (isset($transaccionesMap[$key])) {
+            // Sumar montos
+            $transaccionesMap[$key]['monto_pagado'] += $trans['monto_pagado'];
+            $transaccionesMap[$key]['capital_cuota'] += $trans['capital_cuota'];
+            $transaccionesMap[$key]['interes_cuota'] += $trans['interes_cuota'];
+            $transaccionesMap[$key]['gastos_cuota'] += $trans['gastos_cuota'];
+            $transaccionesMap[$key]['comision_cuota'] += $trans['comision_cuota'];
+
+            // Agregar número de cuota a la lista
+            $transaccionesMap[$key]['cuotas_lista'][] = $trans['numero_cuota'];
+        } else {
+            // Nueva entrada
+            $trans['cuotas_lista'] = [$trans['numero_cuota']];
+            $transaccionesMap[$key] = $trans;
+        }
     }
+
+    // Procesar el mapa para generar el array final
+    $transaccionesFinal = [];
+    foreach ($transaccionesMap as $t) {
+        $count = count($t['cuotas_lista']);
+
+        // Formatear el campo numero_cuota
+        if ($count > 1) {
+            // Ordenar numéricamente las cuotas
+            sort($t['cuotas_lista'], SORT_NUMERIC);
+            $min = $t['cuotas_lista'][0];
+            $max = $t['cuotas_lista'][$count - 1];
+
+            // Si son consecutivas y muchas, mostrar rango
+            if ($count > 2) {
+                $t['numero_cuota'] = "Cuotas #$min - #$max";
+            } else {
+                $t['numero_cuota'] = "Cuotas #" . implode(', #', $t['cuotas_lista']);
+            }
+
+            // Opcional: Indicar cancelación si son muchas
+            if ($count >= 5) {
+                $t['numero_cuota'] .= " (Cancelación)";
+            }
+        } else {
+            $t['numero_cuota'] = "#" . $t['cuotas_lista'][0];
+        }
+
+        // Redondear finales para visualización limpia
+        $t['monto_pagado'] = round($t['monto_pagado'], 2);
+        $t['capital_cuota'] = round($t['capital_cuota'], 2);
+        $t['interes_cuota'] = round($t['interes_cuota'], 2);
+        $t['gastos_cuota'] = round($t['gastos_cuota'], 2);
+        $t['comision_cuota'] = round($t['comision_cuota'], 2);
+
+        unset($t['cuotas_lista']); // Limpiar auxiliar
+        $transaccionesFinal[] = $t;
+    }
+
+    // Reemplazar la variable original
+    $transacciones = array_values($transaccionesFinal);
 
     echo json_encode([
         'success' => true,

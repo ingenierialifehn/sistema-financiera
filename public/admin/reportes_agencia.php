@@ -264,105 +264,249 @@ $currentUser = $user ?? [];
             border: none;
             border-radius: 6px;
             font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-print {
-            background: #10b981;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-print:hover {
-            background: #059669;
-        }
-
-        .print-header {
-            display: none;
-        }
-
-        @media print {
-            body * {
-                visibility: hidden;
+            .btn-primary {
+                background: #667eea;
+                color: white;
             }
 
-            .print-area,
-            .print-area * {
-                visibility: visible;
+            .btn-primary:hover {
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
             }
 
-            .print-area {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
+            /* Estilos generales para botones y headers ocultos en pantalla */
+            .btn-print {
+                background: #10b981;
+                color: white;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
             }
 
+            .btn-print:hover {
+                background: #059669;
+            }
+
+            /* Ocultar cabeceras de impresión en la vista normal */
             .print-header {
-                display: block;
-                text-align: center;
-                margin-bottom: 2rem;
-            }
-
-            .print-header img {
-                max-width: 150px;
-                margin-bottom: 1rem;
-            }
-
-            .btn,
-            .tabs-container,
-            .filter-section {
                 display: none !important;
             }
 
-            .report-section {
-                box-shadow: none;
-                page-break-inside: avoid;
-            }
-        }
-
-        .chart-container {
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #f9fafb;
-            border-radius: 8px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 3rem;
-            color: #6b7280;
-        }
-
-        .loading i {
-            font-size: 3rem;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
+            /* Visible por defecto en pantalla */
+            .sidebar,
+            .top-bar,
+            .tab-buttons,
+            .btn,
+            .filter-section {
+                display: block;
+                /* O flex según corresponda en su definición original, pero aquí aseguramos que no se oculten por defecto */
             }
 
-            to {
-                transform: rotate(360deg);
+            /* =========================================
+           ESTILOS EXCLUSIVOS PARA IMPRESIÓN 
+           ========================================= */
+
+            .chart-container {
+                margin: 2rem 0;
+                padding: 1.5rem;
+                background: #f9fafb;
+                border-radius: 8px;
             }
-        }
+
+            .loading {
+                text-align: center;
+                padding: 3rem;
+                color: #6b7280;
+            }
+
+            .loading i {
+                font-size: 3rem;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                from {
+                    transform: rotate(0deg);
+                }
+
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* =========================================
+           ESTILOS EXCLUSIVOS PARA IMPRESIÓN (FORZADO)
+           ========================================= */
+            @media print {
+
+                /* Ocultar TODO lo que sea navegación o UI general */
+                .sidebar,
+                .top-bar,
+                .tab-buttons,
+                .btn,
+                .filter-section,
+                .chart-container,
+                .header-section,
+                .tabs-container {
+                    display: none !important;
+                }
+
+                /* Quitar márgenes de layout */
+                .main-content,
+                .ml-64,
+                .p-8 {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    background: white !important;
+                }
+
+                .reportes-container {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+
+                body {
+                    background: white !important;
+                    color: black !important;
+                    font-size: 11px !important;
+                    margin: 0 !important;
+                }
+
+                /* Cabecera SIMPLE de impresión (no la de pantalla) */
+                .print-header {
+                    display: block !important;
+                    text-align: center;
+                    margin-bottom: 0.5rem;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 0.5rem;
+                }
+
+                .print-header h2 {
+                    margin: 0;
+                    font-size: 16px !important;
+                    text-transform: uppercase;
+                    color: #000 !important;
+                }
+
+                .print-header p {
+                    margin: 0;
+                    font-size: 10px !important;
+                    color: #444 !important;
+                }
+
+                /* TARJETAS DE DATOS: VOLVERLAS UNA LÍNEA DELGADA */
+                .stats-grid {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    border: 1px solid #999 !important;
+                    border-radius: 4px;
+                    padding: 0 !important;
+                    margin-bottom: 1rem !important;
+                    background: none !important;
+                    gap: 0 !important;
+                    width: 100% !important;
+                }
+
+                .stat-card {
+                    background: none !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                    border-right: 1px solid #ccc !important;
+                    border-radius: 0 !important;
+                    padding: 4px !important;
+                    flex: 1 !important;
+                    text-align: center !important;
+                    display: block !important;
+                    /* Romper flex interno si existe */
+                    min-height: 0 !important;
+                    height: auto !important;
+                }
+
+                .stat-card:last-child {
+                    border-right: none !important;
+                }
+
+                /* Textos dentro de las tarjetas */
+                .stat-card h3 {
+                    font-size: 9px !important;
+                    color: #666 !important;
+                    margin: 0 0 2px 0 !important;
+                    text-transform: uppercase;
+                    font-weight: bold !important;
+                    display: block !important;
+                }
+
+                .stat-card .value {
+                    font-size: 12px !important;
+                    color: #000 !important;
+                    font-weight: bold !important;
+                    margin: 0 !important;
+                    display: block !important;
+                }
+
+                /* Ocultar etiquetas extra y bordes decorativos */
+                .stat-card .label,
+                .stat-card::before {
+                    display: none !important;
+                }
+
+                /* TABLAS */
+                .report-section {
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin-bottom: 1rem !important;
+                    border: none !important;
+                    background: none !important;
+                }
+
+                .report-section h2 {
+                    font-size: 12px !important;
+                    margin: 0.5rem 0 !important;
+                    border-bottom: 1px solid #000;
+                    color: #000 !important;
+                }
+
+                .report-section h2 i {
+                    display: none !important;
+                }
+
+                .table-container {
+                    box-shadow: none !important;
+                    border: none !important;
+                    overflow: visible !important;
+                }
+
+                table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                    font-size: 10px !important;
+                }
+
+                th,
+                td {
+                    padding: 2px 4px !important;
+                    border: 1px solid #999 !important;
+                    color: #000 !important;
+                }
+
+                th {
+                    background: #eee !important;
+                }
+
+                /* Asegurar tab activo visible */
+                .tab-content {
+                    display: none !important;
+                }
+
+                .tab-content.active {
+                    display: block !important;
+                }
+            }
     </style>
 </head>
 
@@ -375,6 +519,7 @@ $currentUser = $user ?? [];
                 <h1><i class="fas fa-chart-line"></i> Reportes de Agencia</h1>
                 <p>Análisis y estadísticas de tu agencia | <span
                         id="agencia-nombre"><?php echo htmlspecialchars($_SESSION['nombre_agencia'] ?? 'Sin agencia asignada'); ?></span>
+                    <span id="header-fecha" class="ml-2 pl-2 border-l border-indigo-300"></span>
                 </p>
             </div>
 
@@ -393,11 +538,7 @@ $currentUser = $user ?? [];
             <!-- TAB 1: RECAUDACIÓN DIARIA -->
             <div class="tab-content active" id="tab-recaudacion">
                 <div class="print-area">
-                    <div class="print-header">
-                        <h2>Reporte de Recaudación Diaria</h2>
-                        <p id="print-fecha-recaudacion"></p>
-                        <p id="print-agencia-recaudacion"></p>
-                    </div>
+
 
                     <div class="stats-grid">
                         <div class="stat-card success">
@@ -431,9 +572,9 @@ $currentUser = $user ?? [];
 
                     <div class="report-section">
                         <h2><i class="fas fa-list"></i> Transacciones del Día</h2>
-                        <button class="btn btn-print" onclick="imprimirReporte('recaudacion')"
+                        <button class="btn btn-print" onclick="imprimirRecaudacion()"
                             style="float: right; margin-top: -3rem;">
-                            <i class="fas fa-print"></i> Imprimir Reporte
+                            <i class="fas fa-print"></i> Imprimir Tabla
                         </button>
                         <div class="table-container">
                             <table id="tabla-transacciones">
@@ -466,17 +607,28 @@ $currentUser = $user ?? [];
             <!-- TAB 2: ESTADO DE CARTERA -->
             <div class="tab-content" id="tab-cartera">
                 <div class="print-area">
-                    <div class="print-header">
-                        <h2>Reporte de Estado de Cartera y Mora</h2>
-                        <p id="print-fecha-cartera"></p>
-                        <p id="print-agencia-cartera"></p>
-                    </div>
 
-                    <div class="stats-grid">
+
+                    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                         <div class="stat-card">
                             <h3>Capital en la Calle</h3>
                             <div class="value" id="capital-calle">L 0.00</div>
                             <div class="label">Saldo pendiente total</div>
+                        </div>
+                        <div class="stat-card" style="border-left: 4px solid #10b981;">
+                            <h3>Diarios</h3>
+                            <div class="value" id="count-diario">0</div>
+                            <div class="label">Préstamos Activos</div>
+                        </div>
+                        <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                            <h3>Semanales</h3>
+                            <div class="value" id="count-semanal">0</div>
+                            <div class="label">Préstamos Activos</div>
+                        </div>
+                        <div class="stat-card" style="border-left: 4px solid #6366f1;">
+                            <h3>Catorcenales</h3>
+                            <div class="value" id="count-catorcenal">0</div>
+                            <div class="label">Préstamos Activos</div>
                         </div>
                     </div>
 
@@ -574,11 +726,7 @@ $currentUser = $user ?? [];
             <!-- TAB 3: DESEMBOLSOS -->
             <div class="tab-content" id="tab-desembolsos">
                 <div class="print-area">
-                    <div class="print-header">
-                        <h2>Reporte de Desembolsos del Periodo</h2>
-                        <p id="print-periodo-desembolsos"></p>
-                        <p id="print-agencia-desembolsos"></p>
-                    </div>
+
 
                     <div class="filter-section">
                         <div class="form-group">
@@ -594,52 +742,35 @@ $currentUser = $user ?? [];
                         </button>
                     </div>
 
-                    <div class="stats-grid">
+                    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                         <div class="stat-card success">
                             <h3>Total Colocado</h3>
                             <div class="value" id="monto-colocado">L 0.00</div>
                             <div class="label">En el periodo</div>
                         </div>
+                        <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                            <h3>Nuevos</h3>
+                            <div class="value" id="cantidad-nuevos">0</div>
+                            <div class="label">Préstamos Nuevos</div>
+                        </div>
+                        <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+                            <h3>Refinanciamientos</h3>
+                            <div class="value" id="cantidad-refinanciamientos">0</div>
+                            <div class="label">Préstamos Refinanciados</div>
+                        </div>
                         <div class="stat-card">
-                            <h3>Cantidad de Préstamos</h3>
+                            <h3>Total Préstamos</h3>
                             <div class="value" id="cantidad-prestamos">0</div>
                             <div class="label">Desembolsos realizados</div>
-                        </div>
-                        <div class="stat-card warning">
-                            <h3>Promedio por Préstamo</h3>
-                            <div class="value" id="promedio-prestamo">L 0.00</div>
-                        </div>
-                    </div>
-
-                    <div class="report-section">
-                        <h2><i class="fas fa-chart-bar"></i> Resumen por Modalidad</h2>
-                        <button class="btn btn-print" onclick="imprimirReporte('desembolsos')"
-                            style="float: right; margin-top: -3rem;">
-                            <i class="fas fa-print"></i> Imprimir Reporte
-                        </button>
-                        <div class="table-container">
-                            <table id="tabla-modalidades">
-                                <thead>
-                                    <tr>
-                                        <th>Modalidad</th>
-                                        <th>Cantidad</th>
-                                        <th>Monto Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="3" class="loading">
-                                            <i class="fas fa-spinner"></i><br>
-                                            Cargando datos...
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
                         </div>
                     </div>
 
                     <div class="report-section">
                         <h2><i class="fas fa-list-alt"></i> Detalle de Desembolsos</h2>
+                        <button class="btn btn-print" onclick="imprimirDetalleDesembolsos()"
+                            style="float: right; margin-top: -3rem;">
+                            <i class="fas fa-print"></i> Imprimir Tabla
+                        </button>
                         <div class="table-container">
                             <table id="tabla-desembolsos">
                                 <thead>
@@ -659,6 +790,30 @@ $currentUser = $user ?? [];
                                         <td colspan="8" class="loading">
                                             <i class="fas fa-spinner"></i><br>
                                             Cargando desembolsos...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-section">
+                        <h2><i class="fas fa-chart-bar"></i> Resumen por Modalidad</h2>
+
+                        <div class="table-container">
+                            <table id="tabla-modalidades">
+                                <thead>
+                                    <tr>
+                                        <th>Modalidad</th>
+                                        <th>Cantidad</th>
+                                        <th>Monto Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="3" class="loading">
+                                            <i class="fas fa-spinner"></i><br>
+                                            Cargando datos...
                                         </td>
                                     </tr>
                                 </tbody>
@@ -750,9 +905,9 @@ $currentUser = $user ?? [];
                         `).join('');
                     }
 
-                    // Datos para impresión
-                    document.getElementById('print-fecha-recaudacion').textContent = formatDate(data.fecha);
-                    document.getElementById('print-agencia-recaudacion').textContent = data.agencia;
+                    // Actualizar fecha en el encabezado principal
+                    document.getElementById('header-fecha').textContent = formatDate(data.fecha);
+                    // document.getElementById('print-agencia-recaudacion').textContent = data.agencia; // Elemento eliminado
                 } else {
                     console.error('Error en API:', result.message);
                     const tbody = document.querySelector('#tabla-transacciones tbody');
@@ -778,6 +933,12 @@ $currentUser = $user ?? [];
 
                     // Actualizar capital en la calle
                     document.getElementById('capital-calle').textContent = formatMoney(data.capital_calle);
+
+                    if (data.modalidades_activas) {
+                        document.getElementById('count-diario').textContent = data.modalidades_activas.diario || 0;
+                        document.getElementById('count-semanal').textContent = data.modalidades_activas.semanal || 0;
+                        document.getElementById('count-catorcenal').textContent = data.modalidades_activas.catorcenal || 0;
+                    }
 
                     // --- 1. NUEVA TABLA: DESGLOSE POR ASESOR ---
                     const tbodyAsesores = document.querySelector('#tabla-desglose-asesores tbody');
@@ -853,9 +1014,9 @@ $currentUser = $user ?? [];
                         `).join('');
                     }
 
-                    // Datos para impresión
-                    document.getElementById('print-fecha-cartera').textContent = formatDate(data.fecha);
-                    document.getElementById('print-agencia-cartera').textContent = data.agencia;
+                    // Actualizar fecha en encabezado principal
+                    document.getElementById('header-fecha').textContent = formatDate(data.fecha);
+                    // document.getElementById('print-agencia-cartera').textContent = data.agencia; // Eliminado
                 } else {
                     console.error('Error en API:', result.message);
                     const tbodyCat = document.querySelector('#tabla-categorias tbody');
@@ -885,7 +1046,8 @@ $currentUser = $user ?? [];
                     // Actualizar stats
                     document.getElementById('monto-colocado').textContent = formatMoney(data.resumen.monto_total_colocado);
                     document.getElementById('cantidad-prestamos').textContent = data.resumen.cantidad_prestamos;
-                    document.getElementById('promedio-prestamo').textContent = formatMoney(data.resumen.promedio_prestamo);
+                    document.getElementById('cantidad-nuevos').textContent = data.resumen.cantidad_nuevos;
+                    document.getElementById('cantidad-refinanciamientos').textContent = data.resumen.cantidad_refinanciamientos;
 
                     // Actualizar tabla de modalidades
                     const tbodyMod = document.querySelector('#tabla-modalidades tbody');
@@ -920,9 +1082,9 @@ $currentUser = $user ?? [];
                         `).join('');
                     }
 
-                    // Datos para impresión
-                    document.getElementById('print-periodo-desembolsos').textContent = `${formatDate(data.fecha_desde)} - ${formatDate(data.fecha_hasta)}`;
-                    document.getElementById('print-agencia-desembolsos').textContent = data.agencia;
+                    // Actualizar fecha en encabezado principal (Rango)
+                    document.getElementById('header-fecha').textContent = `${formatDate(data.fecha_desde)} - ${formatDate(data.fecha_hasta)}`;
+                    // document.getElementById('print-agencia-desembolsos').textContent = data.agencia; // Eliminado
                 } else {
                     console.error('Error en API:', result.message);
                     const tbodyMod = document.querySelector('#tabla-modalidades tbody');
@@ -940,53 +1102,198 @@ $currentUser = $user ?? [];
             window.print();
         }
 
-        // Función de impresión específica para tablas
-        function imprimirTablaEspecifica(tableId, titulo) {
+        // Helper para imprimir reporte de recaudación con datos extra
+        function imprimirRecaudacion() {
+            const stats = [
+                { label: 'Total Cobrado', value: document.getElementById('total-cobrado').textContent },
+                { label: 'Capital', value: document.getElementById('total-capital').textContent },
+                { label: 'Total Interés', value: document.getElementById('total-intereses-completo').textContent }
+            ];
+            imprimirTablaEspecifica('tabla-transacciones', 'Reporte de Transacciones del Día', stats);
+        }
+
+        // Helper para imprimir reporte de desembolsos con stats
+        function imprimirDetalleDesembolsos() {
+            const stats = [
+                { label: 'Total Colocado', value: document.getElementById('monto-colocado').textContent },
+                { label: 'Nuevos', value: document.getElementById('cantidad-nuevos').textContent },
+                { label: 'Refi.', value: document.getElementById('cantidad-refinanciamientos').textContent },
+                { label: 'Total', value: document.getElementById('cantidad-prestamos').textContent }
+            ];
+            imprimirTablaEspecifica('tabla-desembolsos', 'Reporte de Desembolsos de Hoy', stats);
+        }
+
+        // Función de impresión específica para tablas con estilo profesional y stats opcionales
+        function imprimirTablaEspecifica(tableId, titulo, extraStats = null) {
             const table = document.getElementById(tableId);
             if (!table) return;
 
             const win = window.open('', '_blank');
-            const fecha = new Date().toLocaleDateString('es-HN');
-            const agencia = document.getElementById('agencia-nombre').innerText;
+            const fecha = new Date().toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const hora = new Date().toLocaleTimeString('es-HN');
+            const agencia = document.getElementById('agencia-nombre') ? document.getElementById('agencia-nombre').innerText : 'Agencia Principal';
 
-            win.document.write(`
-                <html>
+            // Clonar tabla para manipulaciones si es necesario
+            const tableClone = table.cloneNode(true);
+            tableClone.classList.add('print-friendly');
+
+            // Generar HTML de Stats Extras si existen
+            let statsHtml = '';
+            if (extraStats && Array.isArray(extraStats)) {
+                const statsItems = extraStats.map(stat => `
+                    <div class="stat-item">
+                        <span class="stat-label">${stat.label}:</span>
+                        <span class="stat-value">${stat.value}</span>
+                    </div>
+                `).join('');
+
+                statsHtml = `
+                    <div class="extra-stats">
+                        ${statsItems}
+                    </div>
+                `;
+            }
+
+            // HTML Estructurado para impresión profesional
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html lang="es">
                 <head>
+                    <meta charset="UTF-8">
                     <title>${titulo}</title>
-                    <script src="https://cdn.tailwindcss.com"><\/script>
                     <style>
-                        body { font-family: sans-serif; padding: 2rem; }
-                        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 0.5rem; }
-                        p { text-align: center; color: #666; margin-bottom: 2rem; }
-                        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-                        th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
-                        thead { background: #f3f4f6; }
-                        .text-right { text-align: right; }
-                        .text-center { text-align: center; }
-                        .font-bold { font-weight: bold; }
-                        .bg-gray-50 { background-color: #f9fafb; }
-                        /* Colores simples para impresión si Tailwind no carga a tiempo */
-                        .bg-green-50 { background-color: #f0fdf4; }
-                        .bg-yellow-50 { background-color: #fefce8; }
-                        .bg-orange-50 { background-color: #fff7ed; }
-                        .bg-red-50 { background-color: #fef2f2; }
-                        .bg-red-100 { background-color: #fee2e2; }
-                        .text-indigo-700 { color: #4338ca; }
+                        @page { margin: 1cm; size: portrait; }
+                        body { 
+                            font-family: 'Helvetica Neue', Arial, sans-serif; 
+                            color: #333; 
+                            line-height: 1.3; 
+                            font-size: 11px;
+                        }
+                        .header { 
+                            text-align: center; 
+                            margin-bottom: 1rem; 
+                            border-bottom: 2px solid #2563eb; 
+                            padding-bottom: 0.5rem;
+                        }
+                        .header h1 { 
+                            margin: 0; 
+                            font-size: 16px; 
+                            color: #1e3a8a; 
+                            text-transform: uppercase; 
+                            letter-spacing: 1px;
+                        }
+                        .header p { 
+                            margin: 2px 0 0; 
+                            font-size: 10px; 
+                            color: #64748b; 
+                        }
+                        .meta-info {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-bottom: 0.5rem;
+                            font-size: 9px;
+                            color: #666;
+                        }
+                        
+                        /* Estilo para los stats extra en pequeño arriba */
+                        .extra-stats {
+                            display: flex;
+                            justify-content: center;
+                            gap: 2rem;
+                            margin-bottom: 1rem;
+                            padding: 0.5rem;
+                            background-color: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 4px;
+                        }
+                        .stat-item {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                        }
+                        .stat-label {
+                            font-size: 9px;
+                            color: #64748b;
+                            text-transform: uppercase;
+                        }
+                        .stat-value {
+                            font-size: 12px;
+                            font-weight: bold;
+                            color: #0f172a;
+                        }
+
+                        table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            margin-bottom: 1rem; 
+                        }
+                        thead th { 
+                            background-color: #f1f5f9; 
+                            color: #334155; 
+                            font-weight: bold; 
+                            text-transform: uppercase; 
+                            font-size: 9px;
+                            border-bottom: 2px solid #cbd5e1;
+                            padding: 6px;
+                            text-align: left; 
+                        }
+                        .text-center { text-align: center !important; }
+                        .text-right { text-align: right !important; }
+                        
+                        tbody td { 
+                            border-bottom: 1px solid #e2e8f0; 
+                            padding: 6px;
+                            vertical-align: middle;
+                        }
+                        tbody tr:nth-child(even) { background-color: #f8fafc; }
+                        tbody tr:last-child { border-bottom: 2px solid #cbd5e1; }
+                        
+                        td[class*="bg-green"] { background-color: #f0fdf4 !important; color: #15803d !important; -webkit-print-color-adjust: exact; }
+                        td[class*="bg-yellow"] { background-color: #fefce8 !important; color: #a16207 !important; -webkit-print-color-adjust: exact; }
+                        td[class*="bg-orange"] { background-color: #fff7ed !important; color: #c2410c !important; -webkit-print-color-adjust: exact; }
+                        td[class*="bg-red"] { background-color: #fef2f2 !important; color: #b91c1c !important; -webkit-print-color-adjust: exact; }
+                        
+                        .footer { 
+                            margin-top: 1rem; 
+                            text-align: center; 
+                            font-size: 9px; 
+                            color: #94a3b8; 
+                            border-top: 1px solid #e2e8f0; 
+                            padding-top: 0.5rem;
+                        }
                     </style>
                 </head>
                 <body>
-                    <h1>${titulo}</h1>
-                    <p>${agencia} - ${fecha}</p>
-                    ${table.outerHTML}
+                    <div class="header">
+                        <h1>${titulo}</h1>
+                        <p>${agencia}</p>
+                    </div>
+                    
+                    <div class="meta-info">
+                        <span>Fecha: ${fecha} ${hora}</span>
+                        <span>Sistema Financiero</span>
+                    </div>
+
+                    ${statsHtml}
+
+                    ${tableClone.outerHTML}
+
+                    <div class="footer">
+                        Documento oficial interno. Generado el ${fecha}.
+                    </div>
+
                     <script>
-                        setTimeout(() => {
-                            window.print();
-                            window.close();
-                        }, 500); // Dar tiempo a que cargue Tailwind o estilos
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 500);
+                        }
                     <\/script>
                 </body>
                 </html>
-            `);
+            `;
+
+            win.document.write(htmlContent);
             win.document.close();
         }
 
