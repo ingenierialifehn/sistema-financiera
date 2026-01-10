@@ -1,9 +1,9 @@
 <?php
 /**
- * Módulo de Reportes de Agencia
+ * Módulo de Reportes Consolidados (Multi-Agencia)
  */
 
-$pageTitle = 'Reportes de Agencia';
+$pageTitle = 'Reportes Consolidados';
 require_once __DIR__ . '/../auth_check.php';
 requireViewPermission('reportes');
 
@@ -516,11 +516,25 @@ $currentUser = $user ?? [];
     <div class="ml-64 p-8">
         <div class="reportes-container">
             <div class="header-section">
-                <h1><i class="fas fa-chart-line"></i> Reportes de Agencia</h1>
-                <p>Análisis y estadísticas de tu agencia | <span
-                        id="agencia-nombre"><?php echo htmlspecialchars($_SESSION['nombre_agencia'] ?? 'Sin agencia asignada'); ?></span>
+                <h1><i class="fas fa-chart-line"></i> Reportes Consolidados</h1>
+                <p>Análisis y estadísticas multi-agencia</p>
+                <div style="margin-top: 1rem; display: flex; align-items: center; gap: 1rem;">
+                    <label for="selector-agencia" style="font-weight: 600;">Agencia:</label>
+                    <select id="selector-agencia" onchange="cambiarAgencia()"
+                        style="padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.2); color: white; font-weight: 500; min-width: 250px;">
+                        <option value="todas" style="color: #333; background: white;">📊 TODAS LAS AGENCIAS
+                            (CONSOLIDADO)</option>
+                    </select>
                     <span id="header-fecha" class="ml-2 pl-2 border-l border-indigo-300"></span>
-                </p>
+                </div>
+                <style>
+                    /* Asegurar que las opciones sean legibles en todos los navegadores */
+                    #selector-agencia option {
+                        color: #1f2937 !important;
+                        background-color: white !important;
+                        padding: 8px;
+                    }
+                </style>
             </div>
 
             <div class="tabs-container">
@@ -579,20 +593,16 @@ $currentUser = $user ?? [];
                         <div class="table-container">
                             <table id="tabla-transacciones">
                                 <thead>
-                                    <tr>
+                                    <tr id="header-transacciones">
                                         <th>Cliente</th>
                                         <th>Cuota #</th>
                                         <th>Monto Pagado</th>
-                                        <th>Capital</th>
-                                        <th>Interés</th>
-                                        <th>Gastos</th>
-                                        <th>Comisión</th>
                                         <th>Hora</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colspan="8" class="loading">
+                                        <td colspan="4" class="loading">
                                             <i class="fas fa-spinner"></i><br>
                                             Cargando transacciones...
                                         </td>
@@ -863,43 +873,40 @@ $currentUser = $user ?? [];
         // Cargar Recaudación Diaria
         async function cargarRecaudacion() {
             try {
-                const response = await fetch(`${BASE_URL}/app/api/reportes/recaudacion_diaria.php`);
+                const response = await fetch(`${BASE_URL}/app/api/reportes/consolidado_recaudacion.php?agencia_id=${agenciaSeleccionada}`);
                 const result = await response.json();
 
                 console.log('Respuesta recaudación:', result);
+
 
                 if (result.success) {
                     const data = result.data;
 
                     // Actualizar stats
                     document.getElementById('total-cobrado').textContent = formatMoney(data.total_cobrado);
-                    document.getElementById('total-capital').textContent = formatMoney(data.desglose.capital);
+                    document.getElementById('total-capital').textContent = formatMoney(data.capital);
 
-                    // Calcular Total Intereses (11%) = Interés + Gastos + Comisión
-                    const totalInteresesCompleto = parseFloat(data.desglose.interes) +
-                        parseFloat(data.desglose.gastos) +
-                        parseFloat(data.desglose.comision);
-                    document.getElementById('total-intereses-completo').textContent = formatMoney(totalInteresesCompleto);
+                    // Total Intereses (11%) ya viene calculado
+                    document.getElementById('total-intereses-completo').textContent = formatMoney(data.total_interes_completo);
 
-                    document.getElementById('total-interes').textContent = formatMoney(data.desglose.interes);
-                    document.getElementById('total-gastos').textContent = formatMoney(data.desglose.gastos);
-                    document.getElementById('total-comision').textContent = formatMoney(data.desglose.comision);
+                    document.getElementById('total-interes').textContent = formatMoney(data.interes);
+                    document.getElementById('total-gastos').textContent = formatMoney(data.gastos);
+                    document.getElementById('total-comision').textContent = formatMoney(data.comision);
                     document.getElementById('fecha-actual').textContent = formatDate(data.fecha);
 
                     // Actualizar tabla de transacciones
                     const tbody = document.querySelector('#tabla-transacciones tbody');
+                    const mostrarAgencia = agenciaSeleccionada === 'todas';
+
                     if (data.transacciones.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay transacciones registradas hoy</td></tr>';
+                        tbody.innerHTML = `<tr><td colspan="${mostrarAgencia ? 9 : 8}" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay transacciones registradas hoy</td></tr>`;
                     } else {
                         tbody.innerHTML = data.transacciones.map(t => `
                             <tr>
                                 <td><strong>${t.nombre_completo}</strong></td>
-                                <td>#${t.numero_cuota}</td>
+                                ${mostrarAgencia ? `<td>${t.agencia || 'N/A'}</td>` : ''}
+                                <td>#${t.cuotas}</td>
                                 <td><strong>${formatMoney(t.monto_pagado)}</strong></td>
-                                <td>${formatMoney(t.capital_cuota || 0)}</td>
-                                <td>${formatMoney(t.interes_cuota || 0)}</td>
-                                <td>${formatMoney(t.gastos_cuota || 0)}</td>
-                                <td>${formatMoney(t.comision_cuota || 0)}</td>
                                 <td>${new Date(t.fecha_pago).toLocaleTimeString('es-HN')}</td>
                             </tr>
                         `).join('');
@@ -907,7 +914,6 @@ $currentUser = $user ?? [];
 
                     // Actualizar fecha en el encabezado principal
                     document.getElementById('header-fecha').textContent = formatDate(data.fecha);
-                    // document.getElementById('print-agencia-recaudacion').textContent = data.agencia; // Elemento eliminado
                 } else {
                     console.error('Error en API:', result.message);
                     const tbody = document.querySelector('#tabla-transacciones tbody');
@@ -923,7 +929,7 @@ $currentUser = $user ?? [];
         // Cargar Estado de Cartera
         async function cargarCartera() {
             try {
-                const response = await fetch(`${BASE_URL}/app/api/reportes/estado_cartera.php`);
+                const response = await fetch(`${BASE_URL}/app/api/reportes/consolidado_cartera.php?agencia_id=${agenciaSeleccionada}`);
                 const result = await response.json();
 
                 console.log('Respuesta cartera:', result);
@@ -977,7 +983,10 @@ $currentUser = $user ?? [];
 
                             return `
                             <tr class="${rowClass}">
-                                <td class="px-4 py-3">${isTotal ? 'TOTAL AGENCIA' : (adv.nombre || 'Desconocido')}</td>
+                                <td class="px-4 py-3">
+                                    ${isTotal ? 'TOTAL CONSOLIDADO' : (adv.nombre || 'Desconocido')}
+                                    ${!isTotal && adv.agencia ? `<br><span class="text-xs text-gray-500">${adv.agencia}</span>` : ''}
+                                </td>
                                 <td class="px-4 py-3 text-indigo-700 font-semibold">${formatMoney(adv.total_cartera)}</td>
                                 <td class="px-4 py-3 text-center" title="Clientes Activos">${adv.clientes_count}</td>
                                 <td class="px-4 py-3 text-center ${novosClass}" title="Solicitados / En Análisis">${nuevosCount}</td>
@@ -1046,7 +1055,7 @@ $currentUser = $user ?? [];
                 const fechaDesde = document.getElementById('fecha-desde').value;
                 const fechaHasta = document.getElementById('fecha-hasta').value;
 
-                const response = await fetch(`${BASE_URL}/app/api/reportes/desembolsos_periodo.php?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`);
+                const response = await fetch(`${BASE_URL}/app/api/reportes/consolidado_desembolsos.php?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}&agencia_id=${agenciaSeleccionada}`);
                 const result = await response.json();
 
                 console.log('Respuesta desembolsos:', result);
@@ -1308,8 +1317,83 @@ $currentUser = $user ?? [];
             win.document.close();
         }
 
+        // Variable global para agencia seleccionada
+        let agenciaSeleccionada = 'todas';
+
+        // Cargar lista de agencias en el selector
+        async function cargarAgencias() {
+            console.log('Iniciando carga de agencias...');
+            try {
+                const url = `${BASE_URL}/app/api/agencias/list.php`;
+                console.log('Consultando agencias en:', url);
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+
+                const responseText = await response.text();
+                let result;
+
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Error al parsear JSON de agencias:', responseText);
+                    return;
+                }
+
+                if (result.success && Array.isArray(result.data)) {
+                    const selector = document.getElementById('selector-agencia');
+                    if (!selector) {
+                        console.error('Elemento #selector-agencia no encontrado en el DOM');
+                        return;
+                    }
+
+                    // Contar cuántas opciones hay actualmente (debería ser 1: Consolidado)
+                    const opcionesActuales = selector.options.length;
+
+                    result.data.forEach(agencia => {
+                        // Evitar duplicados verificando si el valor ya existe
+                        // Convertimos a string para asegurar comparación correcta
+                        const existe = Array.from(selector.options).some(opt => opt.value === String(agencia.id_agencia));
+
+                        if (!existe) {
+                            const option = document.createElement('option');
+                            option.value = agencia.id_agencia;
+                            option.textContent = agencia.nombre_agencia;
+                            selector.appendChild(option);
+                        }
+                    });
+
+                    console.log(`Se cargaron ${result.data.length} agencias en el selector.`);
+                } else {
+                    console.warn('La API de agencias no devolvió datos válidos:', result);
+                }
+            } catch (error) {
+                console.error('Error fatal cargando agencias:', error);
+            }
+        }
+
+        // Cambiar agencia y recargar datos
+        function cambiarAgencia() {
+            agenciaSeleccionada = document.getElementById('selector-agencia').value;
+
+            // Recargar todos los reportes
+            const activeTab = document.querySelector('.tab-content.active').id;
+
+            if (activeTab === 'tab-recaudacion') {
+                cargarRecaudacion();
+            } else if (activeTab === 'tab-cartera') {
+                cargarCartera();
+            } else if (activeTab === 'tab-desembolsos') {
+                cargarDesembolsos();
+            }
+        }
+
         // Cargar datos iniciales
         document.addEventListener('DOMContentLoaded', () => {
+            cargarAgencias();
             cargarRecaudacion();
             cargarCartera();
             cargarDesembolsos();

@@ -4,16 +4,12 @@ session_start();
 header('Content-Type: application/json');
 
 try {
-    // SEGURIDAD: Validar sesión y obtener id_agencia
+    // SEGURIDAD: Validar sesión (Administrador)
     if (!isset($_SESSION['id_usuario'])) {
         throw new Exception('Sesión no válida. Por favor, inicie sesión nuevamente.');
     }
 
-    $idAgencia = $_SESSION['id_agencia'] ?? null;
-
-    if (!$idAgencia || empty($idAgencia)) {
-        throw new Exception('No se pudo determinar la agencia del usuario. Verifique su perfil.');
-    }
+    $agenciaId = $_GET['agencia_id'] ?? 'todas';
 
     $db = getDB();
     if (!$db) {
@@ -22,18 +18,21 @@ try {
 
     $fechaHoy = date('Y-m-d');
 
-    // Verificar que la agencia existe
-    $sqlVerifAgencia = "SELECT nombre_agencia FROM agencias WHERE id_agencia = ?";
-    $stmtVerif = $db->prepare($sqlVerifAgencia);
-    $stmtVerif->execute([$idAgencia]);
-    $nombreAgencia = $stmtVerif->fetchColumn();
+    // Determinar filtro de agencia
+    $filtroAgenciaSql = "";
+    $params = [];
+    $nombreAgencia = "CONSOLIDADO (TODAS LAS AGENCIAS)";
 
-    if (!$nombreAgencia) {
-        throw new Exception('La agencia asignada no existe en el sistema');
+    if ($agenciaId !== 'todas' && is_numeric($agenciaId)) {
+        $filtroAgenciaSql = "AND c.id_agencia = ?";
+        $params[] = $agenciaId;
+
+        $stmt = $db->prepare("SELECT nombre_agencia FROM agencias WHERE id_agencia = ?");
+        $stmt->execute([$agenciaId]);
+        $nombreAgencia = $stmt->fetchColumn() ?: "Agencia Desconocida";
     }
 
-    // CAPITAL TOTAL EN LA CALLE (Solo capital pendiente, sin intereses)
-    // Sumamos el capital_cuota de todas las cuotas pendientes de préstamos activos
+    // CAPITAL TOTAL EN LA CALLE
     $sqlCapitalCalle = "SELECT 
                         IFNULL(SUM(cu.capital_cuota), 0) as capital_calle
                         FROM cuotas cu
@@ -41,11 +40,11 @@ try {
                         INNER JOIN clientes c ON p.id_cliente = c.id
                         WHERE cu.estado IN ('pendiente', 'vencida')
                         AND p.estado = 'Activo'
-                        AND c.id_agencia = ?
+                        $filtroAgenciaSql
                         AND cu.capital_cuota > 0";
 
     $stmtCapital = $db->prepare($sqlCapitalCalle);
-    $stmtCapital->execute([$idAgencia]);
+    $stmtCapital->execute($params);
     $capitalCalle = floatval($stmtCapital->fetchColumn());
 
     // CONTEO POR MODALIDAD EN CARTERA ACTIVA
@@ -57,13 +56,12 @@ try {
                        FROM prestamos p
                        INNER JOIN clientes c ON p.id_cliente = c.id
                        WHERE p.estado = 'Activo'
-                       AND c.id_agencia = ?";
+                       $filtroAgenciaSql";
 
     $stmtMod = $db->prepare($sqlModalidades);
-    $stmtMod->execute([$idAgencia]);
+    $stmtMod->execute($params);
     $modalidadesStats = $stmtMod->fetch(PDO::FETCH_ASSOC);
 
-    // Asegurar valores numéricos
     $modalidadesStats = [
         'diario' => intval($modalidadesStats['diario'] ?? 0),
         'semanal' => intval($modalidadesStats['semanal'] ?? 0),
@@ -71,13 +69,13 @@ try {
         'mensual' => intval($modalidadesStats['mensual'] ?? 0)
     ];
 
-
     // OBTENER TODOS LOS PRÉSTAMOS ACTIVOS Y CALCULAR RIESGO
     $sqlPrestamos = "SELECT 
                      p.id,
                      p.monto_capital,
                      p.total_a_pagar,
                      c.nombre_completo,
+                     ag.nombre_agencia,
                      (SELECT MIN(fecha_vencimiento) 
                       FROM cuotas 
                       WHERE prestamo_id = p.id 
@@ -88,14 +86,15 @@ try {
                       AND estado IN ('pendiente', 'vencida')) as capital_pendiente
                      FROM prestamos p
                      INNER JOIN clientes c ON p.id_cliente = c.id
+                     LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
                      WHERE p.estado = 'Activo'
-                     AND c.id_agencia = ?";
+                     $filtroAgenciaSql";
 
     $stmtPrestamos = $db->prepare($sqlPrestamos);
-    $stmtPrestamos->execute([$idAgencia]);
+    $stmtPrestamos->execute($params);
     $prestamos = $stmtPrestamos->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calcular categoría de riesgo para cada préstamo
+    // Calcular categoría de riesgo
     $categoriasData = ['A' => [], 'B' => [], 'C' => [], 'D' => [], 'E' => []];
 
     foreach ($prestamos as $prestamo) {
@@ -112,26 +111,25 @@ try {
             }
         }
 
-        // Determinar categoría según días de mora
         if ($diasMora == 0) {
-            $categoria = 'A';  // Al día
+            $categoria = 'A';
         } elseif ($diasMora >= 1 && $diasMora <= 30) {
-            $categoria = 'B';  // 1-30 días
+            $categoria = 'B';
         } elseif ($diasMora >= 31 && $diasMora <= 60) {
-            $categoria = 'C';  // 31-60 días
+            $categoria = 'C';
         } elseif ($diasMora >= 61 && $diasMora <= 90) {
-            $categoria = 'D';  // 61-90 días
+            $categoria = 'D';
         } else {
-            $categoria = 'E';  // Más de 90 días
+            $categoria = 'E';
         }
 
-        // Usar solo el capital pendiente (sin intereses)
         $saldoPendiente = floatval($prestamo['capital_pendiente'] ?? 0);
 
         if ($saldoPendiente > 0) {
             $categoriasData[$categoria][] = [
                 'prestamo_id' => $prestamo['id'],
                 'nombre_cliente' => $prestamo['nombre_completo'],
+                'agencia' => $prestamo['nombre_agencia'] ?? 'N/A',
                 'dias_mora' => $diasMora,
                 'saldo_pendiente' => $saldoPendiente
             ];
@@ -152,7 +150,7 @@ try {
         }
     }
 
-    // Asegurar que todas las categorías aparezcan, incluso con 0
+    // Asegurar que todas las categorías aparezcan
     $categoriasCompletas = [];
     foreach (['A', 'B', 'C', 'D', 'E'] as $cat) {
         $encontrada = false;
@@ -173,7 +171,7 @@ try {
         }
     }
 
-    // CLIENTES CON MÁS DE 30 DÍAS DE ATRASO (Categorías C, D, E)
+    // CLIENTES CON MÁS DE 30 DÍAS DE ATRASO
     $sqlMora = "SELECT 
                 c.nombre_completo,
                 c.numero_documento,
@@ -181,6 +179,7 @@ try {
                 p.id as prestamo_id,
                 p.monto_capital,
                 p.total_a_pagar,
+                ag.nombre_agencia,
                 (SELECT MIN(fecha_vencimiento) 
                  FROM cuotas 
                  WHERE prestamo_id = p.id 
@@ -188,19 +187,15 @@ try {
                 (SELECT SUM(capital_cuota) 
                  FROM cuotas 
                  WHERE prestamo_id = p.id 
-                 AND estado IN ('pendiente', 'vencida')) as capital_pendiente,
-                (SELECT MIN(fecha_vencimiento) 
-                 FROM cuotas 
-                 WHERE prestamo_id = p.id 
-                 AND estado IN ('pendiente', 'vencida')
-                 AND fecha_vencimiento >= CURDATE()) as proxima_cuota
+                 AND estado IN ('pendiente', 'vencida')) as capital_pendiente
                 FROM prestamos p
                 INNER JOIN clientes c ON p.id_cliente = c.id
+                LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
                 WHERE p.estado = 'Activo'
-                AND c.id_agencia = ?";
+                $filtroAgenciaSql";
 
     $stmtMora = $db->prepare($sqlMora);
-    $stmtMora->execute([$idAgencia]);
+    $stmtMora->execute($params);
     $prestamosMora = $stmtMora->fetchAll(PDO::FETCH_ASSOC);
 
     $clientesMora = [];
@@ -218,9 +213,7 @@ try {
             }
         }
 
-        // Solo incluir si tiene más de 30 días de mora
         if ($diasMora > 30) {
-            // Determinar categoría
             if ($diasMora >= 31 && $diasMora <= 60) {
                 $categoria = 'C';
             } elseif ($diasMora >= 61 && $diasMora <= 90) {
@@ -241,13 +234,11 @@ try {
                     'categoria_riesgo' => $categoria,
                     'dias_mora' => $diasMora,
                     'saldo_pendiente' => round($saldoPendiente, 2),
-                    'proxima_cuota' => $pm['proxima_cuota']
+                    'agencia' => $pm['nombre_agencia'] ?? 'N/A'
                 ];
             }
         }
     }
-
-    // ... (Código anterior de clientes mora 30+)
 
     // DESGLOSE POR ASESOR
     $sqlAsesores = "SELECT 
@@ -256,7 +247,7 @@ try {
                     p.estado,
                     c.cobrador_id,
                     u.username as nombre_asesor,
-                    u.id_colaborador,
+                    ag.nombre_agencia,
                     (SELECT MIN(fecha_vencimiento) 
                      FROM cuotas 
                      WHERE prestamo_id = p.id 
@@ -268,11 +259,12 @@ try {
                     FROM prestamos p
                     INNER JOIN clientes c ON p.id_cliente = c.id
                     LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
+                    LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
                     WHERE p.estado IN ('Activo', 'Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado')
-                    AND c.id_agencia = ?";
+                    $filtroAgenciaSql";
 
     $stmtAsesores = $db->prepare($sqlAsesores);
-    $stmtAsesores->execute([$idAgencia]);
+    $stmtAsesores->execute($params);
     $prestamosAsesor = $stmtAsesores->fetchAll(PDO::FETCH_ASSOC);
 
     $asesoresStats = [];
@@ -280,32 +272,35 @@ try {
     foreach ($prestamosAsesor as $loan) {
         $cobradorId = $loan['cobrador_id'] ?? '0';
         $nombreAsesor = $loan['nombre_asesor'] ?? 'Sin Asignar';
+        $agenciaAsesor = $loan['nombre_agencia'] ?? 'N/A';
         $saldo = floatval($loan['capital_pendiente'] ?? 0);
         $estado = $loan['estado'];
 
-        // Si es Activo y no tiene saldo, lo ignoramos (ya pagado o error)
+        // Si es Activo y no tiene saldo, lo ignoramos (ya pagado)
         if ($estado === 'Activo' && $saldo <= 0) {
             continue;
         }
 
-        // Para estados NO activos, el saldo debe considerarse 0 para reportes financieros
-        // aunque traiga "saldo" (que no debería), forzamos 0 para no afectar métricas de cartera
+        // Si no es activo, el saldo para el reporte financiero es 0
         if ($estado !== 'Activo') {
             $saldo = 0;
         }
 
-        // Inicializar asesor si no existe
-        if (!isset($asesoresStats[$cobradorId])) {
-            $asesoresStats[$cobradorId] = [
+        // Clave única por asesor (incluir agencia si es consolidado)
+        $key = $cobradorId . '_' . $agenciaAsesor;
+
+        if (!isset($asesoresStats[$key])) {
+            $asesoresStats[$key] = [
                 'nombre' => $nombreAsesor,
+                'agencia' => $agenciaAsesor,
                 'total_cartera' => 0,
                 'clientes_count' => 0,
-                'clientes_tramite' => 0, // Préstamos en proceso (Nuevos)
-                'mora_normal' => 0, // 0 dias
+                'clientes_tramite' => 0, // Nuevo campo
+                'mora_normal' => 0,
                 'mora_1_3' => 0,
                 'mora_4_7' => 0,
                 'mora_8_14' => 0,
-                'mora_15_30' => 0, // Agregado para cobertura completa
+                'mora_15_30' => 0,
                 'mora_30_plus' => 0
             ];
         }
@@ -326,39 +321,38 @@ try {
 
         // --- LÓGICA DE CONTEO DIFERENCIADA ---
         if ($estado === 'Activo') {
-            // Cliente Activo: Suma a cartera y cuenta como cliente activo
-            $asesoresStats[$cobradorId]['total_cartera'] += $saldo;
-            $asesoresStats[$cobradorId]['clientes_count'] += 1;
+            $asesoresStats[$key]['total_cartera'] += $saldo;
+            $asesoresStats[$key]['clientes_count'] += 1;
 
-            // Buckets de Mora (Solo para activos)
             if ($diasMora == 0) {
-                $asesoresStats[$cobradorId]['mora_normal'] += $saldo;
+                $asesoresStats[$key]['mora_normal'] += $saldo;
             } elseif ($diasMora >= 1 && $diasMora <= 3) {
-                $asesoresStats[$cobradorId]['mora_1_3'] += $saldo;
+                $asesoresStats[$key]['mora_1_3'] += $saldo;
             } elseif ($diasMora >= 4 && $diasMora <= 7) {
-                $asesoresStats[$cobradorId]['mora_4_7'] += $saldo;
+                $asesoresStats[$key]['mora_4_7'] += $saldo;
             } elseif ($diasMora >= 8 && $diasMora <= 14) {
-                $asesoresStats[$cobradorId]['mora_8_14'] += $saldo;
+                $asesoresStats[$key]['mora_8_14'] += $saldo;
             } elseif ($diasMora >= 15 && $diasMora <= 30) {
-                $asesoresStats[$cobradorId]['mora_15_30'] += $saldo;
+                $asesoresStats[$key]['mora_15_30'] += $saldo;
             } else {
-                $asesoresStats[$cobradorId]['mora_30_plus'] += $saldo;
+                $asesoresStats[$key]['mora_30_plus'] += $saldo;
             }
         } else {
-            // Cliente Nuevo / En Trámite: Solo cuenta en la columna de nuevos
-            $asesoresStats[$cobradorId]['clientes_tramite'] += 1;
+            // Cliente Nuevo / En Trámite
+            $asesoresStats[$key]['clientes_tramite'] += 1;
         }
     }
 
-    // Convertir a array indexado y redondear
+    // Convertir a array y calcular porcentajes
     $desgloseAsesores = [];
     $consolidado = [
-        'nombre' => 'TOTAL AGENCIA',
+        'nombre' => 'TOTAL',
+        'agencia' => $nombreAgencia,
         'es_total' => true,
         'total_cartera' => 0,
         'clientes_count' => 0,
-        'clientes_tramite' => 0,
-        'porcentaje_mora' => 0, // Inicializar
+        'clientes_tramite' => 0, // Nuevo
+        'porcentaje_mora' => 0,
         'mora_normal' => 0,
         'mora_1_3' => 0,
         'mora_4_7' => 0,
@@ -368,7 +362,6 @@ try {
     ];
 
     foreach ($asesoresStats as $stat) {
-        // Calcular porcentaje de mora (Todo lo que NO es normal)
         $carteraVencida = $stat['total_cartera'] - $stat['mora_normal'];
         $porcentajeMora = 0;
         $porcentajeNormalidad = 0;
@@ -377,9 +370,9 @@ try {
             $porcentajeMora = ($carteraVencida / $stat['total_cartera']) * 100;
             $porcentajeNormalidad = ($stat['mora_normal'] / $stat['total_cartera']) * 100;
         }
+
         $stat['porcentaje_mora'] = round($porcentajeMora, 2);
         $stat['porcentaje_normalidad'] = round($porcentajeNormalidad, 2);
-
         $stat['total_cartera'] = round($stat['total_cartera'], 2);
         $stat['mora_normal'] = round($stat['mora_normal'], 2);
         $stat['mora_1_3'] = round($stat['mora_1_3'], 2);
@@ -390,7 +383,6 @@ try {
 
         $desgloseAsesores[] = $stat;
 
-        // Sumar al consolidado
         $consolidado['total_cartera'] += $stat['total_cartera'];
         $consolidado['clientes_count'] += $stat['clientes_count'];
         $consolidado['clientes_tramite'] += $stat['clientes_tramite'];
@@ -402,20 +394,14 @@ try {
         $consolidado['mora_30_plus'] += $stat['mora_30_plus'];
     }
 
-    // Calcular % Mora Global del Consolidado
     $carteraVencidaTotal = $consolidado['total_cartera'] - $consolidado['mora_normal'];
     if ($consolidado['total_cartera'] > 0) {
         $consolidado['porcentaje_mora'] = round(($carteraVencidaTotal / $consolidado['total_cartera']) * 100, 2);
         $consolidado['porcentaje_normalidad'] = round(($consolidado['mora_normal'] / $consolidado['total_cartera']) * 100, 2);
-    } else {
-        $consolidado['porcentaje_mora'] = 0;
-        $consolidado['porcentaje_normalidad'] = 0;
     }
 
-    // Agregar consolidado al final
     $desgloseAsesores[] = $consolidado;
 
-    // Ordenar por días de mora descendente (el sort anterior de clientesMora)
     usort($clientesMora, function ($a, $b) {
         return $b['dias_mora'] - $a['dias_mora'];
     });
@@ -425,13 +411,13 @@ try {
         'data' => [
             'fecha' => $fechaHoy,
             'agencia' => $nombreAgencia,
-            'id_agencia' => $idAgencia,
+            'id_agencia' => $agenciaId,
             'capital_calle' => round($capitalCalle, 2),
             'modalidades_activas' => $modalidadesStats,
             'categorias' => $categoriasCompletas,
             'clientes_mora' => $clientesMora,
             'total_clientes_mora' => count($clientesMora),
-            'desglose_asesores' => $desgloseAsesores // Nuevo campo
+            'desglose_asesores' => $desgloseAsesores
         ]
     ], JSON_PRETTY_PRINT);
 
@@ -440,7 +426,7 @@ try {
     echo json_encode([
         'success' => false,
         'message' => $e->getMessage(),
-        'error_detail' => 'Error en estado_cartera.php'
+        'error_detail' => 'Error en consolidado_cartera.php'
     ], JSON_PRETTY_PRINT);
 }
 ?>

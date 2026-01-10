@@ -253,7 +253,6 @@ try {
     $sqlAsesores = "SELECT 
                     p.id,
                     p.monto_capital,
-                    p.estado,
                     c.cobrador_id,
                     u.username as nombre_asesor,
                     u.id_colaborador,
@@ -268,7 +267,7 @@ try {
                     FROM prestamos p
                     INNER JOIN clientes c ON p.id_cliente = c.id
                     LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
-                    WHERE p.estado IN ('Activo', 'Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado')
+                    WHERE p.estado = 'Activo'
                     AND c.id_agencia = ?";
 
     $stmtAsesores = $db->prepare($sqlAsesores);
@@ -281,18 +280,9 @@ try {
         $cobradorId = $loan['cobrador_id'] ?? '0';
         $nombreAsesor = $loan['nombre_asesor'] ?? 'Sin Asignar';
         $saldo = floatval($loan['capital_pendiente'] ?? 0);
-        $estado = $loan['estado'];
 
-        // Si es Activo y no tiene saldo, lo ignoramos (ya pagado o error)
-        if ($estado === 'Activo' && $saldo <= 0) {
+        if ($saldo <= 0)
             continue;
-        }
-
-        // Para estados NO activos, el saldo debe considerarse 0 para reportes financieros
-        // aunque traiga "saldo" (que no debería), forzamos 0 para no afectar métricas de cartera
-        if ($estado !== 'Activo') {
-            $saldo = 0;
-        }
 
         // Inicializar asesor si no existe
         if (!isset($asesoresStats[$cobradorId])) {
@@ -300,7 +290,6 @@ try {
                 'nombre' => $nombreAsesor,
                 'total_cartera' => 0,
                 'clientes_count' => 0,
-                'clientes_tramite' => 0, // Préstamos en proceso (Nuevos)
                 'mora_normal' => 0, // 0 dias
                 'mora_1_3' => 0,
                 'mora_4_7' => 0,
@@ -324,29 +313,23 @@ try {
             }
         }
 
-        // --- LÓGICA DE CONTEO DIFERENCIADA ---
-        if ($estado === 'Activo') {
-            // Cliente Activo: Suma a cartera y cuenta como cliente activo
-            $asesoresStats[$cobradorId]['total_cartera'] += $saldo;
-            $asesoresStats[$cobradorId]['clientes_count'] += 1;
+        // Acumulares generales
+        $asesoresStats[$cobradorId]['total_cartera'] += $saldo;
+        $asesoresStats[$cobradorId]['clientes_count'] += 1; // Simplificación: cuenta préstamos, idealmente unique clientes
 
-            // Buckets de Mora (Solo para activos)
-            if ($diasMora == 0) {
-                $asesoresStats[$cobradorId]['mora_normal'] += $saldo;
-            } elseif ($diasMora >= 1 && $diasMora <= 3) {
-                $asesoresStats[$cobradorId]['mora_1_3'] += $saldo;
-            } elseif ($diasMora >= 4 && $diasMora <= 7) {
-                $asesoresStats[$cobradorId]['mora_4_7'] += $saldo;
-            } elseif ($diasMora >= 8 && $diasMora <= 14) {
-                $asesoresStats[$cobradorId]['mora_8_14'] += $saldo;
-            } elseif ($diasMora >= 15 && $diasMora <= 30) {
-                $asesoresStats[$cobradorId]['mora_15_30'] += $saldo;
-            } else {
-                $asesoresStats[$cobradorId]['mora_30_plus'] += $saldo;
-            }
+        // Buckets
+        if ($diasMora == 0) {
+            $asesoresStats[$cobradorId]['mora_normal'] += $saldo;
+        } elseif ($diasMora >= 1 && $diasMora <= 3) {
+            $asesoresStats[$cobradorId]['mora_1_3'] += $saldo;
+        } elseif ($diasMora >= 4 && $diasMora <= 7) {
+            $asesoresStats[$cobradorId]['mora_4_7'] += $saldo;
+        } elseif ($diasMora >= 8 && $diasMora <= 14) {
+            $asesoresStats[$cobradorId]['mora_8_14'] += $saldo;
+        } elseif ($diasMora >= 15 && $diasMora <= 30) {
+            $asesoresStats[$cobradorId]['mora_15_30'] += $saldo;
         } else {
-            // Cliente Nuevo / En Trámite: Solo cuenta en la columna de nuevos
-            $asesoresStats[$cobradorId]['clientes_tramite'] += 1;
+            $asesoresStats[$cobradorId]['mora_30_plus'] += $saldo;
         }
     }
 
@@ -357,7 +340,6 @@ try {
         'es_total' => true,
         'total_cartera' => 0,
         'clientes_count' => 0,
-        'clientes_tramite' => 0,
         'porcentaje_mora' => 0, // Inicializar
         'mora_normal' => 0,
         'mora_1_3' => 0,
@@ -393,7 +375,6 @@ try {
         // Sumar al consolidado
         $consolidado['total_cartera'] += $stat['total_cartera'];
         $consolidado['clientes_count'] += $stat['clientes_count'];
-        $consolidado['clientes_tramite'] += $stat['clientes_tramite'];
         $consolidado['mora_normal'] += $stat['mora_normal'];
         $consolidado['mora_1_3'] += $stat['mora_1_3'];
         $consolidado['mora_4_7'] += $stat['mora_4_7'];
