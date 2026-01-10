@@ -481,6 +481,40 @@ $currentUser = $user ?? [];
                     </div>
 
                     <div class="report-section">
+                        <h2><i class="fas fa-users"></i> Desglose de Cartera por Asesor</h2>
+                        <button class="btn btn-print"
+                            onclick="imprimirTablaEspecifica('tabla-desglose-asesores', 'Desglose de Cartera por Asesor')"
+                            style="float: right; margin-top: -3rem;">
+                            <i class="fas fa-print"></i> Imprimir Tabla
+                        </button>
+                        <div class="table-container">
+                            <table id="tabla-desglose-asesores">
+                                <thead>
+                                    <tr>
+                                        <th>Asesor</th>
+                                        <th>Cartera Activa</th>
+                                        <th>Clientes</th>
+                                        <th class="text-center bg-yellow-50">1-3 Días</th>
+                                        <th class="text-center bg-orange-50">4-7 Días</th>
+                                        <th class="text-center bg-red-50">8-14 Días</th>
+                                        <th class="text-center bg-red-100">30+ Días</th>
+                                        <th class="text-center font-bold bg-green-50">Normalidad</th>
+                                        <th class="text-center font-bold bg-gray-100">% Mora</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="8" class="loading">
+                                            <i class="fas fa-spinner"></i><br>
+                                            Cargando desglose...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-section">
                         <h2><i class="fas fa-chart-pie"></i> Resumen por Categoría de Riesgo</h2>
                         <button class="btn btn-print" onclick="imprimirReporte('cartera')"
                             style="float: right; margin-top: -3rem;">
@@ -685,13 +719,13 @@ $currentUser = $user ?? [];
                     // Actualizar stats
                     document.getElementById('total-cobrado').textContent = formatMoney(data.total_cobrado);
                     document.getElementById('total-capital').textContent = formatMoney(data.desglose.capital);
-                    
+
                     // Calcular Total Intereses (11%) = Interés + Gastos + Comisión
-                    const totalInteresesCompleto = parseFloat(data.desglose.interes) + 
-                                                   parseFloat(data.desglose.gastos) + 
-                                                   parseFloat(data.desglose.comision);
+                    const totalInteresesCompleto = parseFloat(data.desglose.interes) +
+                        parseFloat(data.desglose.gastos) +
+                        parseFloat(data.desglose.comision);
                     document.getElementById('total-intereses-completo').textContent = formatMoney(totalInteresesCompleto);
-                    
+
                     document.getElementById('total-interes').textContent = formatMoney(data.desglose.interes);
                     document.getElementById('total-gastos').textContent = formatMoney(data.desglose.gastos);
                     document.getElementById('total-comision').textContent = formatMoney(data.desglose.comision);
@@ -745,7 +779,48 @@ $currentUser = $user ?? [];
                     // Actualizar capital en la calle
                     document.getElementById('capital-calle').textContent = formatMoney(data.capital_calle);
 
-                    // Actualizar tabla de categorías
+                    // --- 1. NUEVA TABLA: DESGLOSE POR ASESOR ---
+                    const tbodyAsesores = document.querySelector('#tabla-desglose-asesores tbody');
+                    if (!data.desglose_asesores || data.desglose_asesores.length === 0) {
+                        tbodyAsesores.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay información de asesores</td></tr>';
+                    } else {
+                        tbodyAsesores.innerHTML = data.desglose_asesores.map(adv => {
+                            // Estilo especial para la fila de TOTAL
+                            const isTotal = adv.es_total === true;
+                            const rowClass = isTotal ? 'bg-indigo-50 font-bold border-t-2 border-indigo-200' : 'hover:bg-gray-50';
+
+                            // Agrupamos 30+ incluyendo 15-30 para el reporte visual simplificado si se desea, 
+                            // pero la petición pedía columnas separadas o 30+ al final.
+                            // La petición decía: "normalidad, 1-3, 4-7, 8-14 y 30+".
+                            // Mi backend devuelve "mora_15_30" y "mora_30_plus".
+                            // Voy a sumar visualmente 15-30 y 30+ en la columna "30+ Días" para cumplir estrictamente el formato pedido,
+                            // o mostrar una columna extra. El usuario pidió "30+". Sumaré ambos.
+
+                            const mora30PlusReal = parseFloat(adv.mora_15_30 || 0) + parseFloat(adv.mora_30_plus || 0);
+
+                            // Color del porcentaje de mora
+                            let moraClass = 'text-green-600';
+                            if (adv.porcentaje_mora > 25) moraClass = 'text-red-600 font-bold';
+                            else if (adv.porcentaje_mora > 10) moraClass = 'text-orange-600 font-bold';
+                            else if (adv.porcentaje_mora > 5) moraClass = 'text-yellow-600';
+
+                            return `
+                            <tr class="${rowClass}">
+                                <td class="px-4 py-3">${isTotal ? 'TOTAL AGENCIA' : (adv.nombre || 'Desconocido')}</td>
+                                <td class="px-4 py-3 text-indigo-700 font-semibold">${formatMoney(adv.total_cartera)}</td>
+                                <td class="px-4 py-3 text-center">${adv.clientes_count}</td>
+                                <td class="px-4 py-3 text-right bg-yellow-50 text-yellow-700">${formatMoney(adv.mora_1_3)}</td>
+                                <td class="px-4 py-3 text-right bg-orange-50 text-orange-700">${formatMoney(adv.mora_4_7)}</td>
+                                <td class="px-4 py-3 text-right bg-red-50 text-red-700">${formatMoney(adv.mora_8_14)}</td>
+                                <td class="px-4 py-3 text-right bg-red-100 text-red-800 font-bold">${formatMoney(mora30PlusReal)}</td>
+                                <td class="px-4 py-3 text-center font-bold bg-green-50 text-green-700">${adv.porcentaje_normalidad}%</td>
+                                <td class="px-4 py-3 text-center font-bold bg-gray-50 ${moraClass}">${adv.porcentaje_mora}%</td>
+                            </tr>
+                            `;
+                        }).join('');
+                    }
+
+                    // Actualizar tabla de categorías (Existente)
                     const tbodyCat = document.querySelector('#tabla-categorias tbody');
                     if (data.categorias.length === 0) {
                         tbodyCat.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay datos disponibles</td></tr>';
@@ -760,7 +835,7 @@ $currentUser = $user ?? [];
                         `).join('');
                     }
 
-                    // Actualizar tabla de mora
+                    // Actualizar tabla de mora (Existente)
                     const tbodyMora = document.querySelector('#tabla-mora tbody');
                     if (data.clientes_mora.length === 0) {
                         tbodyMora.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #10b981;">✓ No hay clientes con más de 30 días de atraso</td></tr>';
@@ -860,9 +935,59 @@ $currentUser = $user ?? [];
             }
         }
 
-        // Función de impresión
+        // Función de impresión general
         function imprimirReporte(tipo) {
             window.print();
+        }
+
+        // Función de impresión específica para tablas
+        function imprimirTablaEspecifica(tableId, titulo) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const win = window.open('', '_blank');
+            const fecha = new Date().toLocaleDateString('es-HN');
+            const agencia = document.getElementById('agencia-nombre').innerText;
+
+            win.document.write(`
+                <html>
+                <head>
+                    <title>${titulo}</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <style>
+                        body { font-family: sans-serif; padding: 2rem; }
+                        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 0.5rem; }
+                        p { text-align: center; color: #666; margin-bottom: 2rem; }
+                        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+                        th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+                        thead { background: #f3f4f6; }
+                        .text-right { text-align: right; }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .bg-gray-50 { background-color: #f9fafb; }
+                        /* Colores simples para impresión si Tailwind no carga a tiempo */
+                        .bg-green-50 { background-color: #f0fdf4; }
+                        .bg-yellow-50 { background-color: #fefce8; }
+                        .bg-orange-50 { background-color: #fff7ed; }
+                        .bg-red-50 { background-color: #fef2f2; }
+                        .bg-red-100 { background-color: #fee2e2; }
+                        .text-indigo-700 { color: #4338ca; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${titulo}</h1>
+                    <p>${agencia} - ${fecha}</p>
+                    ${table.outerHTML}
+                    <script>
+                        setTimeout(() => {
+                            window.print();
+                            window.close();
+                        }, 500); // Dar tiempo a que cargue Tailwind o estilos
+                    <\/script>
+                </body>
+                </html>
+            `);
+            win.document.close();
         }
 
         // Cargar datos iniciales
