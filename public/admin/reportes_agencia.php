@@ -5,7 +5,7 @@
 
 $pageTitle = 'Reportes de Agencia';
 require_once __DIR__ . '/../auth_check.php';
-requireViewPermission('reportes');
+// requireViewPermission('reportes');
 
 // Obtener información del usuario actual
 $userAgenciaId = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? null;

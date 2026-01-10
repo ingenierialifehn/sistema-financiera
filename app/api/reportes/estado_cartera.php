@@ -268,14 +268,48 @@ try {
                     FROM prestamos p
                     INNER JOIN clientes c ON p.id_cliente = c.id
                     LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
-                    WHERE p.estado IN ('Activo', 'Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado')
-                    AND c.id_agencia = ?";
+                    LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
+                    WHERE p.estado NOT IN ('Rechazado', 'Pagado', 'Cancelado', 'Eliminado', 'Finalizado')
+                    AND c.id_agencia = ?
+                    AND col.puesto_cargo = 'Asesor de Créditos'";
 
     $stmtAsesores = $db->prepare($sqlAsesores);
     $stmtAsesores->execute([$idAgencia]);
     $prestamosAsesor = $stmtAsesores->fetchAll(PDO::FETCH_ASSOC);
 
     $asesoresStats = [];
+
+    // --- Pre-cargar usuarios con puesto "Asesor de Créditos" de esta agencia ---
+    $sqlUsuarios = "SELECT 
+                    u.id_usuario, 
+                    u.username
+                    FROM usuarios u
+                    LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                    WHERE u.estado = 'Activo'
+                    AND c.id_agencia = ?
+                    AND c.puesto_cargo = 'Asesor de Créditos'";
+
+    $stmtUsers = $db->prepare($sqlUsuarios);
+    $stmtUsers->execute([$idAgencia]);
+    $allUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allUsers as $usr) {
+        $uid = $usr['id_usuario'];
+        if (!isset($asesoresStats[$uid])) {
+            $asesoresStats[$uid] = [
+                'nombre' => $usr['username'],
+                'total_cartera' => 0,
+                'clientes_count' => 0,
+                'clientes_tramite' => 0,
+                'mora_normal' => 0,
+                'mora_1_3' => 0,
+                'mora_4_7' => 0,
+                'mora_8_14' => 0,
+                'mora_15_30' => 0,
+                'mora_30_plus' => 0
+            ];
+        }
+    }
 
     foreach ($prestamosAsesor as $loan) {
         $cobradorId = $loan['cobrador_id'] ?? '0';
@@ -376,6 +410,10 @@ try {
         if ($stat['total_cartera'] > 0) {
             $porcentajeMora = ($carteraVencida / $stat['total_cartera']) * 100;
             $porcentajeNormalidad = ($stat['mora_normal'] / $stat['total_cartera']) * 100;
+        } else {
+            // Default 100% normalidad si no hay deuda en riesgo
+            $porcentajeNormalidad = 100;
+            $porcentajeMora = 0;
         }
         $stat['porcentaje_mora'] = round($porcentajeMora, 2);
         $stat['porcentaje_normalidad'] = round($porcentajeNormalidad, 2);
@@ -409,7 +447,7 @@ try {
         $consolidado['porcentaje_normalidad'] = round(($consolidado['mora_normal'] / $consolidado['total_cartera']) * 100, 2);
     } else {
         $consolidado['porcentaje_mora'] = 0;
-        $consolidado['porcentaje_normalidad'] = 0;
+        $consolidado['porcentaje_normalidad'] = 100;
     }
 
     // Agregar consolidado al final

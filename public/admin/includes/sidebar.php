@@ -109,6 +109,18 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
+            <!-- Gastos Operativos -->
+            <?php
+            $userRole = $_SESSION['rol_nombre'] ?? '';
+            if (stripos($userRole, 'Admin') !== false || stripos($userRole, 'Gerente') !== false || stripos($userRole, 'Supervisor') !== false):
+                ?>
+                <a href="gastos_operativos.php"
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'gastos_operativos.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-file-invoice-dollar w-5"></i>
+                    <span>Gastos Operativos</span>
+                </a>
+            <?php endif; ?>
+
             <!-- Operaciones -->
             <?php if (Auth::hasPermission('operaciones')): ?>
                 <a href="operaciones.php"

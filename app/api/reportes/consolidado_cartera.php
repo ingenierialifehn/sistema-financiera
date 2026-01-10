@@ -260,7 +260,9 @@ try {
                     INNER JOIN clientes c ON p.id_cliente = c.id
                     LEFT JOIN usuarios u ON c.cobrador_id = u.id_usuario
                     LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
-                    WHERE p.estado IN ('Activo', 'Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado')
+                    LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
+                    WHERE p.estado NOT IN ('Rechazado', 'Pagado', 'Cancelado', 'Eliminado', 'Finalizado')
+                    AND col.puesto_cargo = 'Asesor de Créditos'
                     $filtroAgenciaSql";
 
     $stmtAsesores = $db->prepare($sqlAsesores);
@@ -268,6 +270,49 @@ try {
     $prestamosAsesor = $stmtAsesores->fetchAll(PDO::FETCH_ASSOC);
 
     $asesoresStats = [];
+
+    // --- MODIFICACIÓN: Pre-cargar usuarios activos para mostrar en tabla aunque no tengan clientes ---
+    $sqlUsuarios = "SELECT 
+                    u.id_usuario, 
+                    u.username,
+                    ag.nombre_agencia
+                    FROM usuarios u
+                    LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                    LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
+                    WHERE u.estado = 'Activo'
+                    AND c.puesto_cargo = 'Asesor de Créditos'";
+
+    $paramsUsuarios = [];
+    if ($agenciaId !== 'todas' && is_numeric($agenciaId)) {
+        $sqlUsuarios .= " AND c.id_agencia = ?";
+        $paramsUsuarios[] = $agenciaId;
+    }
+
+    $stmtUsers = $db->prepare($sqlUsuarios);
+    $stmtUsers->execute($paramsUsuarios);
+    $allUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allUsers as $usr) {
+        // Usar N/A si no tiene agencia asignada, para coincidir con la lógica del loop posterior
+        $agenciaNombre = $usr['nombre_agencia'] ?? 'N/A';
+        $key = $usr['id_usuario'] . '_' . $agenciaNombre;
+
+        if (!isset($asesoresStats[$key])) {
+            $asesoresStats[$key] = [
+                'nombre' => $usr['username'],
+                'agencia' => $agenciaNombre,
+                'total_cartera' => 0,
+                'clientes_count' => 0,
+                'clientes_tramite' => 0,
+                'mora_normal' => 0,
+                'mora_1_3' => 0,
+                'mora_4_7' => 0,
+                'mora_8_14' => 0,
+                'mora_15_30' => 0,
+                'mora_30_plus' => 0
+            ];
+        }
+    }
 
     foreach ($prestamosAsesor as $loan) {
         $cobradorId = $loan['cobrador_id'] ?? '0';
@@ -369,6 +414,10 @@ try {
         if ($stat['total_cartera'] > 0) {
             $porcentajeMora = ($carteraVencida / $stat['total_cartera']) * 100;
             $porcentajeNormalidad = ($stat['mora_normal'] / $stat['total_cartera']) * 100;
+        } else {
+            // Si no hay cartera, se considera 100% normal (sanidad por defecto si no hay deuda)
+            $porcentajeNormalidad = 100;
+            $porcentajeMora = 0;
         }
 
         $stat['porcentaje_mora'] = round($porcentajeMora, 2);
@@ -398,6 +447,9 @@ try {
     if ($consolidado['total_cartera'] > 0) {
         $consolidado['porcentaje_mora'] = round(($carteraVencidaTotal / $consolidado['total_cartera']) * 100, 2);
         $consolidado['porcentaje_normalidad'] = round(($consolidado['mora_normal'] / $consolidado['total_cartera']) * 100, 2);
+    } else {
+        $consolidado['porcentaje_mora'] = 0;
+        $consolidado['porcentaje_normalidad'] = 100;
     }
 
     $desgloseAsesores[] = $consolidado;

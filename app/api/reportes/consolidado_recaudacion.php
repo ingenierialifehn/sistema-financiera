@@ -12,7 +12,9 @@ try {
     // TODO: Validar rol de administrador
     // AuthMiddleware::requireAdmin();
 
-    $fecha = $_GET['fecha'] ?? date('Y-m-d');
+    // Obtener paramétros de fechas (rango)
+    $fechaDesde = $_GET['fecha_desde'] ?? date('Y-m-d');
+    $fechaHasta = $_GET['fecha_hasta'] ?? date('Y-m-d');
     $agenciaId = $_GET['agencia_id'] ?? 'todas'; // 'todas' o ID numérico
 
     $db = getDB();
@@ -22,8 +24,8 @@ try {
 
     // Determinar filtro de agencia
     $filtroAgenciaSql = "";
-    $paramsResumen = [$fecha];
-    $paramsTransacciones = [$fecha];
+    $paramsResumen = [$fechaDesde, $fechaHasta];
+    $paramsTransacciones = [$fechaDesde, $fechaHasta];
 
     $nombreAgencia = "CONSOLIDADO (TODAS LAS AGENCIAS)";
 
@@ -38,13 +40,13 @@ try {
         $nombreAgencia = $stmt->fetchColumn() ?: "Agencia Desconocida";
     }
 
-    // 1. TOTAL COBRADO HOY
+    // 1. TOTAL COBRADO EN EL RANGO
     $sqlResumen = "SELECT 
                    IFNULL(SUM(cu.monto_pagado), 0) as total_cobrado
                    FROM cuotas cu
                    INNER JOIN prestamos p ON cu.prestamo_id = p.id
                    INNER JOIN clientes c ON p.id_cliente = c.id
-                   WHERE DATE(cu.fecha_pago_real) = ? 
+                   WHERE DATE(cu.fecha_pago_real) BETWEEN ? AND ?
                    $filtroAgenciaSql
                    AND cu.monto_pagado > 0";
 
@@ -70,7 +72,7 @@ try {
                     FROM cuotas cu
                     INNER JOIN prestamos p ON cu.prestamo_id = p.id
                     INNER JOIN clientes c ON p.id_cliente = c.id
-                    WHERE DATE(cu.fecha_pago_real) = ? 
+                    WHERE DATE(cu.fecha_pago_real) BETWEEN ? AND ?
                     $filtroAgenciaSql
                     AND cu.monto_pagado > 0
                     AND cu.monto_cuota > 0";
@@ -105,7 +107,7 @@ try {
                          INNER JOIN prestamos p ON cu.prestamo_id = p.id
                          INNER JOIN clientes c ON p.id_cliente = c.id
                          LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
-                         WHERE DATE(cu.fecha_pago_real) = ? 
+                         WHERE DATE(cu.fecha_pago_real) BETWEEN ? AND ? 
                          $filtroAgenciaSql
                          AND cu.monto_pagado > 0
                          ORDER BY cu.fecha_pago_real DESC, c.nombre_completo ASC, cu.numero_cuota ASC";
@@ -153,7 +155,8 @@ try {
     echo json_encode([
         'success' => true,
         'data' => [
-            'fecha' => $fecha,
+            'fecha_desde' => $fechaDesde,
+            'fecha_hasta' => $fechaHasta,
             'agencia' => $nombreAgencia,
             'agencia_id' => $agenciaId,
             'total_cobrado' => round($totalCobrado, 2),

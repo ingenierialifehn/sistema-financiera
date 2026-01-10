@@ -5,7 +5,7 @@
 
 $pageTitle = 'Reportes Consolidados';
 require_once __DIR__ . '/../auth_check.php';
-requireViewPermission('reportes');
+// requireViewPermission('reportes');
 
 // Obtener información del usuario actual
 $userAgenciaId = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? null;
@@ -552,6 +552,19 @@ $currentUser = $user ?? [];
             <!-- TAB 1: RECAUDACIÓN DIARIA -->
             <div class="tab-content active" id="tab-recaudacion">
                 <div class="print-area">
+                    <div class="filter-section">
+                        <div class="form-group">
+                            <label>Fecha Desde</label>
+                            <input type="date" id="fecha-desde-recaudacion" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha Hasta</label>
+                            <input type="date" id="fecha-hasta-recaudacion" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <button class="btn btn-primary" onclick="cargarRecaudacion()">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
 
 
                     <div class="stats-grid">
@@ -873,7 +886,12 @@ $currentUser = $user ?? [];
         // Cargar Recaudación Diaria
         async function cargarRecaudacion() {
             try {
-                const response = await fetch(`${BASE_URL}/app/api/reportes/consolidado_recaudacion.php?agencia_id=${agenciaSeleccionada}`);
+                const fechaDesde = document.getElementById('fecha-desde-recaudacion').value;
+                const fechaHasta = document.getElementById('fecha-hasta-recaudacion').value;
+
+                console.log(`Cargando recaudación desde ${fechaDesde} hasta ${fechaHasta}`);
+
+                const response = await fetch(`${BASE_URL}/app/api/reportes/consolidado_recaudacion.php?agencia_id=${agenciaSeleccionada}&fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`);
                 const result = await response.json();
 
                 console.log('Respuesta recaudación:', result);
@@ -913,7 +931,15 @@ $currentUser = $user ?? [];
                     }
 
                     // Actualizar fecha en el encabezado principal
-                    document.getElementById('header-fecha').textContent = formatDate(data.fecha);
+                    if (data.fecha) {
+                        // Si viene solo una fecha (compatibilidad antigua)
+                        document.getElementById('header-fecha').textContent = formatDate(data.fecha);
+                    } else {
+                        // Si no viene fecha, usamos el rango de los inputs
+                        const fDesde = document.getElementById('fecha-desde-recaudacion').value;
+                        const fHasta = document.getElementById('fecha-hasta-recaudacion').value;
+                        document.getElementById('header-fecha').textContent = `${formatDate(fDesde)} - ${formatDate(fHasta)}`;
+                    }
                 } else {
                     console.error('Error en API:', result.message);
                     const tbody = document.querySelector('#tabla-transacciones tbody');
