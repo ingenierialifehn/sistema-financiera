@@ -144,19 +144,20 @@ try {
                 tipo_vivienda, gps_coordenadas, fecha_nacimiento, genero, ocupacion,
                 referencia_personal, telefono_referencia, foto_documento,
                 foto_dni_frontal, foto_dni_posterior, foto_perfil, foto_fachada_casa, foto_recibo_servicio,
-                id_agencia, estado, created_at
+                id_agencia, estado, cobrador_id, created_at
             ) VALUES (
                 :usuario_id, :codigo_cliente, :nombre_completo, :tipo_documento, :numero_documento,
                 :email, :telefono, :direccion, :departamento, :municipio, :barrio, :punto_referencia,
                 :tipo_vivienda, :gps_coordenadas, :fecha_nacimiento, :genero, :ocupacion,
                 :referencia_personal, :telefono_referencia, :foto_documento,
                 :foto_dni_frontal, :foto_dni_posterior, :foto_perfil, :foto_fachada_casa, :foto_recibo_servicio,
-                :id_agencia, 'activo', NOW()
+                :id_agencia, 'activo', :cobrador_id, NOW()
             )
         ");
 
         $stmt->execute([
-            'usuario_id' => $user['id_usuario'],
+            'usuario_id' => $user['id_usuario'], // Usuario creador (sistema)
+            'cobrador_id' => $user['id_usuario'], // Auto-asignar a su cartera
             'codigo_cliente' => $codigoCliente,
             'nombre_completo' => Validator::sanitize($_POST['nombre_completo']),
             'tipo_documento' => $_POST['tipo_documento'],

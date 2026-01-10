@@ -147,7 +147,7 @@ try {
         'direccion' => !empty($data['direccion']) ? Validator::sanitize($data['direccion']) : null,
         'fecha_nacimiento' => !empty($data['fecha_nacimiento']) ? $data['fecha_nacimiento'] : null,
         'ocupacion' => !empty($data['ocupacion']) ? Validator::sanitize($data['ocupacion']) : null,
-        'cobrador_id' => !empty($data['cobrador_id']) ? intval($data['cobrador_id']) : null
+        'cobrador_id' => !empty($data['cobrador_id']) ? intval($data['cobrador_id']) : $user['id_usuario']
     ]);
 
     $clienteId = $db->lastInsertId();

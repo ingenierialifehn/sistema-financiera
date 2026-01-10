@@ -29,8 +29,8 @@ try {
 
     $db = getDB();
 
-    // Verify loan exists
-    $stmt = $db->prepare("SELECT id, estado FROM prestamos WHERE id = ?");
+    // Verify loan exists and get client ID
+    $stmt = $db->prepare("SELECT id, estado, id_cliente FROM prestamos WHERE id = ?");
     $stmt->execute([$prestamoId]);
     $loan = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -38,15 +38,37 @@ try {
         throw new Exception("Préstamo no encontrado");
     }
 
-    // Update assignments
-    $sql = "UPDATE prestamos SET 
-            asesor_creditos_id = ?,
-            oficial_desembolsos_id = ?,
-            updated_at = NOW()
-            WHERE id = ?";
+    // Begin Transaction
+    $db->beginTransaction();
 
-    $stmtUpdate = $db->prepare($sql);
-    $stmtUpdate->execute([$asesorCreditosId, $oficialDesembolsosId, $prestamoId]);
+    try {
+        // 1. Update assignments in PRESTAMOS
+        $sql = "UPDATE prestamos SET 
+                asesor_creditos_id = ?,
+                oficial_desembolsos_id = ?,
+                updated_at = NOW()
+                WHERE id = ?";
+
+        $stmtUpdate = $db->prepare($sql);
+        $stmtUpdate->execute([$asesorCreditosId, $oficialDesembolsosId, $prestamoId]);
+
+        // 2. Update client's assigned collector (cobrador_id) in CLIENTES
+        // The 'Asesor de Créditos' becomes the designated 'Cobrador' for this client.
+        if ($asesorCreditosId) {
+            $sqlClient = "UPDATE clientes SET 
+                          cobrador_id = ?,
+                          updated_at = NOW() 
+                          WHERE id = ?";
+            $stmtClient = $db->prepare($sqlClient);
+            $stmtClient->execute([$asesorCreditosId, $loan['id_cliente']]);
+        }
+
+        $db->commit();
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        throw $e;
+    }
 
     echo json_encode([
         'success' => true,

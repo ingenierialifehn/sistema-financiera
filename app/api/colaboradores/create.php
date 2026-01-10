@@ -142,6 +142,14 @@ try {
     // Log
     Auth::logActivity($user['id_usuario'], 'create', 'colaborador', "Colaborador creado: {$data['nombre_completo']}", null, ['id_colaborador' => $colaboradorId]);
 
+    // =========================================================
+    // AUTO-DESACTIVACIÓN DEL ADMIN TEMPORAL (RESET INICIAL)
+    // =========================================================
+    // Si se acaba de crear un usuario nuevo (ID > 1), y existe el usuario 'admin' (ID 1), lo desactivamos.
+    if ($crearUsuario) {
+        $db->exec("UPDATE usuarios SET estado = 'Inactivo' WHERE username = 'admin' AND id_usuario = 1");
+    }
+
     Response::success(['id' => $colaboradorId], 'Colaborador guardado exitosamente');
 
 } catch (Exception $e) {

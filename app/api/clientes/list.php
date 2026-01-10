@@ -34,10 +34,19 @@ try {
     $params = [];
 
     // Si es cobrador, solo mostrar sus clientes asignados
-    if (isset($user['rol_nombre']) && $user['rol_nombre'] === 'cobrador') {
-        $where[] = "c.cobrador_id = :cobrador_id";
-        $params['cobrador_id'] = $user['id_usuario'];
-    }
+    // Si es admin/gerente, puede ver todos (filtro opcional por agencia)
+    $rol = strtolower($user['rol_nombre'] ?? $user['rol'] ?? '');
+
+    // FILTRO ESTRICTO solicitado: Mostrar SOLO clientes donde el usuario logueado sea el encargado (cobrador_id)
+    // "solamente debera mostrar los clientes donde el idusuario sea igual al de cobrador_id"
+    $where[] = "c.cobrador_id = :current_user_id";
+    $params['current_user_id'] = $user['id_usuario'];
+    error_log("Strict filter applied: Showing only clients for cobrador_id = {$user['id_usuario']}");
+
+    /*
+    // Lógica anterior (Roles) - DESHABILITADA
+    if ($rol === 'cobrador') { ... }
+    */
 
     // Búsqueda
     if (!empty($search)) {
