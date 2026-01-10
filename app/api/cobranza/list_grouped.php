@@ -105,9 +105,11 @@ try {
     // Validación EXTRA: Asegurar que el ID sea válido. Si es 0 o null, usamos -1 para bloquear todo.
     $idFiltroSeguro = (isset($cobradorId) && intval($cobradorId) > 0) ? intval($cobradorId) : -1;
 
-    $sql .= " AND (cl.cobrador_id = ? OR p.asesor_creditos_id = ?)";
+    // Modificación Solicitada: VALIDACIÓN ESTRICTA por cobrador_id
+    // "mostrar los clientes solo si coinciden con el campo de cobrador_id"
+    $sql .= " AND cl.cobrador_id = ?";
     $params[] = $idFiltroSeguro;
-    $params[] = $idFiltroSeguro;
+    // Removido: OR p.asesor_creditos_id = ?
 
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC";
 

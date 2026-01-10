@@ -102,12 +102,25 @@ try {
             }
         } else {
             // Si no tiene desglose, calcularlo con la fórmula estándar
-            // Total = Capital * 1.11 (donde 11% = 4% interés + 4% gastos + 3% comisión)
-            $capital = $montoPagado / 1.11;
+            // Total = Capital * 1.11
+
+            // CORRECCIÓN DE DECIMALES: Método del Residuo
+            // 1. Calcular el Capital Teórico
+            $capitalTeorico = $montoPagado / 1.11;
+
+            // 2. Calcular componentes redondeados a 2 decimales
+            $interes = round($capitalTeorico * 0.04, 2);
+            $gastos = round($capitalTeorico * 0.04, 2);
+            $comision = round($capitalTeorico * 0.03, 2);
+
+            // 3. Forzar el Capital para que el total cuadre exactamente
+            // Capital = TotalPagado - (Suma de otros componentes)
+            $capital = $montoPagado - ($interes + $gastos + $comision);
+
             $totalCapital += $capital;
-            $totalInteres += $capital * 0.04;
-            $totalGastos += $capital * 0.04;
-            $totalComision += $capital * 0.03;
+            $totalInteres += $interes;
+            $totalGastos += $gastos;
+            $totalComision += $comision;
         }
     }
 
@@ -147,12 +160,15 @@ try {
         $montoCuota = floatval($trans['monto_cuota'] ?? 0);
 
         if (empty($trans['capital_cuota']) || floatval($trans['capital_cuota']) <= 0) {
-            // Calcular desglose
-            $capital = $montoPagado / 1.11;
-            $trans['capital_cuota'] = $capital;
-            $trans['interes_cuota'] = $capital * 0.04;
-            $trans['gastos_cuota'] = $capital * 0.04;
-            $trans['comision_cuota'] = $capital * 0.03;
+            // Calcular desglose (Método del Residuo para cuadre exacto)
+            $capitalTeorico = $montoPagado / 1.11;
+
+            $trans['interes_cuota'] = round($capitalTeorico * 0.04, 2);
+            $trans['gastos_cuota'] = round($capitalTeorico * 0.04, 2);
+            $trans['comision_cuota'] = round($capitalTeorico * 0.03, 2);
+
+            // Capital es el remanente exacto
+            $trans['capital_cuota'] = $montoPagado - ($trans['interes_cuota'] + $trans['gastos_cuota'] + $trans['comision_cuota']);
         } else if ($montoPagado < $montoCuota && $montoCuota > 0) {
             // Ajustar por pago parcial
             $proporcion = $montoPagado / $montoCuota;

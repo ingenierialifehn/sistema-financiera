@@ -27,23 +27,22 @@ try {
 
     $params = [$fecha];
 
-    // ============================================
-    // MODO DESARROLLO: Sin restricciones de rol
-    // ============================================
+    // Modificación Solicitada: 
+    // "sumale todo lo cobrado hoy en la tabla cuotas, a los valores que tengan el usuario_cobro_id y el usuario que inicio secion"
 
-    // Filtro de agencia (opcional)
-    if ($agenciaId) {
-        $sqlTotal .= " AND cl.id_agencia = ?";
-        $params[] = $agenciaId;
-    }
+    // Filtramos directamente por quien COBRÓ el dinero (usuario_cobro_id)
+    // Ya no importa de qué agencia es el cliente o quién era el asesor original, importa quién ejecutó el cobro.
 
-    // Filtro de cobrador (opcional)
-    if ($cobradorId) {
-        $sqlTotal .= " AND (cl.cobrador_id = ? OR p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)";
-        $params[] = $cobradorId;
-        $params[] = $cobradorId;
-        $params[] = $cobradorId;
-    }
+    $cobradorRealId = ($userId && $userId > 0) ? $userId : -1;
+
+    $sqlTotal .= " AND c.usuario_cobro_id = ?";
+    $params[] = $cobradorRealId;
+
+    // Nota: El filtro de agencia ($agenciaId) anterior filtraba por la agencia DEL CLIENTE (cl.id_agencia).
+    // Si queremos ver lo que YO cobré, independientemente de la agencia del cliente, deberíamos comentar el filtro de agencia 
+    // o asegurarnos de que solo cobramos en nuestra agencia. 
+    // Por seguridad y consistencia con la solicitud "lo que tenga el usuario_cobro_id y el usuario que inicio sesion",
+    // el filtro dominante es el ID de usuario.
 
     $stmt = $db->prepare($sqlTotal);
     $stmt->execute($params);

@@ -45,10 +45,10 @@ try {
     }
 
     // Filtro OBLIGATORIO
-    $sql .= " AND (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ? OR cl.cobrador_id = ?)";
+    // Modificación ESTRICTA solicitada
+    $sql .= " AND cl.cobrador_id = ?";
     $params[] = $asesorId;
-    $params[] = $asesorId;
-    $params[] = $asesorId;
+    // Removido checks a p.asesor_creditos_id y p.oficial_desembolsos_id
 
     // Ordenar: Primero los que tienen fecha (mora/hoy), al final los sin fecha
     $sql .= " ORDER BY (c.fecha_vencimiento IS NULL), c.fecha_vencimiento ASC, cl.nombre_completo ASC";

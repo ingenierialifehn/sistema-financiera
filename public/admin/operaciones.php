@@ -378,8 +378,9 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             }
         };
 
-        // Keywords for Asesor (solo Asesores de Crédito)
-        populateSelect(asesorSelect, ['asesor', 'cobrador']);
+        // Keywords for Asesor (solo Asesores de Crédito - Estricto)
+        // Antes: ['asesor', 'cobrador'] -> Ahora: requiere coincidencia más específica
+        populateSelect(asesorSelect, ['asesor de creditos', 'asesor de crédito']);
 
         // Keywords for Oficial (solo Oficiales de Desembolso)
         // Incluimos 'ofic' y 'desembolso' para capturar "Ofic. de desembolsos"
