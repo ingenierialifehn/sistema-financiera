@@ -64,22 +64,39 @@ try {
                                 WHERE id = ?");
     $stmtUpdate->execute([$userId, $monto, $cuotaId]);
 
-    // 3. Actualizar Caja Agencia (Ingreso)
-    $stmtCaja = $db->prepare("UPDATE cajas_agencias 
-                              SET saldo_caja_operativa = saldo_caja_operativa + ? 
-                              WHERE id_agencia = ?");
-    $stmtCaja->execute([$monto, $agenciaId]);
+    // 3. Determinar destino de fondos según rol (Caja Física vs Billetera Virtual)
+    $stmtRole = $db->prepare("SELECT r.nombre_rol FROM usuarios u JOIN roles r ON u.id_rol = r.id_rol WHERE u.id_usuario = ?");
+    $stmtRole->execute([$userId]);
+    $roleName = strtolower($stmtRole->fetchColumn());
 
-    // 4. Registrar Movimiento Agencia
-    $stmtLog = $db->prepare("INSERT INTO movimientos_internos_agencia 
-                             (id_agencia, id_usuario_operador, tipo_movimiento, monto, observaciones, fecha_movimiento)
-                             VALUES (?, ?, 'Ingreso por Cobro', ?, ?, NOW())");
-    $stmtLog->execute([
-        $agenciaId,
-        $userId,
-        $monto,
-        "Cobro Cuota #{$cuota['numero_cuota']} - Préstamo #{$cuota['prestamo_id']} - {$cuota['nombre_completo']}"
-    ]);
+    // Si es Asesor o Cobrador, el dinero va a su 'Billetera Virtual' (Bolsillo) hasta que cuadre.
+    // Si es Cajero o Admin, entra directo a la Caja Operativa de la agencia.
+    $isFieldUser = (strpos($roleName, 'asesor') !== false || strpos($roleName, 'cobrador') !== false);
+
+    if ($isFieldUser) {
+        // A. Ruta Campo: Sumar a Saldo Virtual
+        $stmtVirtual = $db->prepare("UPDATE usuarios SET saldo_caja_virtual = saldo_caja_virtual + ? WHERE id_usuario = ?");
+        $stmtVirtual->execute([$monto, $userId]);
+
+        // No registramos movimiento en agencia aun, porque el dinero no ha llegado a la agencia.
+    } else {
+        // B. Ruta Ventanilla: Sumar a Caja Operativa
+        $stmtCaja = $db->prepare("UPDATE cajas_agencias 
+                                  SET saldo_caja_operativa = saldo_caja_operativa + ? 
+                                  WHERE id_agencia = ?");
+        $stmtCaja->execute([$monto, $agenciaId]);
+
+        // 4. Registrar Movimiento Agencia
+        $stmtLog = $db->prepare("INSERT INTO movimientos_internos_agencia 
+                                 (id_agencia, id_usuario_operador, tipo_movimiento, monto, observaciones, fecha_movimiento)
+                                 VALUES (?, ?, 'Ingreso por Cobro', ?, ?, NOW())");
+        $stmtLog->execute([
+            $agenciaId,
+            $userId,
+            $monto,
+            "Cobro Cuota #{$cuota['numero_cuota']} - Préstamo #{$cuota['prestamo_id']} - {$cuota['nombre_completo']}"
+        ]);
+    }
 
     // 5. Verificar si el préstamo terminó (todas pagadas)
     // Contar cuotas pendientes

@@ -143,6 +143,45 @@ try {
             }
         }
 
+        // LOGICA DE RECHAZO (BLINDAJE DE FONDOS)
+        if ($nuevoEstado === 'Rechazado' || $nuevoEstado === 'Rechazado en Ruta') {
+            // Obtener estado anterior para saber si el dinero ya salió
+            $stmtPrev = $db->prepare("SELECT estado, neto_entregar, monto_capital, id_agencia, oficial_desembolsos_id FROM prestamos p JOIN clientes c ON p.id_cliente = c.id WHERE p.id = ?");
+            $stmtPrev->execute([$prestamoId]);
+            $prevLoan = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+
+            // Si venía de un estado donde el dinero ya estaba fuera ('Listo para Entrega' o 'Rechazado en Ruta')
+            // IMPORTANTE: Evitar duplicar el reintegro si ya fue 'Rechazado en Ruta' y pasa a 'Rechazado' final sin haber reingresado dinero.
+            // MEJORA: Solo si el dinero salió ('Listo para Entrega') y ahora se rechaza.
+            // Si estaba en 'Rechazado en Ruta', se supone que el dinero lo tiene el asesor.
+            // Si pasamos a 'Rechazado' FINAL, asumimos que el dinero volvió.
+
+            if ($prevLoan && ($prevLoan['estado'] === 'Listo para Entrega' || $prevLoan['estado'] === 'Rechazado en Ruta')) {
+                $montoReintegro = $prevLoan['neto_entregar'] ?? $prevLoan['monto_capital'];
+                $agenciaIdReintegro = $prevLoan['id_agencia'];
+                $oficialResponsable = $prevLoan['oficial_desembolsos_id'];
+
+                // Registrar Reintegro a Caja
+                $stmtUpdateCaja = $db->prepare("UPDATE cajas_agencias SET saldo_caja_operativa = saldo_caja_operativa + ? WHERE id_agencia = ?");
+                $stmtUpdateCaja->execute([$montoReintegro, $agenciaIdReintegro]);
+
+                // Registrar Movimiento de Reintegro
+                if (session_status() === PHP_SESSION_NONE)
+                    session_start();
+                $usuarioOperador = $_SESSION['id_usuario'] ?? 1;
+
+                $stmtLogReintegro = $db->prepare("INSERT INTO movimientos_internos_agencia 
+                                        (id_agencia, id_usuario_operador, tipo_movimiento, monto, observaciones, fecha_movimiento) 
+                                        VALUES (?, ?, 'Ingreso por Rechazo', ?, ?, NOW())");
+                $stmtLogReintegro->execute([
+                    $agenciaIdReintegro,
+                    $usuarioOperador,
+                    $montoReintegro,
+                    "Devolución Automática por Préstamo Rechazado #$prestamoId (Responsable: $oficialResponsable)"
+                ]);
+            }
+        }
+
         // Update loan status
         $stmt = $db->prepare("UPDATE prestamos SET estado = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$nuevoEstado, $prestamoId]);

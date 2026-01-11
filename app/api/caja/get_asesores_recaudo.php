@@ -103,11 +103,8 @@ try {
         $entregadoBanco = floatval($stmtB->fetchColumn());
 
         $totalEntregado = $entregadoEfvo + $entregadoBanco;
-        // C. Pendiente REAL = Saldo Caja Virtual (La verdad absoluta)
-        $pendiente = floatval($u['saldo_caja_virtual'] ?? 0);
 
         // D. Rechazados Hoy + Listos para Entrega (Dinero en poder del asesor que debe devolver)
-        // Buscamos TODOS los que esten en ruta (Rechazados o No entregados), sin importar fecha.
         $rechazados = $db->query("SELECT p.id, COALESCE(p.neto_entregar, p.monto_capital) as monto, c.nombre_completo, p.estado 
                                             FROM prestamos p 
                                             JOIN clientes c ON p.id_cliente = c.id 
@@ -118,6 +115,11 @@ try {
         foreach ($rechazados as $r) {
             $totalRechazado += floatval($r['monto']);
         }
+
+        // C. Pendiente del Día (Calculado dinámicamente)
+        $pendiente = $totalCobrado + $totalRechazado - $totalEntregado;
+        if ($pendiente < 0)
+            $pendiente = 0;
 
         // Sumar rechazados a lo recaudado para que aparezca como monto a responder
         $totalResponsabilidad = $totalCobrado + $totalRechazado;

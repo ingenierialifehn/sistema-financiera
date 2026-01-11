@@ -218,6 +218,19 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                     <i class="fas fa-file-invoice-dollar w-5"></i>
                     <span>Reportes Financieros</span>
                 </a>
+
+                <!-- Auditoría del Sistema (NUEVO) -->
+                <a href="<?= BASE_URL ?>/public/admin/auditoria_sistema.php"
+                    class="group flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-700 hover:text-white <?= (strpos($_SERVER['PHP_SELF'], 'auditoria_sistema.php') !== false) ? 'bg-gray-900 text-white' : 'text-gray-300' ?>">
+                    <i class="fas fa-heartbeat mr-3 flex-shrink-0 h-6 w-6 text-red-500"></i>
+                    Auditoría de Sistema
+                </a>
+
+                <a href="<?= BASE_URL ?>/public/admin/reversiones.php"
+                    class="group flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-700 hover:text-white <?= (strpos($_SERVER['PHP_SELF'], 'reversiones.php') !== false) ? 'bg-gray-900 text-white' : 'text-gray-300' ?>">
+                    <i class="fas fa-history mr-3 flex-shrink-0 h-6 w-6 text-indigo-400"></i>
+                    Reversiones y Anulaciones
+                </a>
             <?php endif; ?>
 
             <!-- Configuración -->

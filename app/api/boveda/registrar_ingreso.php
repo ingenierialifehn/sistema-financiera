@@ -112,7 +112,7 @@ try {
     $stmtUpdateAgencia = $db->prepare("UPDATE cajas_agencias SET saldo_efectivo = ?, ultima_actualizacion = NOW() WHERE id_agencia = ?");
     $stmtUpdateAgencia->execute([$saldoNuevoAgencia, $agenciaId]);
 
-    // 5. Registrar el movimiento en ingresos_bancos_agencia
+    // 5. Registrar el movimiento en ingresos_bancos_agencia (Registro específico)
     $stmtIngreso = $db->prepare("
         INSERT INTO ingresos_bancos_agencia (
             banco_id, 
@@ -139,6 +139,61 @@ try {
         $userId,
         $observaciones
     ]);
+
+    // 6. Registrar en Movimientos Bancarios (Auditoria General)
+    $stmtMovBanco = $db->prepare("
+        INSERT INTO movimientos_bancarios (
+            banco_id, tipo_transaccion, monto, saldo_anterior, saldo_nuevo, 
+            descripcion, referencia, realizado_por, entidad_destino_tipo, entidad_destino_id, fecha_hora
+        ) VALUES (?, 'egreso', ?, ?, ?, ?, ?, ?, 'agencia', ?, NOW())
+    ");
+    $stmtMovBanco->execute([
+        $bancoId,
+        $monto,
+        $saldoAnteriorBanco,
+        $saldoNuevoBanco,
+        "Traslado de Fondos a Agencia (Jalar Fondos)",
+        $referencia,
+        $userId,
+        $agenciaId
+    ]);
+
+    // --- 7. DETECCIÓN DE ALERTAS SILENCIOSAS (AUDITORÍA) ---
+    // Recalcular sugerencia del sistema para comparar con lo solicitado
+    // Nota: Calculamos basado en el estado POST-Update, por lo que ajustamos el disponible restando el monto actual
+    $stmtSug = $db->prepare("
+        SELECT 
+            IFNULL(SUM(CASE WHEN estado = 'Listo para Entrega' THEN COALESCE(neto_entregar, monto_capital) ELSE 0 END), 0) as por_entregar,
+            (SELECT IFNULL(saldo_efectivo,0) + IFNULL(saldo_caja_operativa,0) FROM cajas_agencias WHERE id_agencia = ?) as disponible_total_actual
+        FROM prestamos p
+        JOIN clientes c ON p.id_cliente = c.id
+        WHERE c.id_agencia = ?
+    ");
+    $stmtSug->execute([$agenciaId, $agenciaId]);
+    $sugData = $stmtSug->fetch(PDO::FETCH_ASSOC);
+
+    $porEntregar = floatval($sugData['por_entregar']);
+    $disponiblePost = floatval($sugData['disponible_total_actual']);
+
+    // El disponible visto por el usuario era el actual MENOS lo que acaba de ingresar
+    $disponibleUsuario = $disponiblePost - $monto;
+
+    // La sugerencia es: Lo que necesito - Lo que tengo. (Mínimo 0)
+    $sugeridoSistema = max(0, $porEntregar - $disponibleUsuario);
+
+    // Comparar (Si hay diferencia mayor a 1 Lempira)
+    if (abs($monto - $sugeridoSistema) > 1.00) {
+        $agencyNameStmt = $db->prepare("SELECT nombre_agencia FROM agencias WHERE id_agencia = ?");
+        $agencyNameStmt->execute([$agenciaId]);
+        $nomAgencia = $agencyNameStmt->fetchColumn();
+
+        $msg = "En agencia $nomAgencia el dia " . date('d/m/Y') . " a la hora " . date('H:i') .
+            " se hizo una modificacion de monto. Saldo que debia solicitar el sistema: L. " . number_format($sugeridoSistema, 2) .
+            ", se solicitaron L. " . number_format($monto, 2) . ". Revisar caso.";
+
+        $stmtAlert = $db->prepare("INSERT INTO alertas_sistema (tipo, mensaje, agencia_id, usuario_id) VALUES ('modificacion_monto', ?, ?, ?)");
+        $stmtAlert->execute([$msg, $agenciaId, $userId]);
+    }
 
     // Confirmar transacción
     $db->commit();

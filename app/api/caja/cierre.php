@@ -176,6 +176,9 @@ try {
     $saldoBoveda = $stmtBoveda->fetchColumn();
 
     // 3. Obtener Supervisor
+    // 3. Obtener Supervisor (Simplificado para evitar error de columna inexistente)
+    $nombreSupervisor = 'Sin supervisor asignado'; // Asumimos default si no hay columna supervisor_id
+    /*
     $stmtSup = $db->prepare("
         SELECT COALESCE(col.nombre_completo, 'Sin supervisor asignado') 
         FROM agencias a
@@ -185,6 +188,7 @@ try {
     ");
     $stmtSup->execute([$idAgencia]);
     $nombreSupervisor = $stmtSup->fetchColumn() ?: 'Sin supervisor asignado';
+    */
 
     // 4. Obtener Nombre Oficial (Quien cierra)
     $stmtOficial = $db->prepare("SELECT COALESCE(c.nombre_completo, u.username) FROM usuarios u LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador WHERE u.id_usuario = ?");
@@ -211,5 +215,5 @@ try {
 
 } catch (Exception $e) {
     error_log("Error en cierre.php: " . $e->getMessage());
-    Response::serverError('Error al cerrar caja');
+    Response::serverError($e->getMessage());
 }
