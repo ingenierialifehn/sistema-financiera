@@ -109,6 +109,23 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
+            <!-- Planillas -->
+            <?php if (Auth::hasPermission('planillas') || strpos($_SESSION['rol_nombre'] ?? '', 'Admin') !== false): ?>
+                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Planillas
+                </div>
+                <a href="planilla_gestion.php"
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_gestion.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-file-invoice-dollar w-5"></i>
+                    <span>Generar Planilla</span>
+                </a>
+                <a href="planilla_config.php"
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_config.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-sliders-h w-5"></i>
+                    <span>Configuración Planilla</span>
+                </a>
+            <?php endif; ?>
+
             <!-- Gastos Operativos -->
             <?php
             $userRole = $_SESSION['rol_nombre'] ?? '';
@@ -193,6 +210,13 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                     class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_consolidado.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-chart-bar w-5"></i>
                     <span>Reportes Consolidados</span>
+                </a>
+
+                <!-- Reportes Financieros (NUEVO) -->
+                <a href="reportes_financieros.php"
+                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_financieros.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-file-invoice-dollar w-5"></i>
+                    <span>Reportes Financieros</span>
                 </a>
             <?php endif; ?>
 
