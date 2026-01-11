@@ -251,10 +251,13 @@ try {
                 // Si este registro ya es un "remanente" de 300, y pago 100. Ratio = 100/300.
                 $ratio = $porcionPagada / floatval($cuotaFull['monto_cuota']);
 
-                $capPagado = round(floatval($cuotaFull['capital_cuota']) * $ratio, 2);
                 $intPagado = round(floatval($cuotaFull['interes_cuota']) * $ratio, 2);
                 $gastosPagado = round(floatval($cuotaFull['gastos_cuota']) * $ratio, 2);
                 $comisionPagado = round(floatval($cuotaFull['comision_cuota']) * $ratio, 2);
+
+                // AJUSTE CRÍTICO: El capital abserbe la diferencia para que la suma cuadre EXACTAMENTE con el pago
+                // Si calculamos el capital por ratio y redondeamos, la suma total podría diferir en centavos.
+                $capPagado = round($porcionPagada - ($intPagado + $gastosPagado + $comisionPagado), 2);
 
                 // Ajuste por redondeo para la parte pendiente (Nuevo Registro)
                 $capPendiente = floatval($cuotaFull['capital_cuota']) - $capPagado;

@@ -119,5 +119,62 @@ require_once __DIR__ . '/includes/layout.php';
     </div>
 </div>
 
+<div class="max-w-6xl mx-auto mt-8">
+    <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-wrap justify-between items-center gap-4">
+            <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-history"></i> Historial de Gastos
+            </h3>
+
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">Desde:</label>
+                    <input type="date" id="filtroFechaDesde" class="border border-gray-300 rounded-md text-sm px-2 py-1"
+                        value="<?php echo date('Y-m-01'); ?>">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">Hasta:</label>
+                    <input type="date" id="filtroFechaHasta" class="border border-gray-300 rounded-md text-sm px-2 py-1"
+                        value="<?php echo date('Y-m-d'); ?>">
+                </div>
+                <button onclick="loadGastosHistory()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1 px-3 rounded-md transition transition-colors">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200" id="tablaGastos">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Agencia (Destino)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Categoría</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Descripción</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Registrado Por</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Monto</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">Cargando historial...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-100 bg-gray-50 text-right">
+            <span class="text-sm font-bold text-gray-700">Total en periodo: <span id="totalGastosPeriodo"
+                    class="text-indigo-600">L 0.00</span></span>
+        </div>
+    </div>
+</div>
+
 <script src="<?php echo $baseUrl; ?>/public/admin/assets/js/gastos.js?v=<?php echo time(); ?>"></script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

@@ -54,11 +54,11 @@ try {
         $sqlCobro = "SELECT IFNULL(SUM(c.monto_pagado), 0) 
                      FROM cuotas c
                      JOIN prestamos p ON c.prestamo_id = p.id
-                     WHERE (p.asesor_creditos_id = ? OR p.oficial_desembolsos_id = ?)
+                     WHERE (p.asesor_creditos_id = ?)
                        AND DATE(c.fecha_pago_real) = ?";
 
         $stmtC = $db->prepare($sqlCobro);
-        $stmtC->execute([$uid, $uid, $fecha]);
+        $stmtC->execute([$uid, $fecha]);
         $totalCobrado = floatval($stmtC->fetchColumn());
 
         // B. Total Ya Entregado
@@ -97,7 +97,20 @@ try {
             'nombre_completo' => $nombreCompleto,
             'recaudado_hoy' => $totalCobrado,
             'entregado_hoy' => $totalEntregado,
-            'pendiente' => $pendiente
+            'pendiente' => $pendiente,
+            'rechazados_hoy' => $db->query("SELECT p.id, COALESCE(p.neto_entregar, p.monto_capital) as monto, c.nombre_completo 
+                                            FROM prestamos p 
+                                            JOIN clientes c ON p.id_cliente = c.id 
+                                            WHERE p.oficial_desembolsos_id = $uid 
+                                            AND p.estado = 'Rechazado' 
+                                            AND DATE(p.updated_at) = '$fecha'")->fetchAll(PDO::FETCH_ASSOC),
+            'desembolsos_hoy' => $db->query("SELECT COUNT(*) FROM prestamos 
+                                             WHERE oficial_desembolsos_id = $uid 
+                                             AND estado = 'Activo' 
+                                             AND DATE(fecha_desembolso) = '$fecha'")->fetchColumn(),
+            'ya_cuadrado' => $db->query("SELECT COUNT(*) FROM cuadres_asesores 
+                                         WHERE id_asesor = $uid 
+                                         AND fecha_cuadre = '$fecha'")->fetchColumn() > 0
         ];
     }
 

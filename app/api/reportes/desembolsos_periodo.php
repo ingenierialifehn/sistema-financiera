@@ -52,13 +52,16 @@ try {
                    SUM(CASE WHEN tipo_prestamo != 'Refinanciamiento' OR tipo_prestamo IS NULL THEN 1 ELSE 0 END) as cantidad_nuevos
                    FROM prestamos p
                    INNER JOIN clientes c ON p.id_cliente = c.id
+                   LEFT JOIN usuarios u ON p.oficial_desembolsos_id = u.id_usuario
+                   LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
                    WHERE DATE(p.fecha_desembolso) BETWEEN ? AND ?
                    AND c.id_agencia = ?
+                   AND col.id_agencia = ?
                    AND p.estado IN ('Activo', 'Finalizado', 'Refinanciado')
                    AND p.fecha_desembolso IS NOT NULL";
 
     $stmtResumen = $db->prepare($sqlResumen);
-    $stmtResumen->execute([$fechaDesde, $fechaHasta, $idAgencia]);
+    $stmtResumen->execute([$fechaDesde, $fechaHasta, $idAgencia, $idAgencia]);
     $resumen = $stmtResumen->fetch(PDO::FETCH_ASSOC);
 
     // DETALLE DE DESEMBOLSOS - Mejorado con más información
@@ -81,12 +84,13 @@ try {
                    LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
                    WHERE DATE(p.fecha_desembolso) BETWEEN ? AND ?
                    AND c.id_agencia = ?
+                   AND col.id_agencia = ?
                    AND p.estado IN ('Activo', 'Finalizado', 'Refinanciado')
                    AND p.fecha_desembolso IS NOT NULL
                    ORDER BY p.fecha_desembolso DESC";
 
     $stmtDetalle = $db->prepare($sqlDetalle);
-    $stmtDetalle->execute([$fechaDesde, $fechaHasta, $idAgencia]);
+    $stmtDetalle->execute([$fechaDesde, $fechaHasta, $idAgencia, $idAgencia]);
     $desembolsos = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
     // Formatear valores numéricos
@@ -104,15 +108,18 @@ try {
                      IFNULL(SUM(monto_capital), 0) as monto_total
                      FROM prestamos p
                      INNER JOIN clientes c ON p.id_cliente = c.id
+                     LEFT JOIN usuarios u ON p.oficial_desembolsos_id = u.id_usuario
+                     LEFT JOIN colaboradores col ON u.id_colaborador = col.id_colaborador
                      WHERE DATE(p.fecha_desembolso) BETWEEN ? AND ?
                      AND c.id_agencia = ?
+                     AND col.id_agencia = ?
                      AND p.estado IN ('Activo', 'Finalizado', 'Refinanciado')
                      AND p.fecha_desembolso IS NOT NULL
                      GROUP BY p.modalidad
                      ORDER BY cantidad DESC";
 
     $stmtModalidad = $db->prepare($sqlModalidad);
-    $stmtModalidad->execute([$fechaDesde, $fechaHasta, $idAgencia]);
+    $stmtModalidad->execute([$fechaDesde, $fechaHasta, $idAgencia, $idAgencia]);
     $porModalidad = $stmtModalidad->fetchAll(PDO::FETCH_ASSOC);
 
     // Formatear valores

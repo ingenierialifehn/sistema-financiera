@@ -571,9 +571,20 @@ $('#formCierre').on('submit', function (e) {
                 data: JSON.stringify(data),
                 success: function (response) {
                     if (response.success) {
-                        Swal.fire('Éxito', 'Caja cerrada correctamente', 'success');
-                        cerrarModalCierre();
-                        cargarEstadoCaja();
+                        Swal.fire({
+                            title: 'Éxito',
+                            text: 'Caja cerrada correctamente',
+                            icon: 'success',
+                            confirmButtonText: 'Imprimir Reporte Cierre',
+                            showCancelButton: true,
+                            cancelButtonText: 'Cerrar sin imprimir'
+                        }).then((result) => {
+                            if (result.isConfirmed && response.data.reporte_data) {
+                                imprimirReporteCierre(response.data.reporte_data);
+                            }
+                            cerrarModalCierre();
+                            cargarEstadoCaja();
+                        });
                     } else {
                         Swal.fire('Error', response.message || 'Error al cerrar caja', 'error');
                     }
@@ -827,7 +838,14 @@ function abrirModalCuadre() {
             }
             let ops = '<option value="">Seleccione Asesor...</option>';
             res.data.forEach(a => {
-                ops += `<option value="${a.id_usuario}">${a.nombre_completo}</option>`;
+                const tieneSaldo = parseFloat(a.pendiente || 0) > 0.01;
+                const tieneDesembolsos = parseInt(a.desembolsos_hoy || 0) > 0;
+                const tieneRecaudo = parseFloat(a.recaudado_hoy || 0) > 0;
+
+                // Mostrar si no ha cuadrado Y (tiene dinero pendiente, entregó préstamos o recaudó hoy)
+                if (!a.ya_cuadrado && (tieneSaldo || tieneDesembolsos || tieneRecaudo)) {
+                    ops += `<option value="${a.id_usuario}">${a.nombre_completo}</option>`;
+                }
             });
             $('#asesorIdCuadre').html(ops);
         } else {
@@ -861,14 +879,59 @@ $('#asesorIdCuadre').on('change', function () {
             id: id,
             recaudado: parseFloat(asesor.recaudado_hoy || 0),
             entregadoBase: parseFloat(asesor.entregado_hoy || 0),
-            pendienteBase: parseFloat(asesor.pendiente || 0)
+            pendienteBase: parseFloat(asesor.pendiente || 0),
+            desembolsosHoy: parseInt(asesor.desembolsos_hoy || 0)
         };
         actualizarKPIsSimulados();
         $('#infoRecaudadoContainer').removeClass('hidden');
+
+        // Render Rechazados
+        if (asesor.rechazados_hoy && asesor.rechazados_hoy.length > 0) {
+            let html = '';
+            asesor.rechazados_hoy.forEach(loan => {
+                const monto = parseFloat(loan.monto);
+                html += `
+                    <div class="flex justify-between items-center bg-white p-2 rounded border border-red-100 shadow-sm">
+                        <div class="flex-1">
+                            <p class="font-bold text-gray-800">${loan.nombre_completo}</p>
+                            <p class="text-xs text-red-500">Préstamo #${loan.id} - Rechazado Hoy</p>
+                        </div>
+                        <div class="text-right mx-3">
+                            <span class="font-bold text-red-700">L. ${monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <button type="button" class="btn-add-rejected bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded shadow"
+                            data-monto="${monto}" data-ref="Devolución Préstamo #${loan.id} (${loan.nombre_completo})">
+                            <i class="fas fa-plus mr-1"></i> Agregar
+                        </button>
+                    </div>
+                `;
+            });
+            $('#rejectedLoansList').html(html);
+            $('#rejectedLoansContainer').removeClass('hidden');
+        } else {
+            $('#rejectedLoansContainer').addClass('hidden');
+        }
+
     } else {
         asesorSeleccionadoStats = null;
         $('#infoRecaudadoContainer').addClass('hidden');
+        $('#rejectedLoansContainer').addClass('hidden');
     }
+});
+
+// Event delegation for "Agregar" rejected loan
+$(document).on('click', '.btn-add-rejected', function () {
+    const monto = parseFloat($(this).data('monto'));
+    const ref = $(this).data('ref');
+
+    itemsCuadre.push({
+        tipo: 'efectivo',
+        monto: monto,
+        detalle: ref
+    });
+
+    renderItemsCuadre();
+    $(this).parent().fadeOut(); // Hide after adding
 });
 
 function actualizarDatosAsesor(asesorId) {
@@ -889,6 +952,7 @@ function actualizarDatosAsesor(asesorId) {
                     asesorSeleccionadoStats.recaudado = parseFloat(updated.recaudado_hoy || 0);
                     asesorSeleccionadoStats.entregadoBase = parseFloat(updated.entregado_hoy || 0);
                     asesorSeleccionadoStats.pendienteBase = parseFloat(updated.pendiente || 0);
+                    asesorSeleccionadoStats.desembolsosHoy = parseInt(updated.desembolsos_hoy || 0);
                     actualizarKPIsSimulados();
                 }
             }
@@ -1099,8 +1163,9 @@ $('#btnCuadrarAsesor').on('click', function () {
     if (isListaVacia) {
         // Verificar si ya ha entregado algo hoy (usando los datos cargados)
         const entregadoPrevio = asesorSeleccionadoStats ? asesorSeleccionadoStats.entregadoBase : 0;
+        const disbursements = asesorSeleccionadoStats ? asesorSeleccionadoStats.desembolsosHoy : 0;
 
-        if (entregadoPrevio <= 0) {
+        if (entregadoPrevio <= 0 && disbursements <= 0) {
             Swal.fire('Error', 'No hay montos registrados ni entregas previas para cuadrar.', 'error');
             return;
         }
@@ -1168,6 +1233,10 @@ $('#btnCuadrarAsesor').on('click', function () {
                                    <p><strong>Entregado:</strong> L ${res.data.monto_entregado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                                    <p><strong>Diferencia:</strong> L ${res.data.diferencia.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>`,
                             confirmButtonText: 'Entendido'
+                        }).then(() => {
+                            if (res.data && res.data.transacciones) {
+                                imprimirTicketCuadre(res.data);
+                            }
                         });
 
                         // Limpiar formulario
@@ -1189,3 +1258,287 @@ $('#btnCuadrarAsesor').on('click', function () {
         }
     });
 });
+
+function imprimirTicketCuadre(data) {
+    const anchoPagina = '80mm';
+    const ventana = window.open('', '_blank', 'width=400,height=600');
+
+    // Formatear transacciones
+    let listaHtml = '';
+    if (data.transacciones && data.transacciones.length > 0) {
+        listaHtml = `
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-top: 5px;">
+                <thead>
+                    <tr style="border-bottom: 1px dashed #000;">
+                        <td style="text-align: left;">Cte / Hora</td>
+                        <td style="text-align: right;">Monto</td>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        data.transacciones.forEach(t => {
+            listaHtml += `
+                <tr>
+                    <td style="padding: 2px 0;">
+                        ${t.nombre_completo.substring(0, 15)}<br>
+                        <span style="font-size: 9px; color: #555;">${t.hora}</span>
+                    </td>
+                    <td style="text-align: right; vertical-align: top;">L ${parseFloat(t.monto_pagado).toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        listaHtml += `</tbody></table>`;
+    } else {
+        listaHtml = '<p style="text-align: center; font-size: 10px; margin: 5px 0;">- Sin transacciones registradas -</p>';
+    }
+
+    // Detalle Bancos
+    let bancosHtml = '';
+    if (data.detalle_bancos && data.detalle_bancos.length > 0) {
+        bancosHtml = `
+            <div style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 2px;">
+                <strong style="font-size: 10px;">Detalle Bancos:</strong>
+                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+        `;
+        data.detalle_bancos.forEach(b => {
+            bancosHtml += `
+                <tr>
+                    <td>${b.nombre_banco}</td>
+                    <td style="text-align: right;">L ${parseFloat(b.total).toFixed(2)}</td>
+                </tr>
+             `;
+        });
+        bancosHtml += `</table></div>`;
+    }
+
+    // Desembolsos Entregados (Si existen)
+    let desembolsosHtml = '';
+    let totalDesembolsado = 0;
+    if (data.desembolsos_entregados && data.desembolsos_entregados.length > 0) {
+        desembolsosHtml = `
+            <div style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 2px;">
+                <strong style="font-size: 10px;">Préstamos Entregados:</strong>
+                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px dotted #999;">
+                            <td style="text-align: left;">Cliente</td>
+                            <td style="text-align: right;">Monto</td>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.desembolsos_entregados.forEach(d => {
+            const m = parseFloat(d.monto_capital);
+            totalDesembolsado += m;
+            desembolsosHtml += `
+                <tr>
+                    <td>${d.nombre_completo.substring(0, 18)}</td>
+                    <td style="text-align: right;">L ${m.toFixed(2)}</td>
+                </tr>
+             `;
+        });
+        desembolsosHtml += `</tbody></table></div>`;
+    }
+
+    const html = `
+    <html>
+    <head>
+        <title>Recibo de Cuadre</title>
+        <style>
+            body { 
+                font-family: 'Courier New', Courier, monospace; 
+                margin: 0; 
+                padding: 5px; 
+                width: 100%;
+                font-size: 12px;
+                color: #000;
+            }
+            @media print {
+                @page { size: portrait; margin: 1cm; }
+                body { padding: 1cm; }
+            }
+            .header { text-align: center; margin-bottom: 15px; }
+            .header h4 { margin: 0; text-transform: uppercase; font-size: 14px; }
+            .divider { border-top: 1px dashed #000; margin: 10px 0; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 5px; font-size: 13px; }
+            .sub-row { display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px; color: #333; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #555; }
+        </style>
+    </head>
+    <body onload="window.print(); window.close();">
+        <div class="header">
+            <h4>Comprobante de Entrega</h4>
+            <p style="margin: 2px;">Cuadre de Asesor</p>
+            <p style="margin: 5px 0;">${data.fecha}</p>
+            <p style="margin: 2px;"><strong>${data.asesor_nombre}</strong></p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div style="margin-bottom: 10px;">
+            <strong>Detalle de Transacciones (Cobros):</strong>
+            ${listaHtml}
+        </div>
+        
+        ${desembolsosHtml}
+
+        
+        <div class="divider"></div>
+        
+        <div class="total-row">
+            <span>Total Recaudado:</span>
+            <span>L ${parseFloat(data.monto_recaudado).toFixed(2)}</span>
+        </div>
+        
+        ${totalDesembolsado > 0 ? `
+        <div class="total-row">
+            <span>Total Préstamos Entregados:</span>
+            <span>L ${totalDesembolsado.toFixed(2)}</span>
+        </div>` : ''}
+        
+        <div class="divider"></div>
+
+        <div class="total-row">
+            <span>Dinero Devuelto (Operaciones):</span>
+            <span>L ${parseFloat(data.monto_entregado).toFixed(2)}</span>
+        </div>
+        
+        <div class="sub-row">
+            <span>- Efectivo:</span>
+            <span>L ${parseFloat(data.total_efectivo_dia || 0).toFixed(2)}</span>
+        </div>
+        <div class="sub-row">
+            <span>- Depósitos:</span>
+            <span>L ${parseFloat(data.total_banco_dia || 0).toFixed(2)}</span>
+        </div>
+        
+        ${bancosHtml}
+        
+        <div class="divider"></div>
+
+        ${parseFloat(data.diferencia) !== 0 ? `
+        <div class="total-row" style="color: red;">
+            <span>Diferencia:</span>
+            <span>L ${parseFloat(data.diferencia).toFixed(2)}</span>
+        </div>` : ''}
+        
+        <div class="footer">
+            <p>ID Transacción: ${data.id_cuadre}</p>
+            <br>
+            <p>_________________________</p>
+            <p>Firma Entregado (Asesor)</p>
+        </div>
+    </body>
+    </html >
+        `;
+
+    ventana.document.write(html);
+    ventana.document.close();
+}
+
+function imprimirReporteCierre(data) {
+    const ventana = window.open('', '_blank', 'width=900,height=700');
+
+    let filas = '';
+    let totalRecaudado = 0;
+
+    if (data.transacciones && data.transacciones.length > 0) {
+        data.transacciones.forEach(t => {
+            const monto = parseFloat(t.monto_pagado);
+            totalRecaudado += monto;
+            filas += `
+        < tr >
+                    <td>${t.hora}</td>
+                    <td>${t.numero_cuota || '-'}</td>
+                    <td>${t.cliente}</td>
+                    <td>${t.cobrador}</td>
+                    <td class="text-right">L. ${monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                </tr >
+        `;
+        });
+    } else {
+        filas = '<tr><td colspan="5" class="text-center">No hay transacciones registradas hoy</td></tr>';
+    }
+
+    const html = `
+        < !DOCTYPE html >
+            <html>
+                <head>
+                    <title>Reporte de Cierre - ${data.nombre_agencia}</title>
+                    <style>
+                        body {font - family: 'Segoe UI', Arial, sans-serif; font-size: 12px; margin: 40px; color: #333; }
+                        .header {text - align: center; margin-bottom: 30px; border-bottom: 2px solid #444; padding-bottom: 10px; }
+                        h1 {margin: 0; font-size: 20px; text-transform: uppercase; color: #000; }
+                        h2 {margin: 5px 0 0; font-size: 14px; font-weight: normal; color: #666; }
+                        .info-grid {display: flex; justify-content: space-between; margin-bottom: 30px; background: #f9f9f9; padding: 15px; border-radius: 5px; }
+                        .info-item label {display: block; font-weight: bold; font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 3px; }
+                        .info-item span {font - size: 14px; font-weight: 600; }
+                        .boveda-card {border: 2px solid #000; padding: 15px; width: fit-content; margin-bottom: 30px; background: #fff; }
+                        table {width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                        th {background: #eee; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #ccc; }
+                        td {padding: 8px; border-bottom: 1px solid #eee; }
+                        .text-right {text - align: right; }
+                        .text-center {text - align: center; }
+                        .total-row td {border - top: 2px solid #000; font-weight: bold; font-size: 14px; padding-top: 10px; }
+                        .signatures {margin - top: 100px; display: flex; justify-content: space-between; padding: 0 50px; }
+                        .sig-box {width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px; }
+                        .sig-name {font - weight: bold; margin-bottom: 3px; text-transform: uppercase; }
+                        .sig-role {font - size: 11px; color: #666; }
+                    </style>
+                </head>
+                <body onload="window.print();">
+                    <div class="header">
+                        <h1>${data.nombre_agencia}</h1>
+                        <h2>Reporte de Cierre de Agencia | ${data.fecha}</h2>
+                    </div>
+
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Oficial Responsable</label>
+                            <span>${data.nombre_oficial}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Saldo en Bóveda</label>
+                            <span style="font-size: 18px; color: #000;">L. ${parseFloat(data.saldo_boveda).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                    </div>
+
+                    <h3 style="border-left: 4px solid #000; padding-left: 10px;">Detalle de Transacciones del Día</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Ref</th>
+                                <th>Cliente</th>
+                                <th>Cobrado Por</th>
+                                <th class="text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filas}
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="4" class="text-right">TOTAL RECAUDADO EN EL DÍA:</td>
+                                <td class="text-right">L. ${totalRecaudado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div class="signatures">
+                        <div class="sig-box">
+                            <div class="sig-name">${data.nombre_supervisor}</div>
+                            <div class="sig-role">Supervisor de Agencia</div>
+                        </div>
+                        <div class="sig-box">
+                            <div class="sig-name">${data.nombre_oficial}</div>
+                            <div class="sig-role">Oficial de Operaciones</div>
+                        </div>
+                    </div>
+                </body>
+            </html>
+    `;
+
+    ventana.document.write(html);
+    ventana.document.close();
+}

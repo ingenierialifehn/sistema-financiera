@@ -731,7 +731,7 @@ $currentUser = $user ?? [];
                     <div class="filter-section">
                         <div class="form-group">
                             <label>Fecha Desde</label>
-                            <input type="date" id="fecha-desde" value="<?php echo date('Y-m-01'); ?>">
+                            <input type="date" id="fecha-desde" value="<?php echo date('Y-m-d'); ?>">
                         </div>
                         <div class="form-group">
                             <label>Fecha Hasta</label>

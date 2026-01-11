@@ -35,11 +35,12 @@ if (!$isAdmin) {
         $sql .= " AND c.id_agencia = ?";
         $params[] = $sessionAgencia;
     }
-
-    // Assignment: Only show loans assigned to me
-    $sql .= " AND p.oficial_desembolsos_id = ?";
-    $params[] = $userId;
 }
+
+// FIX: Always filter by assigned disburser (oficial_desembolsos_id) as per workflow requirements.
+// "debera cargar los creditos que fueron cargados a ese desembolsador, comparandolos con el usuario que ingreso"
+$sql .= " AND p.oficial_desembolsos_id = ?";
+$params[] = $userId;
 
 $sql .= " ORDER BY p.updated_at DESC";
 
@@ -118,6 +119,10 @@ require_once __DIR__ . '/includes/layout.php';
                             </td>
                             <td class="px-6 py-4 text-right text-sm font-medium">
                                 <div class="flex space-x-2 justify-end">
+                                    <button onclick='rejectLoan(<?php echo json_encode($loan); ?>)'
+                                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded shadow transition">
+                                        <i class="fas fa-times-circle mr-1"></i> Rechazar
+                                    </button>
                                     <button onclick='openDelivery(<?php echo json_encode($loan); ?>)'
                                         class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded shadow transition">
                                         <i class="fas fa-check-circle mr-1"></i> Entregar
@@ -164,12 +169,19 @@ require_once __DIR__ . '/includes/layout.php';
                             </div>
                         </div>
 
-                        <!-- Action Button -->
-                        <button onclick='openDelivery(<?php echo json_encode($loan); ?>)'
-                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center">
-                            <i class="fas fa-check-circle mr-2"></i>
-                            Entregar Efectivo
-                        </button>
+                        <!-- Action Buttons -->
+                        <div class="flex space-x-3">
+                            <button onclick='rejectLoan(<?php echo json_encode($loan); ?>)'
+                                class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center">
+                                <i class="fas fa-times-circle mr-2"></i>
+                                Rechazar
+                            </button>
+                            <button onclick='openDelivery(<?php echo json_encode($loan); ?>)'
+                                class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                Entregar
+                            </button>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -287,6 +299,46 @@ require_once __DIR__ . '/includes/layout.php';
     function printReceipt() {
         if (!currentLoan) return;
         window.open(`${BASE_URL}/public/admin/print_docs.php?type=recibo_entrega&id=${currentLoan.id}`, '_blank');
+    }
+
+    async function rejectLoan(loan) {
+        const result = await Swal.fire({
+            title: '¿Rechazar Préstamo?',
+            text: "El préstamo se marcará como Rechazado. El Desembolsador deberá devolver el dinero a Caja en el próximo cuadre.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#EF4444',
+            confirmButtonText: 'Sí, Rechazar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const response = await fetch(`${BASE_URL}/app/api/prestamos/update_status.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prestamo_id: loan.id,
+                        nuevo_estado: 'Pendiente de Operaciones'
+                    })
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    Swal.fire({
+                        title: 'Rechazado',
+                        text: 'El préstamo ha sido marcado como rechazado.',
+                        icon: 'success'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                Swal.fire('Error', 'Fallo de conexión', 'error');
+            }
+        }
     }
 
     async function confirmDelivery() {

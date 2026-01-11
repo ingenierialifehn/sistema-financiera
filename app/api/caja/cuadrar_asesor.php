@@ -74,8 +74,17 @@ try {
     $totalEntregadoPrevio = $entregadoEfvoPrevio + $entregadoBancoPrevio;
     $montoEntregadoTotal = $totalEntregadoPrevio + $montoEntregadoActual;
 
-    if ($montoEntregadoTotal <= 0 && $montoEntregadoActual <= 0) {
-        throw new Exception('No se han registrado entregas hoy. Debe ingresar un monto.');
+    // Verificar si hizo desembolsos hoy
+    $sqlDesem = "SELECT COUNT(*) FROM prestamos 
+                 WHERE oficial_desembolsos_id = ? 
+                 AND DATE(fecha_desembolso) = ? 
+                 AND estado = 'Activo'";
+    $stmtDesem = $db->prepare($sqlDesem);
+    $stmtDesem->execute([$idAsesor, $fechaHoy]);
+    $hasDesembolsos = $stmtDesem->fetchColumn() > 0;
+
+    if ($montoEntregadoTotal <= 0 && $montoEntregadoActual <= 0 && !$hasDesembolsos) {
+        throw new Exception('No se han registrado entregas ni desembolsos hoy. Debe haber actividad para cuadrar.');
     }
 
     // Verificar si ya existe un cuadre para este asesor hoy
@@ -174,6 +183,20 @@ try {
         $stmtMovBan->execute([$bancoId, $montoBanco, $saldoAnt, $saldoNuevo, $descBanco, $idUsuario]);
     }
 
+    // Obtener detalles de transacciones para el recibo
+    $sqlTransacciones = "SELECT c.id, c.monto_pagado, cl.nombre_completo, DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora
+                         FROM cuotas c
+                         JOIN prestamos p ON c.prestamo_id = p.id
+                         JOIN clientes cl ON p.id_cliente = cl.id
+                         WHERE DATE(c.fecha_pago_real) = ?
+                         AND c.usuario_cobro_id = ?
+                         AND cl.id_agencia = ?
+                         AND c.estado = 'pagada'
+                         ORDER BY c.fecha_pago_real ASC";
+    $stmtTrans = $db->prepare($sqlTransacciones);
+    $stmtTrans->execute([$fechaHoy, $idAsesor, $idAgencia]);
+    $transacciones = $stmtTrans->fetchAll(PDO::FETCH_ASSOC);
+
     // 3. ACTUALIZAR SALDO VIRTUAL DEL ASESOR (LA VERDAD ABSOLUTA)
     // Descontamos lo que acaba de entregar para que su deuda baje
     if ($totalEntregadoEnEsteCierre > 0) {
@@ -190,7 +213,30 @@ try {
             'id_cuadre' => $idCuadre,
             'monto_recaudado' => $montoRecaudado,
             'monto_entregado' => $montoEntregadoTotal,
-            'diferencia' => $montoRecaudado - $montoEntregadoTotal
+            'diferencia' => $montoRecaudado - $montoEntregadoTotal,
+            'transacciones' => $transacciones,
+            'asesor_nombre' => $nombreAsesor ?? 'Asesor',
+            'fecha' => date('d/m/Y H:i:s'),
+            'total_efectivo_dia' => $entregadoEfvoPrevio + $montoEfectivo,
+            'total_banco_dia' => $entregadoBancoPrevio + $montoBanco,
+            'detalle_bancos' => $db->query("
+                SELECT b.nombre_banco, SUM(mb.monto) as total
+                FROM movimientos_bancarios mb
+                JOIN bancos b ON mb.banco_id = b.id
+                WHERE mb.tipo_transaccion = 'ingreso'
+                AND (mb.descripcion LIKE '$searchTag' OR mb.descripcion LIKE '$searchName')
+                AND DATE(mb.fecha_hora) = '$fechaHoy'
+                GROUP BY b.nombre_banco
+            ")->fetchAll(PDO::FETCH_ASSOC),
+            'detectar_desembolsos' => true,
+            'desembolsos_entregados' => $db->query("
+                SELECT cl.nombre_completo, p.monto_capital
+                FROM prestamos p
+                JOIN clientes cl ON p.id_cliente = cl.id
+                WHERE p.oficial_desembolsos_id = $idAsesor
+                AND DATE(p.fecha_desembolso) = '$fechaHoy'
+                AND p.estado = 'Activo'
+            ")->fetchAll(PDO::FETCH_ASSOC)
         ]
     ]);
 

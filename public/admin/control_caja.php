@@ -487,6 +487,13 @@ if (!$idAgencia) {
                 </div>
             </div>
 
+            <!-- Loans Rejected Container -->
+            <div id="rejectedLoansContainer" class="hidden mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                <h4 class="text-sm font-bold text-red-800 mb-2"><i class="fas fa-undo-alt mr-2"></i>Devoluciones por
+                    Rechazo</h4>
+                <div id="rejectedLoansList" class="space-y-2 text-sm"></div>
+            </div>
+
             <!-- Área de Carga -->
             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

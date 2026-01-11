@@ -1,9 +1,72 @@
 document.addEventListener('DOMContentLoaded', function () {
     loadBancos();
     loadAgencias();
+    loadGastosHistory();
 
     document.getElementById('formGasto').addEventListener('submit', handleFormSubmit);
 });
+
+function loadGastosHistory() {
+    const fechaDesde = document.getElementById('filtroFechaDesde').value;
+    const fechaHasta = document.getElementById('filtroFechaHasta').value;
+    const tbody = document.querySelector('#tablaGastos tbody');
+    const totalSpan = document.getElementById('totalGastosPeriodo');
+
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
+
+    fetch(`../../app/api/gastos/list.php?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No se encontraron gastos en este periodo.</td></tr>';
+                    totalSpan.textContent = formatCurrency(0);
+                    return;
+                }
+
+                let total = 0;
+                tbody.innerHTML = data.data.map(gasto => {
+                    total += parseFloat(gasto.monto);
+
+                    // Limpiar descripción de prefijos técnicos si existen
+                    let desc = gasto.observaciones || '';
+                    if (desc.startsWith('Pago via Banco: ')) {
+                        desc = desc.replace('Pago via Banco: ', '');
+                    }
+
+                    return `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${new Date(gasto.fecha_movimiento).toLocaleDateString('es-HN')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">${gasto.nombre_agencia}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                    ${gasto.categoria}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${desc}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <div class="flex items-center">
+                                    <div class="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 mr-2">
+                                        ${gasto.usuario_registro ? gasto.usuario_registro.substring(0, 2).toUpperCase() : '??'}
+                                    </div>
+                                    ${gasto.usuario_registro || 'Sistema'}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold text-right">${formatCurrency(gasto.monto)}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                totalSpan.textContent = formatCurrency(total);
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Error: ${data.message}</td></tr>`;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Error de conexión al cargar historial.</td></tr>';
+        });
+}
 
 function loadBancos() {
     const select = document.getElementById('selectBanco');
@@ -85,6 +148,7 @@ function handleFormSubmit(e) {
                 alert('Gasto registrado exitosamente.');
                 this.reset();
                 loadBancos(); // Reload banks to show updated balance
+                loadGastosHistory(); // Reload history
             } else {
                 alert('Error: ' + data.message);
             }

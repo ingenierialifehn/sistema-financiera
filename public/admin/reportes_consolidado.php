@@ -754,15 +754,15 @@ $currentUser = $user ?? [];
                     <div class="filter-section">
                         <div class="form-group">
                             <label>Fecha Desde</label>
-                            <input type="date" id="fecha-desde" value="<?php echo date('Y-m-01'); ?>">
+                            <input type="date" id="fecha-desde" value="<?php echo date('Y-m-d'); ?>"
+                                onchange="cargarDesembolsos()">
                         </div>
                         <div class="form-group">
                             <label>Fecha Hasta</label>
-                            <input type="date" id="fecha-hasta" value="<?php echo date('Y-m-d'); ?>">
+                            <input type="date" id="fecha-hasta" value="<?php echo date('Y-m-d'); ?>"
+                                onchange="cargarDesembolsos()">
                         </div>
-                        <button class="btn btn-primary" onclick="cargarDesembolsos()">
-                            <i class="fas fa-search"></i> Buscar
-                        </button>
+                        <!-- Botón Buscar eliminado por solicitud -->
                     </div>
 
                     <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
@@ -1405,16 +1405,10 @@ $currentUser = $user ?? [];
         function cambiarAgencia() {
             agenciaSeleccionada = document.getElementById('selector-agencia').value;
 
-            // Recargar todos los reportes
-            const activeTab = document.querySelector('.tab-content.active').id;
-
-            if (activeTab === 'tab-recaudacion') {
-                cargarRecaudacion();
-            } else if (activeTab === 'tab-cartera') {
-                cargarCartera();
-            } else if (activeTab === 'tab-desembolsos') {
-                cargarDesembolsos();
-            }
+            // Recargar TODOS los reportes para evitar datos antiguos al cambiar de pestaña
+            cargarRecaudacion();
+            cargarCartera();
+            cargarDesembolsos();
         }
 
         // Cargar datos iniciales

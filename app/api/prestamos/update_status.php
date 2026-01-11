@@ -34,39 +34,7 @@ try {
     $db->beginTransaction();
 
     try {
-        // If changing to 'Pendiente de Operaciones', generate payment schedule (cuotas)
-        if ($nuevoEstado === 'Pendiente de Operaciones') {
-            // Get loan details
-            $stmtLoan = $db->prepare("SELECT * FROM prestamos WHERE id = ?");
-            $stmtLoan->execute([$prestamoId]);
-            $loan = $stmtLoan->fetch(PDO::FETCH_ASSOC);
 
-            if (!$loan) {
-                throw new Exception("Préstamo no encontrado");
-            }
-
-            // Delete existing cuotas if any (in case of re-analysis)
-            $stmtDelete = $db->prepare("DELETE FROM cuotas WHERE prestamo_id = ?");
-            $stmtDelete->execute([$prestamoId]);
-
-            // Generate cuotas based on modality
-            $montoCuota = floatval($loan['valor_cuota']);
-            $periodoMeses = intval($loan['plazo_meses']);
-            $fechaInicio = date('Y-m-d'); // Today
-            $diaPago = intval(date('d')); // Current day of month
-            $modalidad = strtolower($loan['modalidad']);
-
-            // Generate cuotas using PrestamoHelper
-            PrestamoHelper::generateCuotasModalidad(
-                $db,
-                $prestamoId,
-                $montoCuota,
-                $periodoMeses,
-                $fechaInicio,
-                $diaPago,
-                $modalidad
-            );
-        }
 
         // If changing to 'Listo para Entrega', deduct from cash
         if ($nuevoEstado === 'Listo para Entrega') {
@@ -121,15 +89,58 @@ try {
                 "Desembolso préstamo #$prestamoId - Cliente: " . $loan['id_cliente']
             ]);
 
-            // Assign Disbursement Officer (User who operated the cash box)
-            $stmtOficial = $db->prepare("UPDATE prestamos SET oficial_desembolsos_id = ? WHERE id = ?");
-            $stmtOficial->execute([$userId, $prestamoId]);
+            // CORRECTED LOGIC:
+            // 1. We do NOT overwrite oficial_desembolsos_id with existing user. It was already assigned in asignar_personal.php.
+            // 2. We SET ruta_usuario_id to the assigned oficial_desembolsos_id, because the money is now with them (in route).
+
+            $assignedOfficerId = $loan['oficial_desembolsos_id'];
+
+            // Fallback: If no officer assigned (should not happen if flow is followed), assign to current user
+            if (!$assignedOfficerId) {
+                $assignedOfficerId = $userId;
+                $stmtFix = $db->prepare("UPDATE prestamos SET oficial_desembolsos_id = ? WHERE id = ?");
+                $stmtFix->execute([$assignedOfficerId, $prestamoId]);
+            }
+
+            // Set Route User and Route Date
+            $stmtRoute = $db->prepare("UPDATE prestamos SET ruta_usuario_id = ?, ruta_fecha_salida = NOW() WHERE id = ?");
+            $stmtRoute->execute([$assignedOfficerId, $prestamoId]);
         }
 
-        // If changing to 'Activo', record disbursement date
+        // If changing to 'Activo', record disbursement date and GENERATE SCHEDULE
         if ($nuevoEstado === 'Activo') {
+            // 1. Update Disbursement Date
             $stmtDate = $db->prepare("UPDATE prestamos SET fecha_desembolso = NOW() WHERE id = ?");
             $stmtDate->execute([$prestamoId]);
+
+            // 2. Generate Payment Schedule (Cuotas) Starting TODAY
+            // Get loan details for calculation
+            $stmtLoan = $db->prepare("SELECT * FROM prestamos WHERE id = ?");
+            $stmtLoan->execute([$prestamoId]);
+            $loan = $stmtLoan->fetch(PDO::FETCH_ASSOC);
+
+            if ($loan) {
+                // Clear any previous schedule (e.g. from previous attempts)
+                $stmtDelete = $db->prepare("DELETE FROM cuotas WHERE prestamo_id = ?");
+                $stmtDelete->execute([$prestamoId]);
+
+                // Generate new schedule starting today
+                $montoCuota = floatval($loan['valor_cuota']);
+                $periodoMeses = intval($loan['plazo_meses']);
+                $fechaInicio = date('Y-m-d'); // Starts counting from Disbursement Day
+                $diaPago = intval(date('d')); // Payment day aligns with Disbursement Day
+                $modalidad = strtolower($loan['modalidad']);
+
+                PrestamoHelper::generateCuotasModalidad(
+                    $db,
+                    $prestamoId,
+                    $montoCuota,
+                    $periodoMeses,
+                    $fechaInicio,
+                    $diaPago,
+                    $modalidad
+                );
+            }
         }
 
         // Update loan status
