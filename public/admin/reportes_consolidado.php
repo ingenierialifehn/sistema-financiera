@@ -672,7 +672,8 @@ $currentUser = $user ?? [];
                                         <th class="text-center bg-yellow-50">1-3 Días</th>
                                         <th class="text-center bg-orange-50">4-7 Días</th>
                                         <th class="text-center bg-red-50">8-14 Días</th>
-                                        <th class="text-center bg-red-100">30+ Días</th>
+                                        <th class="text-center bg-red-100">15-30 Días</th>
+                                        <th class="text-center bg-red-200">30+ Días</th>
                                         <th class="text-center font-bold bg-green-50">Normalidad</th>
                                         <th class="text-center font-bold bg-gray-100">% Mora</th>
                                     </tr>
@@ -780,6 +781,11 @@ $currentUser = $user ?? [];
                             <h3>Refinanciamientos</h3>
                             <div class="value" id="cantidad-refinanciamientos">0</div>
                             <div class="label">Préstamos Refinanciados</div>
+                        </div>
+                        <div class="stat-card danger">
+                            <h3>Rechazados</h3>
+                            <div class="value" id="cantidad-rechazados">0</div>
+                            <div class="label" id="monto-rechazado-label">L 0.00</div>
                         </div>
                         <div class="stat-card">
                             <h3>Total Préstamos</h3>
@@ -972,9 +978,17 @@ $currentUser = $user ?? [];
                         document.getElementById('count-catorcenal').textContent = data.modalidades_activas.catorcenal || 0;
                     }
 
-                    // --- 1. NUEVA TABLA: DESGLOSE POR ASESOR ---
+                    // --- 1. NUEVA TABLA: DESGLOSE POR ASESOR / AGENCIA ---
                     const tbodyAsesores = document.querySelector('#tabla-desglose-asesores tbody');
                     const theadAsesores = document.querySelector('#tabla-desglose-asesores thead tr');
+                    const thAsesor = theadAsesores.querySelector('th:first-child');
+
+                    // Cambiar título de columna según selección
+                    if (agenciaSeleccionada === 'todas') {
+                        thAsesor.textContent = 'Agencia';
+                    } else {
+                        thAsesor.textContent = 'Asesor';
+                    }
 
                     // Asegurar que el Header tenga la columna extra (Hack simple sin recrear todo)
                     if (theadAsesores && !theadAsesores.innerHTML.includes('Nuevos')) {
@@ -988,14 +1002,12 @@ $currentUser = $user ?? [];
                     }
 
                     if (!data.desglose_asesores || data.desglose_asesores.length === 0) {
-                        tbodyAsesores.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay información de asesores</td></tr>';
+                        tbodyAsesores.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: #9ca3af;">No hay información disponible</td></tr>';
                     } else {
                         tbodyAsesores.innerHTML = data.desglose_asesores.map(adv => {
                             // Estilo especial para la fila de TOTAL
                             const isTotal = adv.es_total === true;
                             const rowClass = isTotal ? 'bg-indigo-50 font-bold border-t-2 border-indigo-200' : 'hover:bg-gray-50';
-
-                            const mora30PlusReal = parseFloat(adv.mora_15_30 || 0) + parseFloat(adv.mora_30_plus || 0);
 
                             // Color del porcentaje de mora
                             let moraClass = 'text-green-600';
@@ -1007,11 +1019,14 @@ $currentUser = $user ?? [];
                             const nuevosCount = adv.clientes_tramite || 0;
                             const novosClass = nuevosCount > 0 ? "bg-blue-50 text-blue-800 font-bold" : "";
 
+                            // Mostrar sub-label de agencia solo si NO es vista consolidada (donde la agencia ya es el título principal)
+                            const showAgenciaSubLabel = !isTotal && adv.agencia && agenciaSeleccionada !== 'todas';
+
                             return `
                             <tr class="${rowClass}">
                                 <td class="px-4 py-3">
                                     ${isTotal ? 'TOTAL CONSOLIDADO' : (adv.nombre || 'Desconocido')}
-                                    ${!isTotal && adv.agencia ? `<br><span class="text-xs text-gray-500">${adv.agencia}</span>` : ''}
+                                    ${showAgenciaSubLabel ? `<br><span class="text-xs text-gray-500">${adv.agencia}</span>` : ''}
                                 </td>
                                 <td class="px-4 py-3 text-indigo-700 font-semibold">${formatMoney(adv.total_cartera)}</td>
                                 <td class="px-4 py-3 text-center" title="Clientes Activos">${adv.clientes_count}</td>
@@ -1019,7 +1034,8 @@ $currentUser = $user ?? [];
                                 <td class="px-4 py-3 text-right bg-yellow-50 text-yellow-700">${formatMoney(adv.mora_1_3)}</td>
                                 <td class="px-4 py-3 text-right bg-orange-50 text-orange-700">${formatMoney(adv.mora_4_7)}</td>
                                 <td class="px-4 py-3 text-right bg-red-50 text-red-700">${formatMoney(adv.mora_8_14)}</td>
-                                <td class="px-4 py-3 text-right bg-red-100 text-red-800 font-bold">${formatMoney(mora30PlusReal)}</td>
+                                <td class="px-4 py-3 text-right bg-red-100 text-red-800 font-bold">${formatMoney(adv.mora_15_30)}</td>
+                                <td class="px-4 py-3 text-right bg-red-200 text-red-900 font-bold">${formatMoney(adv.mora_30_plus)}</td>
                                 <td class="px-4 py-3 text-center font-bold bg-green-50 text-green-700">${adv.porcentaje_normalidad}%</td>
                                 <td class="px-4 py-3 text-center font-bold bg-gray-50 ${moraClass}">${adv.porcentaje_mora}%</td>
                             </tr>
@@ -1094,6 +1110,9 @@ $currentUser = $user ?? [];
                     document.getElementById('cantidad-prestamos').textContent = data.resumen.cantidad_prestamos;
                     document.getElementById('cantidad-nuevos').textContent = data.resumen.cantidad_nuevos;
                     document.getElementById('cantidad-refinanciamientos').textContent = data.resumen.cantidad_refinanciamientos;
+                    
+                    document.getElementById('cantidad-rechazados').textContent = data.resumen.cantidad_rechazados || 0;
+                    document.getElementById('monto-rechazado-label').textContent = formatMoney(data.resumen.monto_rechazado || 0);
 
                     // Actualizar tabla de modalidades
                     const tbodyMod = document.querySelector('#tabla-modalidades tbody');

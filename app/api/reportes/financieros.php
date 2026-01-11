@@ -324,50 +324,47 @@ function getIncomeStatement($db, $start, $end, $agencyId)
 
 function getBalanceSheet($db, $agencyId)
 {
-    // Activos: Bancos + Cartera
-    $bancosSql = "SELECT SUM(saldo_nuevo) as saldo_bancos FROM movimientos_bancarios WHERE id IN (SELECT MAX(id) FROM movimientos_bancarios GROUP BY banco_id)";
-    // Better: We might have a bancos table with current balance?
-    // User tables list showed 'bancos'. Let's use that.
-    $bancosSql = "SELECT SUM(saldo_actual) as total FROM bancos";
+    // Activos: Bancos + Caja/Boveda + Cartera
 
-    $carteraSql = "
-        SELECT SUM(monto_capital - (total_a_pagar - neto_entregar)) as saldo_cartera_approx 
-        FROM prestamos WHERE estado = 'Activo'
-    ";
-    // Better calculation for Cartera: Capital Pendiente.
-    // Sum of (capital_cuota) of UNPAID pending cuotas for Active loans.
+    // 1. Bancos
+    $bancosSql = "SELECT SUM(saldo_actual) as total FROM bancos";
+    $stmt = $db->query($bancosSql);
+    $bancos = floatval($stmt->fetch()['total'] ?? 0);
+
+    // 2. Caja y Bóveda (Agencias)
+    $cajasSql = "SELECT SUM(saldo_caja_operativa + saldo_efectivo) as total FROM cajas_agencias";
+    $stmt = $db->query($cajasSql);
+    $cajaBoveda = floatval($stmt->fetch()['total'] ?? 0);
+
+    // 3. Cartera Vigente
     $carteraSql = "
         SELECT SUM(c.capital_cuota) as saldo_capital
         FROM cuotas c
         JOIN prestamos p ON c.prestamo_id = p.id
         WHERE p.estado = 'Activo' AND c.estado != 'pagada'
     ";
+    $stmt = $db->query($carteraSql);
+    $cartera = floatval($stmt->fetch()['saldo_capital'] ?? 0);
 
-    // Pasivos: 0 default
+    // Pasivos
+    // ...
 
-    // Patrimonio: Capital Incial.
-    // Hard to guess. Return 0 or user instructions "Inyecciones de capital inicial".
-    // Maybe sum 'Aporte Capital' from bank movements?
+    // Patrimonio (Capital Inicial Hardcoded por ahora si no hay logica clara, o query)
     $patrimonioSql = "
         SELECT SUM(monto) as capital 
         FROM movimientos_bancarios 
         WHERE tipo_transaccion = 'ingreso' AND descripcion LIKE '%Capital%'
     ";
-
-    $stmt = $db->query($bancosSql);
-    $bancos = $stmt->fetch()['total'] ?? 0;
-
-    $stmt = $db->query($carteraSql);
-    $cartera = $stmt->fetch()['saldo_capital'] ?? 0;
-
     $stmt = $db->query($patrimonioSql);
-    $patrimonio = $stmt->fetch()['capital'] ?? 0;
+    $patrimonio = floatval($stmt->fetch()['capital'] ?? 0);
+    // Fallback if 0 to show something realistic for demo? No, respect DB.
 
     Response::success([
         'activos' => [
             'bancos' => $bancos,
+            'caja_boveda' => $cajaBoveda,
             'cartera' => $cartera,
-            'total' => $bancos + $cartera
+            'total' => $bancos + $cajaBoveda + $cartera
         ],
         'pasivos' => [
             'cuentas_por_pagar' => 0,

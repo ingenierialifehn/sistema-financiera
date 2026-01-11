@@ -157,7 +157,44 @@ function mostrarError(mensaje) {
 
 function abrirModalFondos() {
     loadBancos();
+    checkSugerenciaFondos();
     $('#jalarFondosModal').removeClass('hidden').addClass('flex');
+}
+
+function checkSugerenciaFondos() {
+    $.get(BASE_URL + '/app/api/caja/get_monto_sugerido.php', function (res) {
+        if (res.success) {
+            const data = res.data;
+            const sugerido = parseFloat(data.monto_sugerido);
+
+            // Always update labels to show transparency
+            $('#lblTotalRequerido').text('L. ' + parseFloat(data.total_requerido).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+            $('#lblDisponibleLocal').text('L. ' + (parseFloat(data.saldo_boveda) + parseFloat(data.saldo_caja)).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+            $('#lblMontoSugerido').text('L. ' + sugerido.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+            // Show container always
+            $('#sugerenciaFondosContainer').removeClass('hidden');
+
+            if (sugerido > 0) {
+                // Auto-fill and Lock
+                $('#montoFondos').val(sugerido.toFixed(2)).prop('readonly', true).addClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+
+                // Edit button
+                $('#btnUsarSugerido').html('<i class="fas fa-edit"></i> Editar Monto').show().off('click').on('click', function () {
+                    $('#montoFondos').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed').focus();
+                    $(this).hide();
+                });
+            } else {
+                // If 0 or covered, show 0 but allow edit? Or keep 0?
+                // User said "appear locked with the amount needed". If amount needed is 0, show 0 and lock?
+                // Let's standard: If 0, it means fully covered. We can leave it 0 or empty for them to decide if they want extra.
+                // But let's unlock it so they can pull explicitly if they want.
+                $('#montoFondos').val('').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+                $('#lblMontoSugerido').text('L. 0.00 (Cubierto)');
+                $('#btnUsarSugerido').hide();
+            }
+        }
+    });
 }
 
 function closeModalFondos() {
@@ -841,9 +878,10 @@ function abrirModalCuadre() {
                 const tieneSaldo = parseFloat(a.pendiente || 0) > 0.01;
                 const tieneDesembolsos = parseInt(a.desembolsos_hoy || 0) > 0;
                 const tieneRecaudo = parseFloat(a.recaudado_hoy || 0) > 0;
+                const tieneRechazos = a.rechazados_hoy && a.rechazados_hoy.length > 0;
 
-                // Mostrar si no ha cuadrado Y (tiene dinero pendiente, entregó préstamos o recaudó hoy)
-                if (!a.ya_cuadrado && (tieneSaldo || tieneDesembolsos || tieneRecaudo)) {
+                // Mostrar si no ha cuadrado Y (tiene dinero pendiente, entregó préstamos, recaudó hoy O tiene rechazos)
+                if (!a.ya_cuadrado && (tieneSaldo || tieneDesembolsos || tieneRecaudo || tieneRechazos)) {
                     ops += `<option value="${a.id_usuario}">${a.nombre_completo}</option>`;
                 }
             });
@@ -878,31 +916,64 @@ $('#asesorIdCuadre').on('change', function () {
         asesorSeleccionadoStats = {
             id: id,
             recaudado: parseFloat(asesor.recaudado_hoy || 0),
+            capital: parseFloat(asesor.capital_hoy || 0),
+            interes: parseFloat(asesor.interes_hoy || 0),
             entregadoBase: parseFloat(asesor.entregado_hoy || 0),
             pendienteBase: parseFloat(asesor.pendiente || 0),
             desembolsosHoy: parseInt(asesor.desembolsos_hoy || 0)
         };
         actualizarKPIsSimulados();
+
+        // Mostrar desglose en tooltip para evitar confusiones
+        const desgloseRecaudo = `Capital: L. ${asesorSeleccionadoStats.capital.toLocaleString('es-HN', { minimumFractionDigits: 2 })} + Interés/Mora: L. ${asesorSeleccionadoStats.interes.toLocaleString('es-HN', { minimumFractionDigits: 2 })}`;
+        $('#recaudadoHoyDisplay').attr('title', desgloseRecaudo);
+        $('#recaudadoHoyDisplay').parent().attr('title', desgloseRecaudo);
+
+        // SUGERENCIA AUTOMÁTICA DE PAGO TOTAL (Para evitar diferencias)
+        if (asesorSeleccionadoStats.pendienteBase > 0) {
+            $('#montoEfectivoCuadre').val(asesorSeleccionadoStats.pendienteBase.toFixed(2));
+        } else {
+            $('#montoEfectivoCuadre').val('');
+        }
+
         $('#infoRecaudadoContainer').removeClass('hidden');
 
-        // Render Rechazados
+        // Render Rechazados / Devoluciones
         if (asesor.rechazados_hoy && asesor.rechazados_hoy.length > 0) {
             let html = '';
             asesor.rechazados_hoy.forEach(loan => {
                 const monto = parseFloat(loan.monto);
+                const isRechazado = loan.estado === 'Rechazado en Ruta';
+                const labelState = isRechazado ? 'Rechazado' : 'No Entregado';
+                const colorState = isRechazado ? 'text-red-500' : 'text-orange-500';
+
                 html += `
                     <div class="flex justify-between items-center bg-white p-2 rounded border border-red-100 shadow-sm">
                         <div class="flex-1">
                             <p class="font-bold text-gray-800">${loan.nombre_completo}</p>
-                            <p class="text-xs text-red-500">Préstamo #${loan.id} - Rechazado Hoy</p>
+                            <p class="text-xs ${colorState}">Préstamo #${loan.id} - ${labelState}</p>
                         </div>
-                        <div class="text-right mx-3">
-                            <span class="font-bold text-red-700">L. ${monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                        <div class="flex items-center space-x-2">
+                            <div class="text-right">
+                                <span class="font-bold text-red-700">L. ${monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div class="flex space-x-1">
+                                <button type="button" class="btn-add-rejected-cash bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 rounded shadow"
+                                    data-monto="${monto}" 
+                                    data-id="${loan.id}"
+                                    data-estado="${loan.estado}"
+                                    data-ref="Devolución Préstamo #${loan.id} (${loan.nombre_completo})">
+                                    <i class="fas fa-money-bill-wave"></i> Efvo
+                                </button>
+                                <button type="button" class="btn-add-rejected-bank bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded shadow"
+                                    data-monto="${monto}" 
+                                    data-id="${loan.id}"
+                                    data-estado="${loan.estado}"
+                                    data-ref="Devolución Préstamo #${loan.id} (${loan.nombre_completo})">
+                                    <i class="fas fa-university"></i> Depo
+                                </button>
+                            </div>
                         </div>
-                        <button type="button" class="btn-add-rejected bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded shadow"
-                            data-monto="${monto}" data-ref="Devolución Préstamo #${loan.id} (${loan.nombre_completo})">
-                            <i class="fas fa-plus mr-1"></i> Agregar
-                        </button>
                     </div>
                 `;
             });
@@ -919,19 +990,60 @@ $('#asesorIdCuadre').on('change', function () {
     }
 });
 
-// Event delegation for "Agregar" rejected loan
-$(document).on('click', '.btn-add-rejected', function () {
+// Event delegation for "Agregar Efectivo" rejected loan
+$(document).on('click', '.btn-add-rejected-cash', function () {
     const monto = parseFloat($(this).data('monto'));
     const ref = $(this).data('ref');
+    const loanId = $(this).data('id');
+    const loanEstado = $(this).data('estado');
 
     itemsCuadre.push({
         tipo: 'efectivo',
         monto: monto,
-        detalle: ref
+        detalle: ref,
+        loan_id: loanId,
+        loan_estado: loanEstado
     });
 
     renderItemsCuadre();
-    $(this).parent().fadeOut(); // Hide after adding
+    $(this).closest('div.flex.justify-between').fadeOut(); // Hide row
+});
+
+// Event delegation for "Agregar Banco" rejected loan
+$(document).on('click', '.btn-add-rejected-bank', function () {
+    const monto = parseFloat($(this).data('monto'));
+    const ref = $(this).data('ref');
+    const loanId = $(this).data('id');
+    const loanEstado = $(this).data('estado');
+
+    // Pre-fill Bank Form
+    $('#montoBancoCuadre').val(monto);
+    $('#refBancoCuadre').val(ref);
+    $('#bancoIdCuadre').focus();
+
+    // Store temp data to attach when "Agregar Depósito" is clicked manually?
+    // Problem: The manual "Agregar Deposito" button doesn't know about this loan.
+    // Solution: We should probably add it immediately as a bank item BUT asking for bank info.
+    // OR force the user to use the form.
+    // Re-thinking: The "Depo" button on the row is a shortcut. 
+    // If I use the logic below, I'm just filling the form. I LOSE the loan_id association if I just fill the form inputs.
+    // I need a way to pass the loan_id to the manual add function.
+
+    // Let's attach metadata to the form button or a hidden input.
+    $('#form-temp-loan-id').val(loanId);
+    $('#form-temp-loan-estado').val(loanEstado);
+
+    // Highlight the helper
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Seleccione Banco y confirme agregando depósito',
+        timer: 3000,
+        showConfirmButton: false
+    });
+
+    $(this).closest('div.flex.justify-between').fadeOut();
 });
 
 function actualizarDatosAsesor(asesorId) {
@@ -1045,13 +1157,23 @@ $('#btnAgregarBanco').on('click', function () {
     if (!bancoId) { Swal.fire('Error', 'Seleccione banco', 'error'); return; }
     if (!ref) { Swal.fire('Error', 'Ingrese referencia', 'error'); return; }
 
+    // Check for temp loan data (from rejected/returned shortcuts)
+    const tempLoanId = $('#form-temp-loan-id').val();
+    const tempLoanState = $('#form-temp-loan-estado').val();
+
     itemsCuadre.push({
         tipo: 'banco',
         monto: monto,
         banco_id: bancoId,
         referencia: ref,
-        detalle: `Banco: ${bancoTexto} (Ref: ${ref})`
+        detalle: `Banco: ${bancoTexto} (Ref: ${ref})`,
+        loan_id: tempLoanId || null,
+        loan_estado: tempLoanState || null
     });
+
+    // Clear temp data
+    $('#form-temp-loan-id').val('');
+    $('#form-temp-loan-estado').val('');
 
     $('#montoBancoCuadre').val('');
     $('#refBancoCuadre').val('');

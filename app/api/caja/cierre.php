@@ -171,7 +171,7 @@ try {
 
     // 2. Obtener Saldo en Bóveda
     // Nota: El saldo de bóveda no cambia con el cierre de caja (la caja entrega a bóveda antes).
-    $stmtBoveda = $db->prepare("SELECT saldo_boveda FROM cajas_agencias WHERE id_agencia = ?");
+    $stmtBoveda = $db->prepare("SELECT saldo_efectivo FROM cajas_agencias WHERE id_agencia = ?");
     $stmtBoveda->execute([$idAgencia]);
     $saldoBoveda = $stmtBoveda->fetchColumn();
 

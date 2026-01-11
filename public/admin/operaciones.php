@@ -49,9 +49,7 @@ $stmtRuta->execute([$idAgencia]);
 $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
-<script>
-    const BASE_URL = '<?php echo BASE_URL; ?>';
-</script>
+
 
 <div class="container mx-auto px-4 py-6">
     <div class="flex justify-between items-center mb-6">
@@ -65,6 +63,36 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded shadow">
             <i class="fas fa-sync-alt mr-2"></i>Actualizar
         </button>
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div id="bulkActions"
+        class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6 flex justify-between items-center shadow-sm">
+        <div class="flex items-center">
+            <span class="bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3"
+                id="selectedCount">0</span>
+            <span class="text-indigo-900 font-medium">préstamos seleccionados</span>
+        </div>
+        <div class="flex space-x-3">
+            <button onclick="openBulkAssign('asesor')"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow text-sm font-medium transition">
+                <i class="fas fa-user-tie mr-2"></i> Asignar Asesor
+            </button>
+            <button onclick="openBulkAssign('oficial')"
+                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded shadow text-sm font-medium transition">
+                <i class="fas fa-hand-holding-usd mr-2"></i> Asignar Desembolsador
+            </button>
+            <div class="h-6 w-px bg-indigo-300 mx-2"></div>
+            <button onclick="bulkFormalize()"
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow text-sm font-bold transition flex items-center">
+                <i class="fas fa-paper-plane mr-2"></i> Formalizar Seleccionados
+            </button>
+            <div class="h-6 w-px bg-indigo-300 mx-2"></div>
+            <button onclick="bulkPrintMenu()"
+                class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow text-sm font-medium transition flex items-center">
+                <i class="fas fa-print mr-2"></i> Imprimir
+            </button>
+        </div>
     </div>
 
     <!-- En Ruta Section -->
@@ -115,6 +143,28 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                 <span class="text-sm text-gray-600">Préstamos:</span>
                                 <span class="font-semibold text-gray-700"><?php echo $ruta['cantidad']; ?></span>
                             </div>
+
+                            <!-- Listado Detallado de Préstamos -->
+                            <div class="mt-3 border-t pt-2">
+                                <p class="text-xs font-semibold text-gray-500 mb-2 uppercase">Detalle de Asignaciones:</p>
+                                <ul class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                    <?php foreach ($ruta['prestamos'] as $p): ?>
+                                        <li
+                                            class="flex justify-between items-start text-xs bg-orange-50 p-2 rounded border border-orange-100">
+                                            <div class="flex-1 mr-2">
+                                                <span class="font-medium text-gray-800 block truncate"
+                                                    title="<?php echo htmlspecialchars($p['nombre_completo']); ?>">
+                                                    <?php echo htmlspecialchars($p['nombre_completo']); ?>
+                                                </span>
+                                                <span class="text-gray-500 text-[10px]">#<?php echo $p['id']; ?></span>
+                                            </div>
+                                            <span class="font-bold text-orange-700 whitespace-nowrap">
+                                                L <?php echo number_format($p['neto_entregar'] ?? $p['monto_capital'], 2); ?>
+                                            </span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -133,7 +183,14 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-blue-50">
                 <tr>
+                    <th class="px-6 py-3 text-left">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"
+                            class="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                    </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Cliente
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Personal
+                        Asignado
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Monto
                     </th>
@@ -146,21 +203,46 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Acción
                     </th>
                 </tr>
+                </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 <?php if (empty($prestamos)): ?>
                     <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No hay préstamos pendientes de
+                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">No hay préstamos pendientes de
                             formalización.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($prestamos as $row): ?>
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4">
+                                <input type="checkbox"
+                                    class="loan-checkbox rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                                    value="<?php echo $row['id']; ?>" data-asesor="<?php echo $row['asesor_creditos_id']; ?>"
+                                    data-oficial="<?php echo $row['oficial_desembolsos_id']; ?>" onchange="updateBulkActions()">
+                            </td>
+                            <td class="px-6 py-4">
                                 <div class="text-sm font-bold text-gray-900">
                                     <?php echo htmlspecialchars($row['nombre_completo']); ?>
                                 </div>
                                 <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['numero_documento']); ?>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-xs space-y-1">
+                                    <div class="flex items-center" title="Asesor de Créditos">
+                                        <i class="fas fa-user-tie text-indigo-500 w-4"></i>
+                                        <span
+                                            class="<?php echo $row['asesor_nombre'] ? 'text-gray-700 font-medium' : 'text-red-400 italic'; ?>">
+                                            <?php echo $row['asesor_nombre'] ?? 'Sin asignar'; ?>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center" title="Oficial de Desembolsos">
+                                        <i class="fas fa-hand-holding-usd text-teal-500 w-4"></i>
+                                        <span
+                                            class="<?php echo $row['oficial_nombre'] ? 'text-gray-700 font-medium' : 'text-red-400 italic'; ?>">
+                                            <?php echo $row['oficial_nombre'] ?? 'Sin asignar'; ?>
+                                        </span>
+                                    </div>
                                 </div>
                             </td>
                             <td class="px-6 py-4 text-sm font-semibold text-blue-600">
@@ -238,17 +320,14 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             </button>
         </div>
 
-        <!-- Vista Previa del Calendario de Cuotas -->
+        <!-- Resumen del Préstamo (En lugar de cuotas vacías) -->
         <div class="mb-6 bg-blue-50 p-4 rounded-lg">
             <h4 class="font-semibold text-blue-900 mb-3 flex items-center">
-                <i class="fas fa-calendar-alt mr-2"></i> Vista Previa del Plan de Pagos
+                <i class="fas fa-file-invoice-dollar mr-2"></i> Resumen de Condiciones
             </h4>
-            <div id="vistaPreviewCuotas" class="bg-white rounded p-3 max-h-60 overflow-y-auto">
-                <p class="text-gray-500 text-center">Cargando calendario...</p>
+            <div id="vistaResumenPrestamo" class="bg-white rounded p-4">
+                <p class="text-gray-500 text-center">Cargando información...</p>
             </div>
-            <p class="text-xs text-blue-600 mt-2">
-                <i class="fas fa-info-circle"></i> Este calendario fue generado automáticamente por el Analista
-            </p>
         </div>
 
 
@@ -309,6 +388,283 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             console.error('Error loading users:', e);
         }
     }
+
+    // --- Bulk Selection Logic ---
+    function toggleSelectAll() {
+        const isChecked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.loan-checkbox').forEach(cb => cb.checked = isChecked);
+        updateBulkActions();
+    }
+
+    function updateBulkActions() {
+        const selected = document.querySelectorAll('.loan-checkbox:checked').length;
+        document.getElementById('selectedCount').innerText = selected;
+
+        const bulkBar = document.getElementById('bulkActions');
+        if (selected > 0) {
+            bulkBar.classList.remove('hidden');
+        } else {
+            bulkBar.classList.add('hidden');
+        }
+    }
+
+    async function openBulkAssign(type) {
+        const selectedIds = Array.from(document.querySelectorAll('.loan-checkbox:checked')).map(cb => cb.value);
+        if (selectedIds.length === 0) return;
+
+        const roleName = type === 'asesor' ? 'Asesor de Créditos' : 'Oficial de Desembolsos';
+
+        // Filter users for the dropdown
+        let options = '<option value="">Seleccione un usuario...</option>';
+        const keywords = type === 'asesor'
+            ? ['asesor de creditos', 'asesor de crédito']
+            : ['ofic. de desembolso', 'desembolsos', 'oficial de desembolso'];
+
+        availableUsers.forEach(user => {
+            // Simplified filter: just match keywords, agency check is implied but weak for bulk (assuming same agency context)
+            const cleanPuesto = (user.puesto_cargo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cleanRol = (user.rol_nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const isMatch = keywords.some(k => {
+                const cleanKey = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return cleanPuesto.includes(cleanKey) || cleanRol.includes(cleanKey);
+            });
+
+            if (isMatch && (!user.id_agencia || user.id_agencia == <?php echo $idAgencia; ?>)) {
+                options += `<option value="${user.id_usuario}">${user.nombre_completo}</option>`;
+            }
+        });
+
+        const { value: userId } = await Swal.fire({
+            title: `Asignación Masiva: ${roleName}`,
+            html: `
+                <p class="mb-4 text-gray-600">Se asignará a ${selectedIds.length} préstamos seleccionados.</p>
+                <select id="swal-input1" class="swal2-input">
+                    ${options}
+                </select>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            preConfirm: () => {
+                return document.getElementById('swal-input1').value;
+            }
+        });
+
+        if (userId) {
+            // Check for potential overwrites
+            let overwriteCount = 0;
+            const fieldDate = type === 'asesor' ? 'data-asesor' : 'data-oficial';
+            
+            selectedIds.forEach(id => {
+                const cb = document.querySelector(`.loan-checkbox[value="${id}"]`);
+                const currentVal = cb.getAttribute(fieldDate);
+                // If it has a value (not empty/0) AND it is different from the new value
+                if (currentVal && currentVal != '0' && currentVal != userId) {
+                    overwriteCount++;
+                }
+            });
+
+            if (overwriteCount > 0) {
+                const roleLabel = type === 'asesor' ? 'Asesor' : 'Desembolsador';
+                const confirmOverwrite = await Swal.fire({
+                    title: '¿Sobrescribir Asignaciones?',
+                    text: `${overwriteCount} de los préstamos seleccionados ya tienen un ${roleLabel} asignado diferente al seleccionado. ¿Desea sobrescribirlos?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Sí, Sobrescribir',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (!confirmOverwrite.isConfirmed) {
+                    return;
+                }
+            }
+
+            // Execute bulk update
+            try {
+                Swal.fire({
+                    title: 'Asignando...',
+                    html: 'Por favor espere',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                // Execute sequentially to avoid overwhelming server or race conditions
+                for (const id of selectedIds) {
+                    await fetch('<?php echo BASE_URL; ?>/app/api/prestamos/asignar_personal_field.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prestamo_id: id,
+                            field: type === 'asesor' ? 'asesor_creditos_id' : 'oficial_desembolsos_id',
+                            value: userId
+                        })
+                    });
+                }
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡Asignación Completada!',
+                    text: 'El personal ha sido actualizado.',
+                    timer: 1500
+                });
+                location.reload();
+
+            } catch (e) {
+                console.error(e);
+                Swal.fire('Error', 'Hubo un problema al procesar la solicitud', 'error');
+            }
+        }
+    }
+
+    async function bulkFormalize() {
+        const checkboxes = document.querySelectorAll('.loan-checkbox:checked');
+        if (checkboxes.length === 0) return;
+
+        // Validation: All selected must have both roles assigned
+        let missingInfo = 0;
+        let missingIds = [];
+
+        checkboxes.forEach(cb => {
+            const hasAsesor = cb.getAttribute('data-asesor') && cb.getAttribute('data-asesor') != '0';
+            const hasOficial = cb.getAttribute('data-oficial') && cb.getAttribute('data-oficial') != '0';
+
+            if (!hasAsesor || !hasOficial) {
+                missingInfo++;
+                // Visual feedback could be added here (e.g., highlight row)
+                cb.closest('tr').classList.add('bg-red-50');
+            } else {
+                cb.closest('tr').classList.remove('bg-red-50');
+            }
+        });
+
+        if (missingInfo > 0) {
+            Swal.fire({
+                title: 'Información Incompleta',
+                text: `${missingInfo} de los préstamos seleccionados no tienen Asesor o Desembolsador asignado. Por favor asígnelos antes de formalizar.`,
+                icon: 'warning'
+            });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            title: `Formalizar ${checkboxes.length} Préstamos`,
+            text: "Todos los préstamos seleccionados pasarán a estado 'Listo para Entrega'.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#059669', // Green
+            confirmButtonText: 'Sí, Formalizar Todos'
+        });
+
+        if (confirm.isConfirmed) {
+            try {
+                Swal.fire({
+                    title: 'Procesando...',
+                    html: 'Enviando a desembolso...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                let errorCount = 0;
+                let errorMessages = [];
+
+                for (const cb of checkboxes) {
+                    const id = cb.value;
+                    const result = await fetch('<?php echo BASE_URL; ?>/app/api/prestamos/update_status.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prestamo_id: id,
+                            nuevo_estado: 'Listo para Entrega'
+                        })
+                    });
+                    const res = await result.json();
+                    if(!res.success) {
+                        errorCount++;
+                        // Capture unique error messages
+                        const msg = `Préstamo #${id}: ${res.message}`;
+                        if(!errorMessages.includes(msg)) errorMessages.push(msg);
+                    }
+                }
+
+                if (errorCount > 0) {
+                    // Show detailed errors
+                    await Swal.fire({
+                        title: 'Atención',
+                        html: `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto">
+                                <p class="mb-2 font-bold">El proceso completó con ${errorCount} errores:</p>
+                                <ul class="list-disc pl-5">${errorMessages.map(m => `<li>${m}</li>`).join('')}</ul>
+                               </div>`,
+                        icon: 'warning'
+                    });
+                } else {
+                    await Swal.fire('¡Éxito!', 'Todos los expedientes han sido enviados a desembolso.', 'success');
+                }
+                location.reload();
+
+            } catch (e) {
+                console.error(e);
+                Swal.fire('Error', 'Error de conexión durante el proceso masivo', 'error');
+            }
+        }
+    }
+
+    async function bulkPrintMenu() {
+        const selectedIds = Array.from(document.querySelectorAll('.loan-checkbox:checked')).map(cb => cb.value);
+        if (selectedIds.length === 0) return;
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Impresión Masiva',
+            html: `
+                <div class="text-left">
+                    <p class="mb-3 text-gray-600">Seleccione los documentos a generar para los <b>${selectedIds.length} clientes</b> seleccionados:</p>
+                    <label class="flex items-center space-x-2 mb-2 cursor-pointer">
+                        <input type="checkbox" id="chk_contrato" class="form-checkbox h-5 w-5 text-indigo-600" checked>
+                        <span>Contrato de Préstamo</span>
+                    </label>
+                    <label class="flex items-center space-x-2 mb-2 cursor-pointer">
+                        <input type="checkbox" id="chk_pagare" class="form-checkbox h-5 w-5 text-indigo-600" checked>
+                        <span>Pagaré</span>
+                    </label>
+                    <label class="flex items-center space-x-2 mb-2 cursor-pointer">
+                        <input type="checkbox" id="chk_plan" class="form-checkbox h-5 w-5 text-indigo-600" checked>
+                        <span>Plan de Pagos (Vista Previa)</span>
+                    </label>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-print"></i> Generar PDF',
+            preConfirm: () => {
+                return {
+                    contrato: document.getElementById('chk_contrato').checked,
+                    pagare: document.getElementById('chk_pagare').checked,
+                    plan: document.getElementById('chk_plan').checked
+                }
+            }
+        });
+
+        if (formValues) {
+            // Build types param
+            let types = [];
+            if (formValues.contrato) types.push('contrato');
+            if (formValues.pagare) types.push('pagare');
+            if (formValues.plan) types.push('plan');
+
+            if (types.length === 0) {
+                Swal.fire('Error', 'Debe seleccionar al menos un documento', 'warning');
+                return;
+            }
+
+            const idsParam = selectedIds.join(',');
+            const typesParam = types.join(',');
+
+            // Open new window with parameters
+            window.open(`<?php echo BASE_URL; ?>/public/admin/print_docs_bulk.php?ids=${idsParam}&types=${typesParam}`, '_blank');
+        }
+    }
+    // --- End Bulk Selection Logic ---
 
     function openPrintOptions(prestamoId) {
         Swal.fire({
@@ -395,54 +751,57 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             oficialSelect.value = loan.oficial_desembolsos_id;
         }
 
-        // Load cuotas preview
-        loadCuotasPreview(loan.id);
+        // Render Loan Summary instead of missing quotas
+        renderLoanSummary(loan);
 
         validateChecklist();
         $('#modalFormalize').removeClass('hidden');
     }
 
-    async function loadCuotasPreview(prestamoId) {
-        const container = document.getElementById('vistaPreviewCuotas');
-        container.innerHTML = '<p class="text-gray-500 text-center"><i class="fas fa-spinner fa-spin"></i> Cargando...</p>';
+    function renderLoanSummary(loan) {
+        const container = document.getElementById('vistaResumenPrestamo');
 
-        try {
-            const response = await fetch(`<?php echo BASE_URL; ?>/app/api/prestamos/cuotas.php?prestamo_id=${prestamoId}`);
-            const result = await response.json();
+        const monto = parseFloat(loan.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+        const neto = parseFloat(loan.neto_entregar || loan.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+        const cuota = parseFloat(loan.valor_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+        const totalPagar = parseFloat(loan.total_a_pagar || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
 
-            if (result.success && result.data.cuotas && result.data.cuotas.length > 0) {
-                const cuotas = result.data.cuotas;
-                let html = '<table class="min-w-full text-xs">';
-                html += '<thead class="bg-gray-100"><tr>';
-                html += '<th class="px-2 py-1 text-left">#</th>';
-                html += '<th class="px-2 py-1 text-left">Fecha Vencimiento</th>';
-                html += '<th class="px-2 py-1 text-right">Monto</th>';
-                html += '</tr></thead><tbody>';
+        // Calculate interest total roughly for display
+        const totalInteres = (parseFloat(loan.total_a_pagar || 0) - parseFloat(loan.neto_entregar || loan.monto_capital));
+        const interesDisplay = totalInteres > 0 ? 'L ' + totalInteres.toLocaleString('es-HN', { minimumFractionDigits: 2 }) : 'N/A';
 
-                cuotas.forEach((cuota, idx) => {
-                    // Fix timezone issue: manual format from YYYY-MM-DD
-                    const [y, m, d] = cuota.fecha_vencimiento.split('-');
-                    const fecha = `${d}/${m}/${y}`;
-
-                    const monto = parseFloat(cuota.monto_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 });
-                    const bgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                    html += `<tr class="${bgClass}">`;
-                    html += `<td class="px-2 py-1">${cuota.numero_cuota}</td>`;
-                    html += `<td class="px-2 py-1">${fecha}</td>`;
-                    html += `<td class="px-2 py-1 text-right">L ${monto}</td>`;
-                    html += '</tr>';
-                });
-
-                html += '</tbody></table>';
-                html += `<p class="text-xs text-gray-600 mt-2 text-center">Total de ${cuotas.length} cuotas</p>`;
-                container.innerHTML = html;
-            } else {
-                container.innerHTML = '<p class="text-orange-600 text-center"><i class="fas fa-exclamation-triangle"></i> No se encontraron cuotas generadas</p>';
-            }
-        } catch (e) {
-            console.error('Error loading cuotas:', e);
-            container.innerHTML = '<p class="text-red-600 text-center"><i class="fas fa-times"></i> Error al cargar cuotas</p>';
-        }
+        container.innerHTML = `
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Monto Solicitado</span>
+                    <span class="block text-gray-900 font-bold text-lg">L ${monto}</span>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Neto a Entregar</span>
+                    <span class="block text-green-600 font-bold text-lg">L ${neto}</span>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Valor Cuota</span>
+                    <span class="block text-blue-600 font-bold text-lg">L ${cuota}</span>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Modalidad</span>
+                    <span class="block text-gray-800 font-semibold">${loan.modalidad}</span>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Plazo</span>
+                    <span class="block text-gray-800 font-semibold">${loan.plazo_meses} meses</span>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <span class="block text-gray-500 text-xs uppercase font-bold">Total a Pagar</span>
+                    <span class="block text-gray-800 font-bold">L ${totalPagar}</span>
+                </div>
+            </div>
+            <div class="mt-3 text-xs text-gray-500 text-center border-t pt-2">
+                <i class="fas fa-info-circle text-blue-500"></i> 
+                El plan de pagos detallado (calendario de cuotas) se generará automáticamente al momento del desembolso efectivo.
+            </div>
+        `;
     }
 
     function closeModalFormalize() {

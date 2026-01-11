@@ -271,36 +271,21 @@ try {
 
     $asesoresStats = [];
 
-    // --- MODIFICACIÓN: Pre-cargar usuarios activos para mostrar en tabla aunque no tengan clientes ---
-    $sqlUsuarios = "SELECT 
-                    u.id_usuario, 
-                    u.username,
-                    ag.nombre_agencia
-                    FROM usuarios u
-                    LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
-                    LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
-                    WHERE u.estado = 'Activo'
-                    AND c.puesto_cargo = 'Asesor de Créditos'";
+    // --- LÓGICA DE AGRUPACIÓN DINÁMICA ---
+    // Si es "Todas", agrupamos por AGENCIA. Si es una específica, agrupamos por ASESOR.
+    $agruparPorAgencia = ($agenciaId === 'todas');
 
-    $paramsUsuarios = [];
-    if ($agenciaId !== 'todas' && is_numeric($agenciaId)) {
-        $sqlUsuarios .= " AND c.id_agencia = ?";
-        $paramsUsuarios[] = $agenciaId;
-    }
+    if ($agruparPorAgencia) {
+        // 1. CARGA INICIAL: TODAS LAS AGENCIAS ACTIVAS
+        $stmtAgencias = $db->query("SELECT nombre_agencia FROM agencias WHERE estado = 'Activa'");
+        $allAgencias = $stmtAgencias->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtUsers = $db->prepare($sqlUsuarios);
-    $stmtUsers->execute($paramsUsuarios);
-    $allUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
-
-    foreach ($allUsers as $usr) {
-        // Usar N/A si no tiene agencia asignada, para coincidir con la lógica del loop posterior
-        $agenciaNombre = $usr['nombre_agencia'] ?? 'N/A';
-        $key = $usr['id_usuario'] . '_' . $agenciaNombre;
-
-        if (!isset($asesoresStats[$key])) {
-            $asesoresStats[$key] = [
-                'nombre' => $usr['username'],
-                'agencia' => $agenciaNombre,
+        foreach ($allAgencias as $ag) {
+            $nombre = $ag['nombre_agencia'];
+            // Clave: Nombre de la agencia
+            $asesoresStats[$nombre] = [
+                'nombre' => $nombre,     // En vista "Todas", esta columna será la Agencia
+                'agencia' => '',         // Dejamos vacío o repetimos, visualmente no importa tanto si el header cambia
                 'total_cartera' => 0,
                 'clientes_count' => 0,
                 'clientes_tramite' => 0,
@@ -312,8 +297,51 @@ try {
                 'mora_30_plus' => 0
             ];
         }
+
+    } else {
+        // 1. CARGA INICIAL: ASESORES DE LA AGENCIA SELECCIONADA
+        $sqlUsuarios = "SELECT 
+                        u.id_usuario, 
+                        u.username,
+                        ag.nombre_agencia
+                        FROM usuarios u
+                        LEFT JOIN colaboradores c ON u.id_colaborador = c.id_colaborador
+                        LEFT JOIN agencias ag ON c.id_agencia = ag.id_agencia
+                        WHERE u.estado = 'Activo'
+                        AND c.puesto_cargo = 'Asesor de Créditos'";
+
+        $paramsUsuarios = [];
+        // Filtro estricto por agencia si no es todas
+        $sqlUsuarios .= " AND c.id_agencia = ?";
+        $paramsUsuarios[] = $agenciaId;
+
+        $stmtUsers = $db->prepare($sqlUsuarios);
+        $stmtUsers->execute($paramsUsuarios);
+        $allUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($allUsers as $usr) {
+            $agenciaNombre = $usr['nombre_agencia'] ?? 'N/A';
+            $key = $usr['id_usuario'] . '_' . $agenciaNombre;
+
+            if (!isset($asesoresStats[$key])) {
+                $asesoresStats[$key] = [
+                    'nombre' => $usr['username'],
+                    'agencia' => $agenciaNombre,
+                    'total_cartera' => 0,
+                    'clientes_count' => 0,
+                    'clientes_tramite' => 0,
+                    'mora_normal' => 0,
+                    'mora_1_3' => 0,
+                    'mora_4_7' => 0,
+                    'mora_8_14' => 0,
+                    'mora_15_30' => 0,
+                    'mora_30_plus' => 0
+                ];
+            }
+        }
     }
 
+    // 2. PROCESAR PRESTAMOS Y SUMAR EN LA BOLSA CORRESPONDIENTE
     foreach ($prestamosAsesor as $loan) {
         $cobradorId = $loan['cobrador_id'] ?? '0';
         $nombreAsesor = $loan['nombre_asesor'] ?? 'Sin Asignar';
@@ -331,23 +359,44 @@ try {
             $saldo = 0;
         }
 
-        // Clave única por asesor (incluir agencia si es consolidado)
-        $key = $cobradorId . '_' . $agenciaAsesor;
-
-        if (!isset($asesoresStats[$key])) {
-            $asesoresStats[$key] = [
-                'nombre' => $nombreAsesor,
-                'agencia' => $agenciaAsesor,
-                'total_cartera' => 0,
-                'clientes_count' => 0,
-                'clientes_tramite' => 0, // Nuevo campo
-                'mora_normal' => 0,
-                'mora_1_3' => 0,
-                'mora_4_7' => 0,
-                'mora_8_14' => 0,
-                'mora_15_30' => 0,
-                'mora_30_plus' => 0
-            ];
+        // --- DEFINIR CLAVE DE AGRUPACIÓN ---
+        if ($agruparPorAgencia) {
+            // Agrupamos por nombre de agencia
+            $key = $agenciaAsesor;
+            // Si la agencia de este préstamo no estaba en la lista inicial (ej. inactiva), la creamos al vuelo
+            if (!isset($asesoresStats[$key])) {
+                $asesoresStats[$key] = [
+                    'nombre' => $agenciaAsesor,
+                    'agencia' => '',
+                    'total_cartera' => 0,
+                    'clientes_count' => 0,
+                    'clientes_tramite' => 0,
+                    'mora_normal' => 0,
+                    'mora_1_3' => 0,
+                    'mora_4_7' => 0,
+                    'mora_8_14' => 0,
+                    'mora_15_30' => 0,
+                    'mora_30_plus' => 0
+                ];
+            }
+        } else {
+            // Agrupamos por Asesor
+            $key = $cobradorId . '_' . $agenciaAsesor;
+            if (!isset($asesoresStats[$key])) {
+                $asesoresStats[$key] = [
+                    'nombre' => $nombreAsesor,
+                    'agencia' => $agenciaAsesor,
+                    'total_cartera' => 0,
+                    'clientes_count' => 0,
+                    'clientes_tramite' => 0,
+                    'mora_normal' => 0,
+                    'mora_1_3' => 0,
+                    'mora_4_7' => 0,
+                    'mora_8_14' => 0,
+                    'mora_15_30' => 0,
+                    'mora_30_plus' => 0
+                ];
+            }
         }
 
         // Determinar días de atraso

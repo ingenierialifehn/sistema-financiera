@@ -112,6 +112,27 @@ try {
             $descBanco = "Cuadre Asesor $nombreAsesor. Ref: $refBanco [AID:$asesorId]";
             $stmtBan->execute([$bancoId, $monto, $saldoAnt, $saldoNuevo, $descBanco, $cajeroId]);
         }
+
+        // --- PROCESAR CAMBIO DE ESTADO DE PRÉSTAMO (SI APLICA) ---
+        if (!empty($item['loan_id']) && !empty($item['loan_estado'])) {
+            $loanId = intval($item['loan_id']);
+            $estadoActual = $item['loan_estado'];
+
+            $nuevoEstadoLoan = '';
+            if ($estadoActual === 'Rechazado en Ruta') {
+                $nuevoEstadoLoan = 'Rechazado';
+            } elseif ($estadoActual === 'Listo para Entrega') {
+                $nuevoEstadoLoan = 'Pendiente de Operaciones'; // Regresa para nueva asignación
+            }
+
+            if ($nuevoEstadoLoan !== '') {
+                $stmtLoanUpd = $db->prepare("UPDATE prestamos SET estado = ?, updated_at = NOW() WHERE id = ?");
+                $stmtLoanUpd->execute([$nuevoEstadoLoan, $loanId]);
+
+                // Opcional: Log o limpieza de campos de ruta si fuera necesario
+                // Por ahora el cambio de estado es suficiente para sacarlo del listado de "En Ruta / Deuda"
+            }
+        }
     }
 
     // 3. ACTUALIZAR SALDO VIRTUAL ASESOR (LA VERDAD ABSOLUTA)

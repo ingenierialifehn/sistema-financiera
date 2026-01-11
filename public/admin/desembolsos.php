@@ -318,7 +318,7 @@ require_once __DIR__ . '/includes/layout.php';
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         prestamo_id: loan.id,
-                        nuevo_estado: 'Pendiente de Operaciones'
+                        nuevo_estado: 'Rechazado en Ruta'
                     })
                 });
                 const res = await response.json();

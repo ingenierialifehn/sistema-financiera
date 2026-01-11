@@ -548,6 +548,10 @@ $userAgenciaId = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? null;
                         <span class="font-bold">${formatMoney(b.activos.bancos)}</span>
                    </div>
                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded">
+                        <span class="text-gray-600">Caja y Bóvedas</span>
+                        <span class="font-bold">${formatMoney(b.activos.caja_boveda)}</span>
+                   </div>
+                   <div class="flex justify-between items-center p-3 bg-gray-50 rounded">
                         <span class="text-gray-600">Cartera Vigente (Capital)</span>
                         <span class="font-bold">${formatMoney(b.activos.cartera)}</span>
                    </div>

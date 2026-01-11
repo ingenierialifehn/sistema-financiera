@@ -231,11 +231,37 @@ if (!$idAgencia) {
 
                 </div>
 
+                <!-- Suggestion Box -->
+                <!-- Suggestion Box (Visible by Default) -->
+                <div id="sugerenciaFondosContainer"
+                    class="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 mb-2">
+                    <p class="font-bold mb-1"><i class="fas fa-lightbulb text-yellow-500 mr-1"></i> Sugerencia de
+                        Sistema:</p>
+                    <div class="flex justify-between items-center">
+                        <span>Necesario para desembolsos:</span>
+                        <span class="font-bold text-red-600" id="lblTotalRequerido">Calculando...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>Disponible en Bóveda + Caja:</span>
+                        <span class="font-bold text-green-600" id="lblDisponibleLocal">Calculando...</span>
+                    </div>
+                    <div class="mt-2 pt-2 border-t border-blue-200 flex justify-between items-center">
+                        <span class="font-bold">Solicitar a Banco:</span>
+                        <span class="font-bold text-lg text-indigo-700" id="lblMontoSugerido">Calculando...</span>
+                    </div>
+                    <button type="button" id="btnUsarSugerido"
+                        class="mt-2 w-full bg-blue-600 text-white py-1 rounded hover:bg-blue-700 text-xs font-bold"
+                        style="display:none;">
+                        <i class="fas fa-check mr-1"></i> Usar Monto Sugerido
+                    </button>
+                </div>
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
-                    <input type="number" id="montoFondos" step="0.01" min="0.01" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="0.00">
+                    <!-- Default to Readonly/Blocked -->
+                    <input type="number" id="montoFondos" step="0.01" min="0.01" required readonly
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-100 text-gray-500 cursor-not-allowed"
+                        placeholder="Espere cálculo...">
                 </div>
 
                 <div>
@@ -289,14 +315,34 @@ if (!$idAgencia) {
                 </div>
             </div>
 
+            <!-- Suggestion Box for Retiro (Visible by Default) -->
+            <div id="sugerenciaRetiroContainer"
+                class="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-800 mb-2">
+                <p class="font-bold mb-1"><i class="fas fa-calculator text-green-600 mr-1"></i> Sugerencia para
+                    Desembolsos:</p>
+                <div class="flex justify-between items-center">
+                    <span>Requerido en Caja:</span>
+                    <span class="font-bold text-red-600" id="lblRetiroRequerido">Calculando...</span>
+                </div>
+                <div class="mt-2 pt-2 border-t border-green-200 flex justify-between items-center">
+                    <span class="font-bold">Retirar de Bóveda:</span>
+                    <span class="font-bold text-lg text-green-700" id="lblMontoRetiroSugerido">Calculando...</span>
+                </div>
+                <button type="button" id="btnUsarSugeridoRetiro"
+                    class="mt-2 w-full bg-green-600 text-white py-1 rounded hover:bg-green-700 text-xs font-bold"
+                    style="display:none;">
+                    <i class="fas fa-check mr-1"></i> Usar Monto Sugerido
+                </button>
+            </div>
+
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Monto a Retirar *</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">L.</span>
-                        <input type="number" id="montoRetiro" step="0.01" min="0.01" required
-                            class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                            placeholder="0.00">
+                        <input type="number" id="montoRetiro" step="0.01" min="0.01" required readonly
+                            class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-100 text-gray-500 cursor-not-allowed"
+                            placeholder="Calculando...">
                     </div>
                 </div>
 
@@ -531,6 +577,9 @@ if (!$idAgencia) {
                             class="w-full text-xs px-2 py-1.5 border border-gray-300 rounded mb-2"
                             placeholder="Ref/Comprobante">
 
+                        <input type="hidden" id="form-temp-loan-id">
+                        <input type="hidden" id="form-temp-loan-estado">
+
                         <button type="button" id="btnAgregarBanco"
                             class="w-full bg-blue-100 text-blue-700 py-1 rounded text-xs font-bold hover:bg-blue-200 border border-blue-200">
                             <i class="fas fa-plus"></i> Agregar Depósito
@@ -596,5 +645,102 @@ if (!$idAgencia) {
         return_bank: true
     };
 </script>
-<script src="<?php echo $baseUrl; ?>/public/admin/assets/js/control_caja.js?v=<?php echo time(); ?>"></script>
+<script
+    src="<?php echo $baseUrl; ?>/public/admin/assets/js/control_caja.js?v=<?php echo time() . '_FORCE'; ?>"></script>
+
+<!-- Inline Script to Force Update (Bypassing potential Cache) -->
+<script>
+    // Overwrite function to ensure it runs
+    function abrirModalFondos() {
+        if (typeof loadBancos === 'function') loadBancos();
+        $('#jalarFondosModal').removeClass('hidden').addClass('flex');
+        checkSugerenciaFondos_Direct();
+    }
+
+    // Overwrite Retiro function
+    function abrirModalRetiro() {
+        // Use data from caixaActual if available, but refresh suggestion
+        if (typeof cajaActual !== 'undefined') {
+            $('#modalSaldoBoveda').text('L. ' + parseFloat(cajaActual.saldo_boveda).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+            $('#modalSaldoCaja').text('L. ' + parseFloat(cajaActual.saldo_caja).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+        }
+
+        $('#retiroBovedaModal').removeClass('hidden').addClass('flex');
+        checkSugerenciaRetiro_Direct();
+    }
+
+    function checkSugerenciaFondos_Direct() {
+        $.get('<?php echo BASE_URL; ?>/app/api/caja/get_monto_sugerido.php', function (res) {
+            if (res.success) {
+                const data = res.data;
+                const sugerido = parseFloat(data.monto_sugerido);
+
+                // Update UI elements
+                $('#lblTotalRequerido').text('L. ' + parseFloat(data.total_requerido).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+                $('#lblDisponibleLocal').text('L. ' + (parseFloat(data.saldo_boveda) + parseFloat(data.saldo_caja)).toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+                $('#lblMontoSugerido').text('L. ' + sugerido.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+                // Show container (visible by default, just ensuring)
+                $('#sugerenciaFondosContainer').removeClass('hidden');
+
+                if (sugerido > 0) {
+                    $('#montoFondos').val(sugerido.toFixed(2));
+                    $('#montoFondos').prop('readonly', true).addClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+
+                    $('#btnUsarSugerido').html('<i class="fas fa-edit"></i> Editar Monto').show().off('click').on('click', function () {
+                        $('#montoFondos').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed').focus();
+                        $(this).hide();
+                    });
+                } else {
+                    $('#montoFondos').val('').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+                    $('#lblMontoSugerido').text('L. 0.00 (Cubierto)');
+                    $('#btnUsarSugerido').hide();
+                }
+            }
+        });
+    }
+
+    function checkSugerenciaRetiro_Direct() {
+        $.get('<?php echo BASE_URL; ?>/app/api/caja/get_monto_sugerido.php', function (res) {
+            if (res.success) {
+                const data = res.data;
+                const totalRequerido = parseFloat(data.total_requerido);
+                const saldoCaja = parseFloat(data.saldo_caja);
+                const saldoBoveda = parseFloat(data.saldo_boveda);
+
+                // Calculate shortage in CASH only: Needed - Cash
+                let faltanteCaja = totalRequerido - saldoCaja;
+                if (faltanteCaja < 0) faltanteCaja = 0;
+
+                $('#lblRetiroRequerido').text('L. ' + totalRequerido.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+                $('#lblMontoRetiroSugerido').text('L. ' + faltanteCaja.toLocaleString('es-HN', { minimumFractionDigits: 2 }));
+
+                if (faltanteCaja > 0) {
+                    $('#montoRetiro').val(faltanteCaja.toFixed(2));
+                    $('#montoRetiro').prop('readonly', true).addClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+
+                    $('#btnUsarSugeridoRetiro').html('<i class="fas fa-edit"></i> Editar Monto').show().off('click').on('click', function () {
+                        $('#montoRetiro').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed').focus();
+                        $(this).hide();
+                    });
+
+                    // Warning if Vault doesn't have enough
+                    if (faltanteCaja > saldoBoveda) {
+                        $('#lblMontoRetiroSugerido').append(' <span class="text-red-500 text-xs">(Insuficiente en Bóveda)</span>');
+                    }
+                } else {
+                    $('#montoRetiro').val('').prop('readonly', false).removeClass('bg-gray-100 text-gray-500 cursor-not-allowed');
+                    $('#lblMontoRetiroSugerido').text('L. 0.00 (Cubierto en Caja)');
+                    $('#btnUsarSugeridoRetiro').hide();
+                }
+            }
+        });
+    }
+
+    // Re-bind click event just in case
+    $(document).ready(function () {
+        $('#btnJalarFondos').off('click').on('click', abrirModalFondos);
+        $('#btnRetiroBoveda').off('click').on('click', abrirModalRetiro);
+    });
+</script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

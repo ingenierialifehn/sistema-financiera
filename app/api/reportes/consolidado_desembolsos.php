@@ -123,6 +123,22 @@ try {
         $modalidad['cantidad'] = intval($modalidad['cantidad']);
     }
 
+    // CRÉDITOS RECHAZADOS (Por fecha de actualización/rechazo)
+    $sqlRechazados = "SELECT 
+                      COUNT(*) as cantidad_rechazados,
+                      IFNULL(SUM(monto_capital), 0) as monto_rechazado
+                      FROM prestamos p
+                      INNER JOIN clientes c ON p.id_cliente = c.id
+                      WHERE DATE(p.updated_at) BETWEEN ? AND ?
+                      $filtroAgenciaSql
+                      AND p.estado = 'Rechazado'";
+
+    $paramsRechazados = $paramsResumen; // Misma estructura de params [fecha, fecha, agencia?]
+
+    $stmtRechazados = $db->prepare($sqlRechazados);
+    $stmtRechazados->execute($paramsRechazados);
+    $rechazadosInfo = $stmtRechazados->fetch(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
         'data' => [
@@ -134,7 +150,9 @@ try {
                 'cantidad_prestamos' => intval($resumen['cantidad_prestamos']),
                 'monto_total_colocado' => round(floatval($resumen['monto_total_colocado']), 2),
                 'cantidad_nuevos' => intval($resumen['cantidad_nuevos']),
-                'cantidad_refinanciamientos' => intval($resumen['cantidad_refinanciamientos'])
+                'cantidad_refinanciamientos' => intval($resumen['cantidad_refinanciamientos']),
+                'cantidad_rechazados' => intval($rechazadosInfo['cantidad_rechazados']),
+                'monto_rechazado' => round(floatval($rechazadosInfo['monto_rechazado']), 2)
             ],
             'desembolsos' => $desembolsos,
             'por_modalidad' => $porModalidad
