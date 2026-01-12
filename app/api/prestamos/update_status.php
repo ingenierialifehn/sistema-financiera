@@ -22,7 +22,7 @@ try {
 
     $prestamoId = intval($data['prestamo_id']);
     $nuevoEstado = $data['nuevo_estado'];
-    $validStates = ['Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Rechazado', 'Rechazado en Ruta', 'Listo para Entrega', 'Activo'];
+    $validStates = ['Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado', 'Rechazado', 'Rechazado en Ruta', 'Listo para Entrega', 'Activo', 'verificado'];
 
     if (!in_array($nuevoEstado, $validStates)) {
         throw new Exception("Estado inválido");

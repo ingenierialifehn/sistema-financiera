@@ -35,13 +35,33 @@ try {
 
     // Si es cobrador, solo mostrar sus clientes asignados
     // Si es admin/gerente, puede ver todos (filtro opcional por agencia)
-    $rol = strtolower($user['rol_nombre'] ?? $user['rol'] ?? '');
+    // Determinar ALCANCE DE DATOS (Scope)
+    // 1. Verificar si tiene acceso Global
+    $canViewGlobal = Auth::hasPermission('special_scopes.clientes_view_global');
 
-    // FILTRO ESTRICTO solicitado: Mostrar SOLO clientes donde el usuario logueado sea el encargado (cobrador_id)
-    // "solamente debera mostrar los clientes donde el idusuario sea igual al de cobrador_id"
-    $where[] = "c.cobrador_id = :current_user_id";
-    $params['current_user_id'] = $user['id_usuario'];
-    error_log("Strict filter applied: Showing only clients for cobrador_id = {$user['id_usuario']}");
+    // 2. Verificar si tiene acceso de Agencia
+    $canViewAgency = Auth::hasPermission('special_scopes.clientes_view_agency');
+
+    if ($canViewGlobal) {
+        // Acceso Global: No aplicamos filtros restrictivos automáticos.
+        // El usuario puede ver todo. Los filtros por GET (abajo) seguirán funcionando si se envían.
+        // Si el admin envía ?cobrador_id=X, funcionará.
+    } elseif ($canViewAgency) {
+        // Acceso Agencia: Restringir a la agencia del usuario
+        // Asumimos que el usuario tiene id_agencia. Si no, fallback a propio.
+        if (!empty($user['id_agencia'])) {
+            $where[] = "c.id_agencia = :current_user_scope_agency";
+            $params['current_user_scope_agency'] = $user['id_agencia'];
+        } else {
+            // Fallback si no tiene agencia asignada
+            $where[] = "c.cobrador_id = :current_user_id_fallback";
+            $params['current_user_id_fallback'] = $user['id_usuario'];
+        }
+    } else {
+        // Acceso Propio (Default): Solo ver clientes asignados a él
+        $where[] = "c.cobrador_id = :current_user_id";
+        $params['current_user_id'] = $user['id_usuario'];
+    }
 
     /*
     // Lógica anterior (Roles) - DESHABILITADA

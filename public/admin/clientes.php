@@ -47,8 +47,17 @@ $currentUser = $user ?? [];
         }
 
         const USER_AGENCIA_ID = <?php echo $userAgenciaId ? $userAgenciaId : 'null'; ?>;
+
+        // Permisos para JS
+        const PERMISSIONS = {
+            create: <?php echo Auth::hasPermission('clientes.create') ? 'true' : 'false'; ?>,
+            edit: <?php echo Auth::hasPermission('clientes.edit') ? 'true' : 'false'; ?>,
+            delete: <?php echo Auth::hasPermission('clientes.delete') ? 'true' : 'false'; ?>
+        };
+
         console.log('BASE_URL:', BASE_URL);
         console.log('USER_AGENCIA_ID:', USER_AGENCIA_ID);
+        console.log('PERMISSIONS:', PERMISSIONS);
     </script>
 </head>
 
@@ -66,10 +75,13 @@ $currentUser = $user ?? [];
                     </h1>
                     <p class="text-gray-600 mt-2">Administra la información de tus clientes</p>
                 </div>
-                <button id="btnNuevoCliente"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition shadow-md hover:shadow-lg font-medium text-sm flex items-center gap-2 transform active:scale-95">
-                    <i class="fas fa-user-plus text-blue-200"></i>Nuevo Cliente
-                </button>
+
+                <?php if (Auth::hasPermission('clientes.create')): ?>
+                    <button id="btnNuevoCliente"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition shadow-md hover:shadow-lg font-medium text-sm flex items-center gap-2 transform active:scale-95">
+                        <i class="fas fa-user-plus text-blue-200"></i>Nuevo Cliente
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
 

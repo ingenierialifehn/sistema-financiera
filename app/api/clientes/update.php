@@ -18,8 +18,10 @@ if (!in_array($_SERVER['REQUEST_METHOD'], ['PUT', 'POST'])) {
 }
 
 try {
-    // Requerir autenticación
-    $user = AuthMiddleware::requireAuth();
+    // Requerir autenticación y permiso de edición
+    Auth::requireAuth();
+    Auth::requirePermission('clientes.edit');
+    $user = Auth::getCurrentUser();
 
     // Obtener datos según el método
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {

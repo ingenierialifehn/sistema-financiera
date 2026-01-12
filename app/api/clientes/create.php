@@ -18,8 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
-    // Requerir autenticación (solo admin puede crear clientes)
-    $user = AuthMiddleware::requireAdmin();
+    // Requerir autenticación y permiso
+    Auth::requireAuth();
+    Auth::requirePermission('clientes.create');
+    $user = Auth::getCurrentUser();
 
     $input = getJsonInput();
 

@@ -22,7 +22,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
         <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
             <!-- Dashboard -->
             <!-- Dashboard -->
-            <?php if (Auth::hasPermission('dashboard')): ?>
+            <?php if (Auth::hasPermission('dashboard.view') || Auth::hasPermission('dashboard')): ?>
                 <a href="dashboard.php"
                     class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'dashboard.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-chart-line w-5"></i>
@@ -31,10 +31,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <?php endif; ?>
 
             <!-- Dashboard Gerencial -->
-            <?php
-            $userRole = $_SESSION['rol_nombre'] ?? '';
-            if (stripos($userRole, 'Admin') !== false || stripos($userRole, 'Gerente') !== false):
-                ?>
+            <?php if (Auth::hasPermission('dashboard_gerencial.view') || Auth::hasPermission('dashboard_gerencial')): ?>
                 <a href="dashboard_gerencial.php"
                     class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'dashboard_gerencial.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-chart-pie w-5"></i>
@@ -42,41 +39,33 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
-
-
-
-
-
-
-
-
             <!-- Colaboradores -->
             <!-- Gestión de Personal (Colaboradores y Usuarios) -->
-            <?php if (Auth::hasPermission('colaboradores') || Auth::hasPermission('agencias')): ?>
+            <?php if (Auth::hasPermission('colaboradores.view') || Auth::hasPermission('agencias.view') || Auth::hasPermission('clientes.view')): ?>
                 <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Gestión de Personal
                 </div>
 
                 <!-- Colaboradores -->
-                <?php if (Auth::hasPermission('colaboradores')): ?>
+                <?php if (Auth::hasPermission('colaboradores.view')): ?>
                     <a href="colaboradores.php"
-                        class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'colaboradores.php' ? 'bg-indigo-600' : ''; ?>">
                         <i class="fas fa-users-cog w-5"></i>
                         <span>Colaboradores</span>
                     </a>
                 <?php endif; ?>
 
                 <!-- Agencias -->
-                <?php if (Auth::hasPermission('agencias')): ?>
+                <?php if (Auth::hasPermission('agencias.view')): ?>
                     <a href="agencias.php"
-                        class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'agencias.php' ? 'bg-indigo-600' : ''; ?>">
                         <i class="fas fa-building w-5"></i>
                         <span>Agencias</span>
                     </a>
                 <?php endif; ?>
 
                 <!-- Clientes -->
-                <?php if (Auth::hasPermission('clientes') || Auth::hasPermission('colaboradores')): ?>
+                <?php if (Auth::hasPermission('clientes.view')): ?>
                     <a href="clientes.php"
                         class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'clientes.php' || $currentPage === 'ficha_cliente.php' ? 'bg-indigo-600' : ''; ?>">
                         <i class="fas fa-users w-5"></i>
@@ -86,69 +75,77 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <?php endif; ?>
 
             <!-- Gestión de Créditos -->
-            <?php if (Auth::hasPermission('prestamos_analisis') || Auth::hasPermission('clientes')): ?>
-                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <?php if (Auth::hasPermission('prestamos_analisis.view') || Auth::hasPermission('verificacion_campo.view') || Auth::hasPermission('clientes.view')): ?>
+                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Gestión de Créditos
                 </div>
-                <a href="analisis_prestamos.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'analisis_prestamos.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-search-dollar w-5"></i>
-                    <span>Análisis de Préstamos</span>
-                </a>
+
+                <?php if (Auth::hasPermission('prestamos_analisis.view')): ?>
+                    <a href="analisis_prestamos.php"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'analisis_prestamos.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-search-dollar w-5"></i>
+                        <span>Análisis de Préstamos</span>
+                    </a>
+                <?php endif; ?>
+
+                <?php if (Auth::hasPermission('verificacion_campo.view')): ?>
+                    <a href="verificacion_campo.php"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'verificacion_campo.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-clipboard-check w-5"></i>
+                        <span>Verificación de Campo</span>
+                    </a>
+                <?php endif; ?>
             <?php endif; ?>
 
             <!-- Finanzas -->
-            <?php if (Auth::hasPermission('tesoreria')): ?>
-                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <?php if (Auth::hasPermission('tesoreria.view')): ?>
+                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Finanzas
                 </div>
                 <a href="tesoreria.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'tesoreria.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-university w-5"></i>
                     <span>Tesorería y Bancos</span>
                 </a>
             <?php endif; ?>
 
             <!-- Planillas -->
-            <?php if (Auth::hasPermission('planillas') || strpos($_SESSION['rol_nombre'] ?? '', 'Admin') !== false): ?>
-                <div class="hidden lg:block px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <?php if (Auth::hasPermission('planillas.view')): ?>
+                <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Planillas
                 </div>
                 <a href="planilla_gestion.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_gestion.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_gestion.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-file-invoice-dollar w-5"></i>
                     <span>Generar Planilla</span>
                 </a>
                 <a href="planilla_config.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_config.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'planilla_config.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-sliders-h w-5"></i>
                     <span>Configuración Planilla</span>
                 </a>
             <?php endif; ?>
 
             <!-- Gastos Operativos -->
-            <?php
-            $userRole = $_SESSION['rol_nombre'] ?? '';
-            if (stripos($userRole, 'Admin') !== false || stripos($userRole, 'Gerente') !== false || stripos($userRole, 'Supervisor') !== false):
-                ?>
+            <?php if (Auth::hasPermission('gastos_operativos.view')): ?>
                 <a href="gastos_operativos.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'gastos_operativos.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'gastos_operativos.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-file-invoice-dollar w-5"></i>
                     <span>Gastos Operativos</span>
                 </a>
             <?php endif; ?>
 
             <!-- Operaciones -->
-            <?php if (Auth::hasPermission('operaciones')): ?>
+            <?php if (Auth::hasPermission('operaciones.view')): ?>
                 <a href="operaciones.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'operaciones.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'operaciones.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-tasks w-5"></i>
                     <span>Operaciones</span>
                 </a>
             <?php endif; ?>
 
             <!-- Desembolsos -->
-            <?php if (Auth::hasPermission('operaciones') || Auth::hasPermission('caja')): ?>
+            <?php if (Auth::hasPermission('desembolsos.view')): ?>
                 <a href="desembolsos.php"
                     class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'desembolsos.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-hand-holding-usd w-5"></i>
@@ -157,7 +154,7 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <?php endif; ?>
 
             <!-- Cobranza -->
-            <?php if (Auth::hasPermission('operaciones') || Auth::hasPermission('caja')): ?>
+            <?php if (Auth::hasPermission('cobranza.view_routes') || Auth::hasPermission('cobranza')): ?>
                 <a href="cobranza.php"
                     class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'cobranza.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-money-bill-alt w-5"></i>
@@ -166,18 +163,16 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <?php endif; ?>
 
             <!-- Control de Caja -->
-            <?php if (Auth::hasPermission('caja')): ?>
+            <?php if (Auth::hasPermission('caja.view')): ?>
                 <a href="control_caja.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'control_caja.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'control_caja.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-cash-register w-5"></i>
                     <span>Control de Caja</span>
                 </a>
             <?php endif; ?>
 
-
-
-            <!-- Seguridad y Roles (Nuevo) -->
-            <?php if (Auth::hasPermission('seguridad')): ?>
+            <!-- Seguridad y Roles -->
+            <?php if (Auth::hasPermission('seguridad.view')): ?>
                 <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     Seguridad
                 </div>
@@ -189,55 +184,38 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
             <?php endif; ?>
 
             <!-- Reportes -->
-            <!-- Reportes -->
-            <?php if (Auth::hasPermission('reportes')): ?>
-                <div class="hidden lg:block border-t border-gray-700 my-2"></div>
-                <a href="reportes.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-file-alt w-5"></i>
-                    <span>Reportes</span>
-                </a>
+            <?php if (Auth::hasPermission('reportes.view_consolidado') || Auth::hasPermission('reportes.view_agencia') || Auth::hasPermission('reportes.view_financieros')): ?>
+                <div class="border-t border-gray-700 my-2"></div>
 
-                <!-- Reportes de Agencia -->
-                <a href="reportes_agencia.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_agencia.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-chart-line w-5"></i>
-                    <span>Reportes de Agencia</span>
-                </a>
+                <?php if (Auth::hasPermission('reportes.view_consolidado')): ?>
+                    <a href="reportes_consolidado.php"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_consolidado.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-chart-bar w-5"></i>
+                        <span>Reportes Consolidados</span>
+                    </a>
+                <?php endif; ?>
 
-                <!-- Reportes Consolidados -->
-                <a href="reportes_consolidado.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_consolidado.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-chart-bar w-5"></i>
-                    <span>Reportes Consolidados</span>
-                </a>
+                <?php if (Auth::hasPermission('reportes.view_agencia')): ?>
+                    <a href="reportes_agencia.php"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_agencia.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-chart-line w-5"></i>
+                        <span>Reportes de Agencia</span>
+                    </a>
+                <?php endif; ?>
 
-                <!-- Reportes Financieros (NUEVO) -->
-                <a href="reportes_financieros.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_financieros.php' ? 'bg-indigo-600' : ''; ?>">
-                    <i class="fas fa-file-invoice-dollar w-5"></i>
-                    <span>Reportes Financieros</span>
-                </a>
+                <?php if (Auth::hasPermission('reportes.view_financieros')): ?>
+                    <a href="reportes_financieros.php"
+                        class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'reportes_financieros.php' ? 'bg-indigo-600' : ''; ?>">
+                        <i class="fas fa-file-invoice-dollar w-5"></i>
+                        <span>Reportes Financieros</span>
+                    </a>
+                <?php endif; ?>
 
-                <!-- Auditoría del Sistema (NUEVO) -->
-                <a href="<?= BASE_URL ?>/public/admin/auditoria_sistema.php"
-                    class="group flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-700 hover:text-white <?= (strpos($_SERVER['PHP_SELF'], 'auditoria_sistema.php') !== false) ? 'bg-gray-900 text-white' : 'text-gray-300' ?>">
-                    <i class="fas fa-heartbeat mr-3 flex-shrink-0 h-6 w-6 text-red-500"></i>
-                    Auditoría de Sistema
-                </a>
-
-                <a href="<?= BASE_URL ?>/public/admin/reversiones.php"
-                    class="group flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-700 hover:text-white <?= (strpos($_SERVER['PHP_SELF'], 'reversiones.php') !== false) ? 'bg-gray-900 text-white' : 'text-gray-300' ?>">
-                    <i class="fas fa-history mr-3 flex-shrink-0 h-6 w-6 text-indigo-400"></i>
-                    Reversiones y Anulaciones
-                </a>
             <?php endif; ?>
 
-            <!-- Configuración -->
-            <!-- Configuración -->
-            <?php if (Auth::hasPermission('configuracion')): ?>
+            <?php if (Auth::hasPermission('configuracion.view')): ?>
                 <a href="configuracion.php"
-                    class="hidden lg:flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'configuracion.php' ? 'bg-indigo-600' : ''; ?>">
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'configuracion.php' ? 'bg-indigo-600' : ''; ?>">
                     <i class="fas fa-cog w-5"></i>
                     <span>Configuración</span>
                 </a>

@@ -38,7 +38,7 @@
         </div>
 
         <!-- Logout -->
-        <a href="../logout.php"
+        <a href="<?php echo base_url('public/logout.php'); ?>"
             class="flex items-center space-x-2 rounded-lg bg-red-500 px-3 py-2 text-white transition hover:bg-red-600">
             <i class="fas fa-sign-out-alt"></i>
             <span class="hidden md:inline">Salir</span>

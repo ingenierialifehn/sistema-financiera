@@ -428,9 +428,11 @@ function renderClientes(clientes) {
                     <button onclick="verFicha(${cliente.id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Ver Ficha">
                         <i class="fas fa-eye"></i>
                     </button>
+                    ${PERMISSIONS.edit ? `
                     <button onclick="editarCliente(${cliente.id})" class="text-indigo-600 hover:text-indigo-900" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
+                    ` : ''}
                 </td>
             </tr>
         `;
@@ -488,10 +490,12 @@ function renderClientes(clientes) {
                         class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-md">
                         <i class="fas fa-eye mr-2"></i>Ver Ficha
                     </button>
+                    ${PERMISSIONS.edit ? `
                     <button onclick="editarCliente(${cliente.id})" 
                         class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 shadow-md">
                         <i class="fas fa-edit mr-2"></i>Editar
                     </button>
+                    ` : ''}
                 </div>
             </div>
         `;

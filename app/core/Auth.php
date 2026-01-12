@@ -232,27 +232,84 @@ class Auth
     /**
      * Verificar si tiene permiso específico (Nueva función)
      */
+    /**
+     * Verificar si tiene permiso específico
+     * Soporta 'modulo' (verifica view) o 'modulo.accion'
+     */
+    /**
+     * Verificar si tiene permiso específico
+     * Soporta 'modulo' (verifica view) o 'modulo.accion'
+     */
     public static function hasPermission($permissionKey)
     {
-        $user = self::getCurrentUser();
-        if (!$user)
-            return false;
-
-        // Special case: 'readonly' must return false to avoid locking the UI
-        if ($permissionKey === 'readonly') {
-            return false;
+        // Obtener usuario o sesión
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
         }
 
-        return true; // Bypass for everything else
+        // Permisos de sesión
+        $permisos = $_SESSION['permisos'] ?? [];
+
+        // CASO ESPECIAL: Readonly
+        // Readonly NO debe ser true por defecto ni por 'todos', solo si está explícitamente set
+        if ($permissionKey === 'readonly') {
+            return isset($permisos['readonly']) && $permisos['readonly'] === true;
+        }
+
+        // 1. Super Admin bypass (EXCEPTO para readonly, que ya se chequeó arriba)
+        if (
+            isset($_SESSION['rol_nombre']) &&
+            ($_SESSION['rol_nombre'] === 'Administrador' || $_SESSION['rol_nombre'] === 'Super Admin')
+        ) {
+            return true;
+        }
+
+        // 3. Chequeo de acceso total legacy
+        if (isset($permisos['todos']) && $permisos['todos'] === true) {
+            return true;
+        }
+
+        // 4. Chequeo granular
+        if (strpos($permissionKey, '.') !== false) {
+            // Formato: modulo.accion
+            list($module, $action) = explode('.', $permissionKey, 2);
+
+            if (isset($permisos[$module])) {
+                // Si el módulo tiene true global
+                if ($permisos[$module] === true)
+                    return true;
+                // Si es array, buscar la acción
+                if (is_array($permisos[$module]) && isset($permisos[$module][$action]) && $permisos[$module][$action] === true) {
+                    return true;
+                }
+            }
+        } else {
+            // Formato: modulo (verifica acceso general o permiso 'view')
+            if (isset($permisos[$permissionKey])) {
+                if ($permisos[$permissionKey] === true)
+                    return true;
+                if (is_array($permisos[$permissionKey])) {
+                    // Si tiene permiso 'view' explícito o si tiene cualquier permiso en el módulo (fallback)
+                    if (isset($permisos[$permissionKey]['view']) && $permisos[$permissionKey]['view'] === true)
+                        return true;
+                    // Opcional: permitir si tiene CUALQUIER permiso dentro del módulo?
+                    // Por seguridad, mejor requerir 'view' para ver el módulo.
+                    return !empty($permisos[$permissionKey]);
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
-     * Requerir permiso específico
+     * Alias para compatibilidad
      */
     public static function requirePermission($permissionKey)
     {
-        // Bypass check
-        return;
+        if (!self::hasPermission($permissionKey)) {
+            Response::forbidden('No tiene permisos para realizar esta acción.');
+        }
     }
 
     /**
@@ -301,6 +358,7 @@ class Auth
 
     /**
      * Verificar autenticación desde sesión PHP (para uso web)
+     * REFRESCA PERMISOS SIEMPRE
      */
     public static function checkSession()
     {
@@ -312,7 +370,7 @@ class Auth
             return null;
         }
 
-        // Verificar que el token de sesión sea válido
+        // Verificar que el token de sesión sea válido (Esto consulta la DB fresca)
         $user = self::verifyToken($_SESSION['user_token']);
 
         if (!$user) {
@@ -320,6 +378,20 @@ class Auth
             self::destroySession();
             return null;
         }
+
+        // --- ACTUALIZACIÓN PROACTIVA DE SESIÓN ---
+        // Actualizamos los permisos en la sesión con los datos frescos de la DB
+        // Esto soluciona problemas donde se cambian permisos y el usuario tiene que reloguearse
+        if (isset($user['permisos'])) {
+            // json_decode si viene de DB como string, o usar directo si verifyToken ya lo procesó?
+            // verifyToken devuelve array crudo de PDO fetch. 'permisos' es string JSON.
+            $decoded = is_string($user['permisos']) ? json_decode($user['permisos'], true) : $user['permisos'];
+            $_SESSION['permisos'] = $decoded;
+        }
+        if (isset($user['rol_nombre'])) {
+            $_SESSION['rol_nombre'] = $user['rol_nombre'];
+        }
+        // -----------------------------------------
 
         return $user;
     }

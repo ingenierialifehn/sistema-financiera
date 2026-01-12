@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../core/Validator.php';
 require_once __DIR__ . '/../../core/Helpers.php';
 
 Auth::requireAuth();
-Auth::requirePermission('seguridad');
+Auth::requirePermission('seguridad.edit_role');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'PUT' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     Response::error('Método no permitido', 405);
