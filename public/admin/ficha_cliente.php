@@ -120,6 +120,31 @@ $pageTitle = 'Ficha del Cliente';
                 <i class="fas fa-spinner fa-spin text-4xl text-blue-600"></i>
             </div>
         </div>
+        <!-- Print Preview Modal -->
+        <div id="printModal"
+            class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="text-xl font-bold text-gray-800">Vista Previa de Impresión</h3>
+                    <button onclick="closePrintModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div class="flex-grow bg-gray-100 p-4 overflow-hidden">
+                    <iframe id="printFrame" class="w-full h-full border shadow-sm bg-white"></iframe>
+                </div>
+                <div class="p-4 border-t flex justify-end gap-3 bg-gray-50">
+                    <button onclick="closePrintModal()"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 font-medium">
+                        Cerrar
+                    </button>
+                    <button onclick="printFromFrame()"
+                        class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow flex items-center">
+                        <i class="fas fa-print mr-2"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -405,7 +430,21 @@ $pageTitle = 'Ficha del Cliente';
         }
 
         function imprimirFicha() {
-            window.print();
+            const url = BASE_URL + '/public/admin/print_estado_cuenta.php?id=' + CLIENTE_ID;
+            $('#printFrame').attr('src', url);
+            $('#printModal').removeClass('hidden').addClass('flex');
+        }
+
+        function closePrintModal() {
+            $('#printModal').addClass('hidden').removeClass('flex');
+            $('#printFrame').attr('src', '');
+        }
+
+        function printFromFrame() {
+            const iframe = document.getElementById('printFrame');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.print();
+            }
         }
 
         // --- Gestión de Préstamos ---

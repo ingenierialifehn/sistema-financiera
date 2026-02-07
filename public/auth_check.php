@@ -27,20 +27,11 @@ if (!$user) {
     // Limpiar cualquier dato residual
     session_destroy();
 
-    // Redirigir a login usando ruta relativa para compatibilidad móvil
-    $loginPath = '/login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
+    // Redirigir a login usando base_url para fiabilidad
+    $redirect = urlencode($_SERVER['REQUEST_URI']);
+    $loginUrl = base_url("public/login.php?redirect={$redirect}");
 
-    // Construir ruta relativa desde la ubicación actual
-    $currentPath = $_SERVER['SCRIPT_NAME'];
-    if (strpos($currentPath, '/public/admin/') !== false) {
-        // Estamos en /public/admin/, subir un nivel
-        $loginPath = '../login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
-    } elseif (strpos($currentPath, '/public/') !== false) {
-        // Estamos en /public/, mismo nivel
-        $loginPath = 'login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']);
-    }
-
-    header('Location: ' . $loginPath);
+    header('Location: ' . $loginUrl);
     exit;
 }
 

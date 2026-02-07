@@ -8,9 +8,15 @@ $pageTitle = 'Verificación de Campo';
 
 require_once __DIR__ . '/../auth_check.php';
 
-if (!Auth::hasPermission('verificacion_campo.view')) {
-    header('Location: ' . base_url('public/admin/dashboard.php'));
-    exit;
+if (function_exists('requireViewPermission')) {
+    requireViewPermission('verificacion_campo.view');
+} else {
+    // Fallback if function not available
+    if (!Auth::hasPermission('verificacion_campo.view')) {
+        header('HTTP/1.1 403 Forbidden');
+        echo "Acceso denegado. Permiso requerido: verificacion_campo.view";
+        exit;
+    }
 }
 
 require_once __DIR__ . '/includes/layout.php';
@@ -44,7 +50,16 @@ require_once __DIR__ . '/includes/layout.php';
 
 <!-- Tabla de préstamos pendientes de verificación -->
 <div class="bg-white rounded-lg shadow overflow-hidden">
-    <div class="overflow-x-auto">
+    <!-- Vista Móvil (Tarjetas) -->
+    <div id="mobileCardContainer" class="md:hidden space-y-4 px-4 pb-4">
+        <!-- Las tarjetas se renderizarán aquí vía JS -->
+        <div class="text-center py-8 text-gray-500">
+            <i class="fas fa-spinner fa-spin"></i> Cargando solicitudes...
+        </div>
+    </div>
+
+    <!-- Vista Desktop (Tabla) -->
+    <div class="hidden md:block overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>

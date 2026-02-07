@@ -379,17 +379,24 @@ class Auth
             return null;
         }
 
-        // --- ACTUALIZACIÓN PROACTIVA DE SESIÓN ---
+        // --- ACTUALIZACIÓN PROACTIVA DE SESIÓN Y ROL ---
         // Actualizamos los permisos en la sesión con los datos frescos de la DB
-        // Esto soluciona problemas donde se cambian permisos y el usuario tiene que reloguearse
+        // Esto es CRÍTICO para que los cambios de roles se reflejen inmediatamente
+
+        // El usuario retornado por verifyToken ya trae permisos crudos (JSON string)
         if (isset($user['permisos'])) {
-            // json_decode si viene de DB como string, o usar directo si verifyToken ya lo procesó?
-            // verifyToken devuelve array crudo de PDO fetch. 'permisos' es string JSON.
             $decoded = is_string($user['permisos']) ? json_decode($user['permisos'], true) : $user['permisos'];
-            $_SESSION['permisos'] = $decoded;
+            if (is_array($decoded)) {
+                $_SESSION['permisos'] = $decoded;
+            }
         }
+
+        // También actualizar el rol si cambió
         if (isset($user['rol_nombre'])) {
             $_SESSION['rol_nombre'] = $user['rol_nombre'];
+        }
+        if (isset($user['id_rol'])) {
+            $_SESSION['id_rol'] = $user['id_rol'];
         }
         // -----------------------------------------
 

@@ -287,6 +287,16 @@ require_once __DIR__ . '/includes/layout.php';
                             <span class="text-gray-600">Monto por Cuota:</span>
                             <span class="font-semibold text-blue-900" id="montoCuotaPreview">S/ 0.00</span>
                         </div>
+
+                        <!-- Campos para Refinanciamiento -->
+                        <div class="refi-field hidden">
+                            <span class="text-gray-600">Saldo Anterior:</span>
+                            <span class="font-semibold text-red-700" id="saldoAnteriorPreview">S/ 0.00</span>
+                        </div>
+                        <div class="refi-field hidden">
+                            <span class="text-gray-600 font-bold">Neto a Entregar:</span>
+                            <span class="font-bold text-green-700" id="netoEntregarPreview">S/ 0.00</span>
+                        </div>
                     </div>
                 </div>
             </div>

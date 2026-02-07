@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', function () {
     loadData();
 });
@@ -25,12 +26,18 @@ async function loadData() {
         }
 
         currentPrestamo = dataPrestamo.data.prestamo;
-        currentClienteId = currentPrestamo.cliente_id;
+        currentClienteId = currentPrestamo.id_cliente; // Fixed from cliente_id
 
         // Update Header
-        document.getElementById('headerPrestamoId').textContent = currentPrestamo.id;
+        document.getElementById('headerPrestamoId').textContent = currentPrestamo.id || currentPrestamo.numero_prestamo;
+        document.getElementById('badgeEstado').textContent = currentPrestamo.estado;
+        document.getElementById('clienteNombreHeader').textContent = currentPrestamo.cliente_nombre || 'Cliente'; // Fixed from nombre_cliente
+
         if (currentPrestamo.comentario_verificacion) {
-            document.getElementById('comentarioVerificacion').value = currentPrestamo.comentario_verificacion;
+            if (document.getElementById('comentarioVerificacionDesktop'))
+                document.getElementById('comentarioVerificacionDesktop').value = currentPrestamo.comentario_verificacion;
+            if (document.getElementById('comentarioVerificacionMobile'))
+                document.getElementById('comentarioVerificacionMobile').value = currentPrestamo.comentario_verificacion;
         }
 
         // Fill Prestamo Form
@@ -42,6 +49,9 @@ async function loadData() {
 
         if (dataCliente.success) {
             fillClienteForm(dataCliente.data);
+            if (dataCliente.data.nombre_completo) {
+                document.getElementById('clienteNombreHeader').textContent = dataCliente.data.nombre_completo;
+            }
         }
 
         // 3. Get Business Details (Negocios)
@@ -52,13 +62,13 @@ async function loadData() {
             const negocio = dataNegocio.data[0]; // Take the first business
             currentNegocioId = negocio.id;
             fillNegocioForm(negocio);
-            document.getElementById('content-negocio').classList.remove('hidden'); // Ensure it's available
+            document.getElementById('content-negocio').classList.remove('hidden');
         } else {
-            // Maybe show specific message or clear form
             console.log('No registered business found.');
         }
 
         Swal.close();
+        calcularProyeccion(); // Initial calc
 
     } catch (error) {
         console.error('Error loading data:', error);
@@ -67,54 +77,54 @@ async function loadData() {
 }
 
 function fillPrestamoForm(p) {
-    document.getElementById('prestamoMonto').value = p.monto_capital;
-    document.getElementById('prestamoPlazo').value = p.plazo_meses;
-    document.getElementById('prestamoTasa').value = p.tasa_interes; // Or tasa_total? Using tasa_interes for now.
-    document.getElementById('prestamoModalidad').value = p.modalidad; // Ensure case matches (Diario/diario)
-    // Simple fix for case sensitivity in select
-    const options = document.getElementById('prestamoModalidad').options;
-    for (let i = 0; i < options.length; i++) {
-        if (options[i].value.toLowerCase() === p.modalidad.toLowerCase()) {
-            document.getElementById('prestamoModalidad').selectedIndex = i;
+    document.getElementById('prestamoMonto').value = parseFloat(p.monto_capital || 0);
+    document.getElementById('prestamoPlazo').value = parseInt(p.plazo_meses || 0);
+    // Use tasa_total if available, otherwise tasa_interes
+    // Note: Backend update uses tasa_total. Frontend creates usually hardcode 11?
+    // Let's use p.tasa_total if > 0, else p.tasa_interes
+    const tasa = (parseFloat(p.tasa_total) > 0) ? p.tasa_total : p.tasa_interes;
+    document.getElementById('prestamoTasa').value = parseFloat(tasa || 0);
+
+    // Modalidad
+    const modalSelect = document.getElementById('prestamoModalidad');
+    // Try to match value case-insensitively
+    for (let i = 0; i < modalSelect.options.length; i++) {
+        if (modalSelect.options[i].value.toLowerCase() === (p.modalidad || '').toLowerCase()) {
+            modalSelect.selectedIndex = i;
             break;
         }
     }
 
-    // For diaPago, database usually stores it if monthly. If not monthly, it might be 0 or irrelevant.
-    // If it's not in the 'prestamo' object explicitly, we might need to check if get_detalle returns it. 
-    // Assuming standard prestamos table columns.
-    // Note: p object from get_detalle often has joined fields.
-    // Let's assume standard field names.
-    // Check if dia_pago is in p or we need to calculate/infer.
-    // Usually stored in DB if relevant. Not present in get_detalle dump earlier? 
-    // Wait, get_detalle query: SELECT p.* ... so it should be there.
-    // Wait, `dia_pago` is NOT in the `SHOW COLUMNS` output I saw earlier (My mistake? No, wait).
-    // Let's re-read columns output Step 43.
-    // `fecha_solicitud`, `created_at`, `fecha_desembolso`... I don't see `dia_pago` column in Step 43.
-    // Ah, maybe it's logic based? Or I missed it.
-    // Step 43 output only showed 26 rows. It might have been truncated? No.
-    // It has `modalidad`, `plazo_meses`.
-    // Maybe `dia_pago` is determined by `fecha_desembolso` day?
-    // In `update_status.php` line 131: `$diaPago = intval(date('d')); // Payment day aligns with Disbursement Day`.
-    // So distinct column might not exist.
-    // But `refiDiaPago` in `prestamos.php` suggests there IS a way to set it.
-    // If `dia_pago` is not in DB, we can't edit it directly.
-    // But verify if `dia_pago` exists purely as a UI concept for creating the schedule.
-    // If there is no column, I should probably hide it or bind it to `fecha_desembolso`.
-    // Let's look at `prestamos.php` create form again. It has `id="diaPago"`.
-    // And `app/api/prestamos/create.php` likely uses it to generate the schedule OR saves it.
-    // Let's check `create.php` later if needed. For now, I'll ignore `diaPago` if it's not in the object `p`.
+    // Tipo Prestamo
+    const tipoSelect = document.getElementById('prestamoTipo');
+    if (p.tipo_prestamo) {
+        for (let i = 0; i < tipoSelect.options.length; i++) {
+            if (tipoSelect.options[i].value.toLowerCase() === p.tipo_prestamo.toLowerCase()) {
+                tipoSelect.selectedIndex = i;
+                break;
+            }
+        }
+    } else {
+        // Infer default or leave as 'Nuevo'
+        tipoSelect.value = 'Nuevo';
+    }
 
     if (p.fecha_desembolso) {
         document.getElementById('prestamoFecha').value = p.fecha_desembolso.split(' ')[0];
     }
+
+    // Neto a Entregar Update
+    const neto = parseFloat(p.neto_entregar || p.monto_capital);
+    const elNeto = document.getElementById('displayNeto');
+    if (elNeto) elNeto.textContent = 'L ' + neto.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fillClienteForm(c) {
     document.getElementById('clienteId').value = c.id;
     document.getElementById('clienteNombre').value = c.nombre_completo;
-    document.getElementById('clienteDni').value = c.identidad || c.dni || '';
+    document.getElementById('clienteDni').value = c.numero_documento || c.identidad || c.dni || '';
     document.getElementById('clienteTelefono').value = c.telefono;
+    document.getElementById('btnCall').href = `tel:${c.telefono}`;
     document.getElementById('clienteDireccion').value = c.direccion;
 }
 
@@ -124,6 +134,76 @@ function fillNegocioForm(n) {
     document.getElementById('negocioRubro').value = n.tipo_negocio || n.rubro || '';
     document.getElementById('negocioDireccion').value = n.direccion_negocio;
     document.getElementById('negocioIngresos').value = n.ingresos_promedio_mensual || n.ingresos_promedio || 0;
+
+    // --- RENDER BUSINESS PHOTOS ---
+    const galleryEl = document.getElementById('galleryNegocio');
+    let photosHtml = '';
+    const uploadsUrl = `${API_BASE_URL}/../../uploads/negocios/`; // Relative to API Base
+
+    for (let i = 1; i <= 5; i++) {
+        const photoKey = `foto_negocio_${i}`;
+        if (n[photoKey]) {
+            photosHtml += `
+                <a href="${uploadsUrl}${n[photoKey]}" target="_blank" class="block group relative aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition">
+                    <img src="${uploadsUrl}${n[photoKey]}" alt="Foto ${i}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition"></div>
+                </a>
+            `;
+        }
+    }
+    if (photosHtml) {
+        galleryEl.innerHTML = photosHtml;
+    } else {
+        galleryEl.innerHTML = '<p class="col-span-full text-sm text-gray-400 italic">No hay fotos registradas.</p>';
+    }
+
+    // --- RENDER GUARANTEES ---
+    const garantiasEl = document.getElementById('listGarantias');
+    let garantiasHtml = '';
+
+    // Check if warranties are in a separate list (from backend change) or flat columns (legacy)
+    // list.php now returns 'garantias' array.
+    if (n.garantias && n.garantias.length > 0) {
+        n.garantias.forEach((g, idx) => {
+            const photoUrl = g.foto ? `${uploadsUrl}${g.foto}` : null;
+            garantiasHtml += `
+                <div class="flex items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex-shrink-0 mr-4">
+                        ${photoUrl
+                    ? `<a href="${photoUrl}" target="_blank">
+                                <img src="${photoUrl}" class="w-16 h-16 object-cover rounded shadow-sm border" alt="Garantía">
+                               </a>`
+                    : `<div class="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-gray-400">
+                                <i class="fas fa-image"></i>
+                               </div>`
+                }
+                    </div>
+                    <div class="flex-1">
+                        <h5 class="text-sm font-bold text-gray-800">${g.descripcion || 'Sin descripción'}</h5>
+                        <p class="text-xs text-gray-500 mt-1">Valor Estimado: <span class="font-semibold text-gray-700">L ${parseFloat(g.valor).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span></p>
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        // Fallback for flat columns (legacy schema support if needed, though we moved to table)
+        // If data comes flat:
+        if (n.garantia_descripcion) {
+            garantiasHtml += `
+                <div class="flex items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex-1">
+                        <h5 class="text-sm font-bold text-gray-800">${n.garantia_descripcion}</h5>
+                        <p class="text-xs text-gray-500 mt-1">Valor: L ${n.garantia_valor}</p>
+                    </div>
+                </div>`;
+        }
+    }
+
+    if (garantiasHtml) {
+        garantiasEl.innerHTML = garantiasHtml;
+    } else {
+        garantiasEl.innerHTML = '<p class="text-sm text-gray-400 italic">No hay garantías registradas.</p>';
+    }
 }
 
 function switchTab(tab) {
@@ -133,13 +213,85 @@ function switchTab(tab) {
     document.getElementById('content-prestamo').classList.add('hidden');
 
     // Reset styles
-    document.getElementById('tab-cliente').className = "w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
-    document.getElementById('tab-negocio').className = "w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
-    document.getElementById('tab-prestamo').className = "w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
+    const baseClass = "flex-1 py-4 px-4 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap transition-colors";
+    const activeClass = "flex-1 py-4 px-4 text-center border-b-2 font-semibold text-sm border-indigo-500 text-indigo-600 whitespace-nowrap transition-colors";
+
+    document.getElementById('tab-cliente').className = baseClass;
+    document.getElementById('tab-negocio').className = baseClass;
+    document.getElementById('tab-prestamo').className = baseClass;
 
     // Show selected
     document.getElementById(`content-${tab}`).classList.remove('hidden');
-    document.getElementById(`tab-${tab}`).className = "w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm border-indigo-500 text-indigo-600";
+    document.getElementById(`tab-${tab}`).className = activeClass;
+}
+
+function calcularProyeccion() {
+    const monto = parseFloat(document.getElementById('prestamoMonto').value) || 0;
+    const plazo = parseInt(document.getElementById('prestamoPlazo').value) || 0;
+    const tasa = parseFloat(document.getElementById('prestamoTasa').value) || 0;
+    const modalidad = document.getElementById('prestamoModalidad').value.toLowerCase();
+    const tipo = document.getElementById('prestamoTipo').value.toLowerCase();
+
+    // Live update for Neto if NOT refinance (Refinance needs backend check for balance)
+    const elNeto = document.getElementById('displayNeto');
+    if (elNeto) {
+        if (tipo !== 'refinanciamiento' && tipo !== 'readecuacion' && tipo !== 'readecuación') {
+            elNeto.textContent = 'L ' + monto.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            elNeto.classList.remove('text-gray-400', 'italic');
+            elNeto.classList.add('text-green-600');
+        } else {
+            // For Refinance, if Amount changed, we don't know the exact net yet without backend
+            if (currentPrestamo && Math.abs(parseFloat(currentPrestamo.monto_capital) - monto) > 1) {
+                elNeto.textContent = 'Guardar para calcular...';
+                elNeto.classList.remove('text-green-600');
+                elNeto.classList.add('text-gray-400', 'italic');
+            } else {
+                // Keep original if amount not changed
+                const original = parseFloat(currentPrestamo ? (currentPrestamo.neto_entregar || currentPrestamo.monto_capital) : monto);
+                elNeto.textContent = 'L ' + original.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                elNeto.classList.remove('text-gray-400', 'italic');
+                elNeto.classList.add('text-green-600');
+            }
+        }
+    }
+
+    if (monto > 0 && plazo > 0) {
+        // Calc matching backend Logic
+        // Interes Total = Monto * (Tasa/100) * Plazo (Simplest Logic, check backend PrestamoHelper logic if complex)
+        // Note: Tasa is usually monthly? Or Annual? In this system it seems treated as Monthly rate in the simplified calc in `create.php`:
+        // create.php line 47: $totalInteresMonto = $monto * ($tasaTotal / 100) * $plazoMeses; (Assuming Tasa is Monthly % rate applied flatly?)
+        // Actually 11% monthly is HUGE. 11% annual is small.
+        // Let's assume the system logic: `tasa` is the Rate Percentage per Month? 
+        // Debugging `create.php` logic ($tasaTotal = 11.00; ... $monto * ($tasaTotal/100) * $plazo).
+        // If 1000 loan, 1 month, 11% -> 110 interest. Total 1110.
+        // Yes, likely monthly flat rate.
+
+        const totalInteres = monto * (tasa / 100) * plazo;
+        const totalPagar = monto + totalInteres;
+
+        let numCuotas = 1;
+        switch (modalidad) {
+            case 'diario': numCuotas = plazo * 20; break;
+            case 'semanal': numCuotas = plazo * 4; break;
+            case 'catorcenal': numCuotas = plazo * 2; break;
+            case 'mensual': numCuotas = plazo * 1; break;
+            default: numCuotas = plazo;
+        }
+
+        const cuota = (numCuotas > 0) ? (totalPagar / numCuotas) : 0;
+
+        document.getElementById('displayCuota').textContent = 'L ' + cuota.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('displayTotal').textContent = 'L ' + totalPagar.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else {
+        document.getElementById('displayCuota').textContent = 'L 0.00';
+        document.getElementById('displayTotal').textContent = 'L 0.00';
+    }
+}
+
+function verFichaCliente() {
+    if (currentClienteId) {
+        window.open(`${VIEWS_BASE_URL}/ficha_cliente.php?id=${currentClienteId}`, '_blank');
+    }
 }
 
 // ------ SAVES ------
@@ -149,7 +301,7 @@ async function saveCliente() {
     const data = {
         id: id,
         nombre_completo: document.getElementById('clienteNombre').value,
-        identidad: document.getElementById('clienteDni').value,
+        numero_documento: document.getElementById('clienteDni').value,
         telefono: document.getElementById('clienteTelefono').value,
         direccion: document.getElementById('clienteDireccion').value
     };
@@ -168,22 +320,44 @@ async function saveCliente() {
 
 async function saveNegocio() {
     const id = document.getElementById('negocioId').value;
-    const data = {
-        id: id,
-        nombre_negocio: document.getElementById('negocioNombre').value,
-        tipo_negocio: document.getElementById('negocioRubro').value,
-        direccion_negocio: document.getElementById('negocioDireccion').value,
-        ingresos_promedio: document.getElementById('negocioIngresos').value
-    };
-    // Note: api/clientes/negocios/update.php expects id parameter
+    // Decision: Update or Create?
+    const isUpdate = (id && id !== '');
+    const url = isUpdate
+        ? `${API_BASE_URL}/clientes/negocios/update.php`
+        : `${API_BASE_URL}/clientes/negocios/create.php`;
+
+    // Needs FormData to support files (future proofing) or just JSON for text
+    // The previous implementation used JSON. The Backend now supports both.
+    // However, create.php needs cliente_id. update.php needs negocio_id.
+
+    // Let's use FormData to allow robust handling and future file support
+    const formData = new FormData();
+    if (isUpdate) formData.append('negocio_id', id);
+    // For create, we need cliente_id
+    if (currentClienteId) formData.append('cliente_id', currentClienteId);
+
+    formData.append('nombre_negocio', document.getElementById('negocioNombre').value);
+    formData.append('tipo_negocio', document.getElementById('negocioRubro').value); // Alias handled by backend
+    formData.append('rubro', document.getElementById('negocioRubro').value);
+    formData.append('direccion_negocio', document.getElementById('negocioDireccion').value);
+    formData.append('ingresos_promedio', document.getElementById('negocioIngresos').value);
+
     try {
-        const response = await fetch(`${API_BASE_URL}/clientes/negocios/update.php`, {
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: formData
+            // No Content-Type header for FormData, browser sets it with boundary
         });
         const result = await response.json();
-        if (result.success) Swal.fire('Éxito', 'Negocio actualizado', 'success');
+
+        if (result.success) {
+            Swal.fire('Éxito', isUpdate ? 'Negocio actualizado' : 'Negocio registrado', 'success');
+            // If created, update the ID so subsequent saves are updates
+            if (!isUpdate && result.data && result.data.id) {
+                document.getElementById('negocioId').value = result.data.id;
+                currentNegocioId = result.data.id;
+            }
+        }
         else Swal.fire('Error', result.message, 'error');
     } catch (e) { console.error(e); Swal.fire('Error', 'Error de red', 'error'); }
 }
@@ -195,25 +369,52 @@ async function savePrestamo() {
         plazo_meses: document.getElementById('prestamoPlazo').value,
         tasa_interes: document.getElementById('prestamoTasa').value,
         modalidad: document.getElementById('prestamoModalidad').value,
-        fecha_desembolso: document.getElementById('prestamoFecha').value
-        // Note: update.php might specifically require certain fields or structure
-        // We should check api/prestamos/update.php structure if this fails.
+        tipo_prestamo: document.getElementById('prestamoTipo').value,
+        fecha_desembolso: document.getElementById('prestamoFecha').value !== 'dd/mm/aaaa' && document.getElementById('prestamoFecha').value !== ''
+            ? document.getElementById('prestamoFecha').value
+            : null
     };
 
     try {
         const response = await fetch(`${API_BASE_URL}/prestamos/update.php`, {
-            method: 'POST',
+            method: 'POST', // Now accepted by API
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         const result = await response.json();
-        if (result.success) Swal.fire('Éxito', 'Préstamo actualizado', 'success');
+        if (result.success) {
+            Swal.fire('Éxito', 'Préstamo actualizado', 'success');
+
+            // Update currentPrestamo with the new data from server (including Recalculated Neto)
+            if (result.data && result.data.id) {
+                currentPrestamo = result.data; // Update global state
+                fillPrestamoForm(currentPrestamo);
+                calcularProyeccion(); // Refresh UI
+            }
+        }
         else Swal.fire('Error', result.message, 'error');
     } catch (e) { console.error(e); Swal.fire('Error', 'Error de red', 'error'); }
 }
 
-async function verificar(accion) {
-    const comentario = document.getElementById('comentarioVerificacion').value;
+async function verificar(accion, source) {
+    let comentario = '';
+
+    // Determine comment source
+    if (source === 'mobile') {
+        comentario = document.getElementById('comentarioVerificacionMobile').value;
+    } else {
+        comentario = document.getElementById('comentarioVerificacionDesktop').value;
+    }
+
+    // Fallback: Check the other if empty? No, respect the view.
+    // If user typed in desktop but clicked mobile (responsive resize?), ideally sync them.
+    // But for simplicity, take from the active view logic.
+    if (!comentario.trim()) {
+        const other = (source === 'mobile')
+            ? document.getElementById('comentarioVerificacionDesktop').value
+            : document.getElementById('comentarioVerificacionMobile').value;
+        if (other.trim()) comentario = other;
+    }
 
     if (accion === 'rechazar' && !comentario.trim()) {
         Swal.fire('Atención', 'Debe agregar un comentario para rechazar.', 'warning');
@@ -223,7 +424,7 @@ async function verificar(accion) {
     const confirmResult = await Swal.fire({
         title: accion === 'autorizar' ? '¿Autorizar Préstamo?' : '¿Rechazar Préstamo?',
         text: accion === 'autorizar'
-            ? 'El préstamo cambiará a estado "verificado".'
+            ? 'El préstamo cambiará a estado "verificado" y pasará al Analista.'
             : 'El préstamo será rechazado definitivamente.',
         icon: accion === 'autorizar' ? 'question' : 'warning',
         showCancelButton: true,
@@ -235,6 +436,7 @@ async function verificar(accion) {
     if (!confirmResult.isConfirmed) return;
 
     try {
+        // Ensure comments are synced to update logic if needed, but verify.php takes it as arg
         const response = await fetch(`${API_BASE_URL}/prestamos/verificar.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

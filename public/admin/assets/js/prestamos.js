@@ -5,6 +5,7 @@
 let currentPage = 1;
 let currentSearch = '';
 let currentEstado = '';
+let currentActiveLoanBalance = 0;
 let currentCliente = '';
 
 // Inicializar
@@ -16,6 +17,17 @@ $(document).ready(function () {
     $('#btnNuevoPrestamo').on('click', function () {
         openModal();
         initializeClienteSelect();
+    });
+
+    // Cambios en tipo de préstamo
+    $('#tipoPrestamo').on('change', function () {
+        toggleRefiFields();
+        checkActiveLoanForRefinance();
+    });
+
+    // Al seleccionar cliente (Select2 event)
+    $('#clienteId').on('select2:select', function (e) {
+        checkActiveLoanForRefinance();
     });
 
     $('#btnBuscar').on('click', function () {
@@ -251,6 +263,7 @@ function calculatePreview() {
     const tasa = parseFloat($('#tasaInteres').val() || 0);
     const periodo = parseInt($('#periodoMeses').val() || 0);
     const modalidad = ($('#modalidad').val() || 'mensual');
+    const tipo = $('#tipoPrestamo').val();
 
     if (monto > 0 && periodo > 0) {
         // Interés simple
@@ -268,10 +281,69 @@ function calculatePreview() {
 
         $('#montoTotalPreview').text(formatMoney(montoTotal));
         $('#montoCuotaPreview').text(formatMoney(montoCuota));
+
+        // Refinanciamiento / Neto
+        if (tipo === 'Refinanciamiento' || tipo === 'Readecuacion') {
+            const saldo = currentActiveLoanBalance;
+            const neto = Math.max(0, monto - saldo);
+            $('#saldoAnteriorPreview').text(formatMoney(saldo));
+            $('#netoEntregarPreview').text(formatMoney(neto));
+        }
+
     } else {
         $('#montoTotalPreview').text('L 0.00');
         $('#montoCuotaPreview').text('L 0.00');
+        $('#saldoAnteriorPreview').text('L 0.00');
+        $('#netoEntregarPreview').text('L 0.00');
     }
+}
+
+function toggleRefiFields() {
+    const tipo = $('#tipoPrestamo').val();
+    if (tipo === 'Refinanciamiento' || tipo === 'Readecuacion') {
+        $('.refi-field').removeClass('hidden');
+    } else {
+        $('.refi-field').addClass('hidden');
+        currentActiveLoanBalance = 0; // Reset if not refi
+    }
+    calculatePreview();
+}
+
+function checkActiveLoanForRefinance() {
+    const tipo = $('#tipoPrestamo').val();
+    const clienteId = $('#clienteId').val();
+
+    // Solo verificar si es refinanciamiento/readecuacion y hay cliente seleccionado
+    if ((tipo !== 'Refinanciamiento' && tipo !== 'Readecuacion') || !clienteId) {
+        currentActiveLoanBalance = 0;
+        calculatePreview();
+        return;
+    }
+
+    const token = localStorage.getItem('auth_token') || getCookie('auth_token');
+
+    $.ajax({
+        url: `${BASE_URL}/app/api/clientes/active_loan.php?cliente_id=${clienteId}`,
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + token },
+        success: function (response) {
+            if (response.success && response.has_active_loan) {
+                currentActiveLoanBalance = parseFloat(response.loan.saldo_capital || 0);
+                showAlert('info', `Cliente con saldo activo de ${formatMoney(currentActiveLoanBalance)}`);
+            } else {
+                currentActiveLoanBalance = 0;
+                // Si es refinanciamiento y no tiene préstamos, advertir? 
+                // No necesariamente, tal vez quiere refinanciar uno cancelado recientemente? 
+                // Pero la lógica de 'monto neto' implica uno activo.
+            }
+            calculatePreview();
+        },
+        error: function () {
+            console.error('Error verificando préstamo activo');
+            currentActiveLoanBalance = 0;
+            calculatePreview();
+        }
+    });
 }
 
 // Abrir modal

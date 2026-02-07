@@ -8,7 +8,15 @@ require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../core/Response.php';
 
 Auth::requireAuth();
-if (!Auth::hasPermission('boveda') && !Auth::hasPermission('operaciones.crear') && !Auth::hasPermission('operaciones.editar')) {
+
+// Permitir si tiene permiso de bóveda, operaciones, tesorería o caja
+if (
+    !Auth::hasPermission('boveda') &&
+    !Auth::hasPermission('operaciones.crear') &&
+    !Auth::hasPermission('operaciones.editar') &&
+    !Auth::hasPermission('tesoreria') &&
+    !Auth::hasPermission('caja')
+) {
     Response::forbidden('No tiene permiso para ver las cuentas bancarias');
 }
 

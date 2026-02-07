@@ -37,7 +37,7 @@ try {
         $sql .= " AND p.estado = 'Listo para Entrega'";
     } else {
         // De lo contrario, mostrar los estados del pipeline normal
-        $sql .= " AND p.estado IN ('Solicitado', 'En Análisis', 'Verificación de Campo', 'Pendiente de Operaciones', 'Aprobado')";
+        $sql .= " AND p.estado IN ('Solicitado', 'En Análisis', 'Verificación de Campo', 'Verificado', 'Pendiente de Operaciones', 'Aprobado')";
     }
 
     if ($agenciaId) {

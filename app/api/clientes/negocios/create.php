@@ -12,8 +12,25 @@ try {
     $user = AuthMiddleware::requireAuth();
     $db = getDB();
 
-    if (empty($_POST['cliente_id']) || empty($_POST['nombre_negocio']) || empty($_POST['rubro'])) {
-        Response::error('Faltan campos obligatorios', 400);
+    // Support JSON or POST
+    $input = $_POST;
+    if (empty($input)) {
+        $json = file_get_contents('php://input');
+        $decoded = json_decode($json, true);
+        if (is_array($decoded)) {
+            $input = $decoded;
+        }
+    }
+
+    // Map Aliases and Sanitize
+    $clienteId = $input['cliente_id'] ?? null;
+    $nombre = $input['nombre_negocio'] ?? null;
+    $rubro = $input['rubro'] ?? $input['tipo_negocio'] ?? null;
+    $direccion = $input['direccion_negocio'] ?? '';
+    $ingresos = !empty($input['ingresos_promedio']) ? floatval($input['ingresos_promedio']) : 0;
+
+    if (empty($clienteId) || empty($nombre) || empty($rubro)) {
+        Response::error('Faltan campos obligatorios: Cliente ID, Nombre, o Rubro', 400);
     }
 
     $uploadDir = __DIR__ . '/../../../../uploads/negocios/';
@@ -33,9 +50,9 @@ try {
             if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
                 $file = $_FILES[$field];
                 $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_negocio']);
+                $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $nombre);
                 $timestamp = time();
-                $fileName = "{$_POST['cliente_id']}_{$cleanName}_{$field}_{$timestamp}.{$extension}";
+                $fileName = "{$clienteId}_{$cleanName}_{$field}_{$timestamp}.{$extension}";
                 if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
                     $uploadedData[$field] = $fileName;
                 }
@@ -44,19 +61,23 @@ try {
 
         $sql = "INSERT INTO clientes_negocios (
                     cliente_id, nombre_negocio, rubro, 
+                    direccion_negocio, ingresos_promedio,
                     foto_negocio_1, foto_negocio_2, foto_negocio_3, foto_negocio_4, foto_negocio_5,
                     doc_permiso_operaciones, created_at
                 ) VALUES (
                     :cliente_id, :nombre_negocio, :rubro,
+                    :direccion_negocio, :ingresos_promedio,
                     :foto_negocio_1, :foto_negocio_2, :foto_negocio_3, :foto_negocio_4, :foto_negocio_5,
                     :doc_permiso_operaciones, NOW()
                 )";
 
         $stmt = $db->prepare($sql);
         $stmt->execute([
-            ':cliente_id' => $_POST['cliente_id'],
-            ':nombre_negocio' => $_POST['nombre_negocio'],
-            ':rubro' => $_POST['rubro'],
+            ':cliente_id' => $clienteId,
+            ':nombre_negocio' => $nombre,
+            ':rubro' => $rubro,
+            ':direccion_negocio' => $direccion,
+            ':ingresos_promedio' => $ingresos,
             ':foto_negocio_1' => $uploadedData['foto_negocio_1'],
             ':foto_negocio_2' => $uploadedData['foto_negocio_2'],
             ':foto_negocio_3' => $uploadedData['foto_negocio_3'],

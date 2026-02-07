@@ -38,7 +38,13 @@ try {
             SUM(CASE 
                 WHEN DATEDIFF(NOW(), overdue.fecha_mas_antigua) > 0 THEN (p.monto_capital - IFNULL(pagado.capital_amortizado, 0))
                 ELSE 0 
-            END) as mora_total
+            END) as mora_total,
+
+            -- Capital Sano (Saldo Capital de Categorias A, es decir, al día)
+            SUM(CASE 
+                WHEN DATEDIFF(NOW(), overdue.fecha_mas_antigua) > 0 THEN 0
+                ELSE (p.monto_capital - IFNULL(pagado.capital_amortizado, 0))
+            END) as capital_sano
             
         FROM prestamos p
         JOIN clientes c ON p.id_cliente = c.id
@@ -67,28 +73,10 @@ try {
     $stmt->execute($params);
     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // 2. Intereses Ganados (Total Histórico)
-    // Suma de la parte de interés de todas las cuotas pagadas (o abonos)
-    // Se usa 'cuotas' porque ahí se registra 'monto_pagado'.
-    // Asumimos proporcionalidad si hubo pago parcial.
-
-    $sqlInteres = "
-        SELECT SUM(cu.monto_pagado * (NULLIF(cu.interes_cuota,0) / NULLIF(cu.monto_cuota,0))) as intereses_ganados
-        FROM cuotas cu
-        JOIN prestamos p ON cu.prestamo_id = p.id
-        JOIN clientes c ON p.id_cliente = c.id
-        WHERE cu.monto_pagado > 0
-        $whereClause
-    ";
-
-    $stmtInt = $db->prepare($sqlInteres);
-    $stmtInt->execute($params);
-    $interes = $stmtInt->fetch(PDO::FETCH_ASSOC);
-
     $response = [
         'capital_en_calle' => floatval($stats['capital_en_calle'] ?? 0),
         'mora_total' => floatval($stats['mora_total'] ?? 0),
-        'intereses_ganados' => floatval($interes['intereses_ganados'] ?? 0)
+        'capital_sano' => floatval($stats['capital_sano'] ?? 0)
     ];
 
     echo json_encode(['success' => true, 'data' => $response]);

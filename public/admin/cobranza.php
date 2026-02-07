@@ -1287,6 +1287,12 @@ require_once __DIR__ . '/includes/layout.php';
         fd.append('observaciones', obs);
         fd.append('es_refinanciamiento', '1'); // Bypass active check
 
+        // Map UI Label to API Value
+        let tipoApi = tipo;
+        if (tipo === 'Reestructuración') tipoApi = 'Readecuacion';
+
+        fd.append('tipo_prestamo', tipoApi);
+
         try {
             const res = await fetch(`${BASE_URL}/app/api/prestamos/create.php`, {
                 method: 'POST',

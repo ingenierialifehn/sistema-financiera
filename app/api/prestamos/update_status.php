@@ -50,8 +50,42 @@ try {
                 throw new Exception("Préstamo no encontrado");
             }
 
-            $netoEntregar = $loan['neto_entregar'] ?? $loan['monto_capital'];
+            $montoCapital = floatval($loan['monto_capital']);
+            $netoEntregar = $montoCapital; // Default for new loans
             $agenciaId = $loan['id_agencia'];
+
+            // --- LOGICA DE REFINANCIAMIENTO (Cálculo de Neto) ---
+            if ($loan['tipo_prestamo'] === 'Refinanciamiento' || $loan['tipo_prestamo'] === 'Readecuacion') {
+                // 1. Buscar Préstamo Anterior Activo
+                // Buscamos el último préstamo activo (o vencido pero no pagado) del cliente, diferente al actual
+                $stmtPrev = $db->prepare("SELECT id, monto_capital, 
+                                            (SELECT IFNULL(SUM(monto_pagado * (capital_cuota/monto_cuota)), 0) 
+                                             FROM cuotas WHERE prestamo_id = p_prev.id AND estado IN ('pagada', 'parcial') AND monto_cuota > 0) as amortizado
+                                          FROM prestamos p_prev 
+                                          WHERE id_cliente = ? 
+                                          AND id != ? 
+                                          AND estado = 'Activo' 
+                                          ORDER BY id DESC LIMIT 1");
+                $stmtPrev->execute([$loan['id_cliente'], $prestamoId]);
+                $prevLoan = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+
+                if ($prevLoan) {
+                    $saldoAnterior = max(0, floatval($prevLoan['monto_capital']) - floatval($prevLoan['amortizado']));
+
+                    // Cálculo de Neto a Entregar (Lo que sale de caja)
+                    // Neto = Nuevo Capital - Saldo a Cancelar
+                    $netoEntregar = max(0, $montoCapital - $saldoAnterior);
+
+                    // Actualizamos el campo neto_entregar en la DB para registro
+                    $stmtUpdateNeto = $db->prepare("UPDATE prestamos SET neto_entregar = ?, observaciones = CONCAT(IFNULL(observaciones,''), ' [Refinanciamiento: Saldo Anterior L ', ?, ' deducido]') WHERE id = ?");
+                    $stmtUpdateNeto->execute([$netoEntregar, number_format($saldoAnterior, 2), $prestamoId]);
+                }
+            } else {
+                // Asegurar que neto_entregar esté actualizado para préstamos normales
+                $stmtUpdateNeto = $db->prepare("UPDATE prestamos SET neto_entregar = ? WHERE id = ?");
+                $stmtUpdateNeto->execute([$netoEntregar, $prestamoId]);
+            }
+            // -----------------------------------------------------
 
             // Get agency cash box balance
             $stmtCaja = $db->prepare("SELECT saldo_caja_operativa FROM cajas_agencias WHERE id_agencia = ?");
@@ -69,40 +103,39 @@ try {
             }
 
             // Deduct from cash
-            $stmtUpdate = $db->prepare("UPDATE cajas_agencias SET saldo_caja_operativa = saldo_caja_operativa - ? WHERE id_agencia = ?");
-            $stmtUpdate->execute([$netoEntregar, $agenciaId]);
+            // SOLO si hay monto a entregar (puede ser 0 si es readecuación total sin desembolso)
+            if ($netoEntregar > 0) {
+                $stmtUpdate = $db->prepare("UPDATE cajas_agencias SET saldo_caja_operativa = saldo_caja_operativa - ? WHERE id_agencia = ?");
+                $stmtUpdate->execute([$netoEntregar, $agenciaId]);
 
-            // Log the movement
-            // Get current user ID
-            if (session_status() === PHP_SESSION_NONE) {
-                session_start();
+                // Log the movement
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $userId = $_SESSION['id_usuario'] ?? 1;
+
+                $stmtLog = $db->prepare("INSERT INTO movimientos_internos_agencia 
+                                         (id_agencia, id_usuario_operador, tipo_movimiento, monto, observaciones, fecha_movimiento) 
+                                         VALUES (?, ?, 'Caja a Ruta', ?, ?, NOW())");
+                $stmtLog->execute([
+                    $agenciaId,
+                    $userId,
+                    $netoEntregar,
+                    "Desembolso ($nuevoEstado) préstamo #$prestamoId" . ($loan['tipo_prestamo'] === 'Refinanciamiento' ? ' (Refinanciamiento)' : '')
+                ]);
             }
-            $userId = $_SESSION['id_usuario'] ?? 1; // Fallback to 1 if not in session
-
-            $stmtLog = $db->prepare("INSERT INTO movimientos_internos_agencia 
-                                     (id_agencia, id_usuario_operador, tipo_movimiento, monto, observaciones, fecha_movimiento) 
-                                     VALUES (?, ?, 'Caja a Ruta', ?, ?, NOW())");
-            $stmtLog->execute([
-                $agenciaId,
-                $userId,
-                $netoEntregar,
-                "Desembolso préstamo #$prestamoId - Cliente: " . $loan['id_cliente']
-            ]);
-
-            // CORRECTED LOGIC:
-            // 1. We do NOT overwrite oficial_desembolsos_id with existing user. It was already assigned in asignar_personal.php.
-            // 2. We SET ruta_usuario_id to the assigned oficial_desembolsos_id, because the money is now with them (in route).
 
             $assignedOfficerId = $loan['oficial_desembolsos_id'];
 
-            // Fallback: If no officer assigned (should not happen if flow is followed), assign to current user
             if (!$assignedOfficerId) {
+                if (session_status() === PHP_SESSION_NONE)
+                    session_start();
+                $userId = $_SESSION['id_usuario'] ?? 1;
                 $assignedOfficerId = $userId;
                 $stmtFix = $db->prepare("UPDATE prestamos SET oficial_desembolsos_id = ? WHERE id = ?");
                 $stmtFix->execute([$assignedOfficerId, $prestamoId]);
             }
 
-            // Set Route User and Route Date
             $stmtRoute = $db->prepare("UPDATE prestamos SET ruta_usuario_id = ?, ruta_fecha_salida = NOW() WHERE id = ?");
             $stmtRoute->execute([$assignedOfficerId, $prestamoId]);
         }
@@ -113,22 +146,35 @@ try {
             $stmtDate = $db->prepare("UPDATE prestamos SET fecha_desembolso = NOW() WHERE id = ?");
             $stmtDate->execute([$prestamoId]);
 
+            // --- LOGICA DE ACTIVACION DE REFINANCIAMIENTO ---
+            // Si se activa el nuevo préstamo, el anterior debe cancelarse automágicamente
+            $stmtCheckType = $db->prepare("SELECT tipo_prestamo, id_cliente FROM prestamos WHERE id = ?");
+            $stmtCheckType->execute([$prestamoId]);
+            $currentLoan = $stmtCheckType->fetch(PDO::FETCH_ASSOC);
+
+            if ($currentLoan && ($currentLoan['tipo_prestamo'] === 'Refinanciamiento' || $currentLoan['tipo_prestamo'] === 'Readecuacion')) {
+                // Cancelar préstamo anterior activo
+                $stmtCancel = $db->prepare("UPDATE prestamos SET estado = 'Refinanciado', observaciones = CONCAT(IFNULL(observaciones, ''), ' [Refinanciado por Préstamo #$prestamoId]') 
+                                            WHERE id_cliente = ? AND id != ? AND estado = 'Activo'");
+                $stmtCancel->execute([$currentLoan['id_cliente'], $prestamoId]);
+            }
+            // ----------------------------------------------------
+
             // 2. Generate Payment Schedule (Cuotas) Starting TODAY
-            // Get loan details for calculation
             $stmtLoan = $db->prepare("SELECT * FROM prestamos WHERE id = ?");
             $stmtLoan->execute([$prestamoId]);
             $loan = $stmtLoan->fetch(PDO::FETCH_ASSOC);
 
             if ($loan) {
-                // Clear any previous schedule (e.g. from previous attempts)
+                // Clear any previous schedule
                 $stmtDelete = $db->prepare("DELETE FROM cuotas WHERE prestamo_id = ?");
                 $stmtDelete->execute([$prestamoId]);
 
                 // Generate new schedule starting today
                 $montoCuota = floatval($loan['valor_cuota']);
                 $periodoMeses = intval($loan['plazo_meses']);
-                $fechaInicio = date('Y-m-d'); // Starts counting from Disbursement Day
-                $diaPago = intval(date('d')); // Payment day aligns with Disbursement Day
+                $fechaInicio = date('Y-m-d');
+                $diaPago = intval(date('d'));
                 $modalidad = strtolower($loan['modalidad']);
 
                 PrestamoHelper::generateCuotasModalidad(

@@ -110,6 +110,28 @@ try {
             neto_entregar = ?,
             updated_at = NOW()";
 
+    $netoEntregar = $monto;
+
+    // Check for Refinanciamiento logic
+    if ($loan['tipo_prestamo'] === 'Refinanciamiento' || $loan['tipo_prestamo'] === 'Readecuacion') {
+        $stmtPrevCalc = $db->prepare("SELECT 
+                                        SUM(p.monto_capital - (
+                                            SELECT IFNULL(SUM(monto_pagado * (capital_cuota/monto_cuota)), 0) 
+                                            FROM cuotas WHERE prestamo_id = p.id AND estado IN ('pagada', 'parcial') AND monto_cuota > 0
+                                        )) as saldo_pendiente_total
+                                      FROM prestamos p
+                                      WHERE id_cliente = ? 
+                                      AND id != ?
+                                      AND estado IN ('Activo', 'Vencido')");
+        $stmtPrevCalc->execute([$loan['id_cliente'], $prestamoId]);
+        $prevCalc = $stmtPrevCalc->fetch(PDO::FETCH_ASSOC);
+
+        if ($prevCalc && $prevCalc['saldo_pendiente_total'] !== null) {
+            $saldoAnterior = max(0, floatval($prevCalc['saldo_pendiente_total']));
+            $netoEntregar = max(0, $monto - $saldoAnterior);
+        }
+    }
+
     $params = [
         $monto,
         $plazoMeses,
@@ -120,7 +142,7 @@ try {
         $tasaComision,
         $totalAPagar,
         $valorCuota,
-        $monto  // For now, neto_entregar = monto_capital (will change for refinancing)
+        $netoEntregar
     ];
 
     if ($comentarioAnalisis !== null) {

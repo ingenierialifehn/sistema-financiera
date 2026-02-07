@@ -70,11 +70,14 @@ if ($type === 'ticket_pago') {
         }
         $loan['concepto_unificado'] = implode(' + ', $agg['conceptos']);
 
-        // Calculate Remaining Balance (of the LOAN)
-        // Sum of all non-paid quotas
-        $stmtSaldo = $db->prepare("SELECT IFNULL(SUM(monto_cuota - monto_pagado),0) FROM cuotas WHERE prestamo_id = ? AND estado != 'pagada'");
-        $stmtSaldo->execute([$loan['prestamo_real_id']]);
-        $loan['saldo_restante'] = $stmtSaldo->fetchColumn();
+        // Calculate Historical Remaining Balance (at the time of payment)
+        // Balance = Total To Pay - Sum(All Payments up to and including this one)
+        $paymentDate = $rows[0]['fecha_pago_real'];
+        $stmtPaid = $db->prepare("SELECT SUM(monto_pagado) FROM cuotas WHERE prestamo_id = ? AND fecha_pago_real <= ?");
+        $stmtPaid->execute([$loan['prestamo_real_id'], $paymentDate]);
+        $paidToDate = floatval($stmtPaid->fetchColumn() ?: 0);
+
+        $loan['saldo_restante'] = floatval($loan['total_a_pagar']) - $paidToDate;
 
         // Map aggregated values to keys used in template
         $loan['monto_total'] = $agg['total'];
@@ -316,7 +319,8 @@ if ($type !== 'ticket_pago') {
                 <hr style="border-top: 1px dashed #000;">
 
                 <p style="margin-bottom: 5px;">
-                    <strong>Préstamo #<?php echo $loan['prestamo_real_id']; ?></strong> (<?php echo $loan['modalidad']; ?>)<br>
+                    <strong>Préstamo #<?php echo $loan['prestamo_real_id']; ?></strong>
+                    (<?php echo $loan['modalidad']; ?>)<br>
                     Monto Or.: L <?php echo number_format($loan['monto_capital'], 2); ?><br>
                     Fecha Ot.: <?php echo date('d/m/Y', strtotime($loan['fecha_desembolso'])); ?>
                 </p>

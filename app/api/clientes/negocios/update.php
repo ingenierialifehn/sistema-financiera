@@ -12,11 +12,28 @@ try {
     $user = AuthMiddleware::requireAuth();
     $db = getDB();
 
-    if (empty($_POST['negocio_id']) || empty($_POST['nombre_negocio']) || empty($_POST['rubro'])) {
-        Response::error('Faltan campos obligatorios', 400);
+    // Support JSON or POST
+    $input = $_POST;
+    if (empty($input)) {
+        $json = file_get_contents('php://input');
+        $decoded = json_decode($json, true);
+        if (is_array($decoded)) {
+            $input = $decoded;
+        }
     }
 
-    $negocioId = $_POST['negocio_id'];
+    // Map Aliases
+    $negocioId = $input['negocio_id'] ?? $input['id'] ?? null;
+    $nombre = $input['nombre_negocio'] ?? null;
+    $rubro = $input['rubro'] ?? $input['tipo_negocio'] ?? null; // Handle JS alias
+    $direccion = $input['direccion_negocio'] ?? '';
+    // Ensure numeric
+    $ingresos = !empty($input['ingresos_promedio']) ? floatval($input['ingresos_promedio']) : 0;
+
+    if (empty($negocioId) || empty($nombre) || empty($rubro)) {
+        Response::error('Faltan campos obligatorios: ID, Nombre, o Rubro', 400);
+    }
+
     $uploadDir = __DIR__ . '/../../../../uploads/negocios/';
 
     // Get current files to preserve if not updated
@@ -41,7 +58,7 @@ try {
                 // Upload new file
                 $file = $_FILES[$field];
                 $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $_POST['nombre_negocio']);
+                $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $nombre);
                 $timestamp = time();
                 $fileName = "{$currentData['cliente_id']}_{$cleanName}_{$field}_{$timestamp}.{$extension}";
                 if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
@@ -54,14 +71,18 @@ try {
         $sql = "UPDATE clientes_negocios SET 
                     nombre_negocio = :nombre, 
                     rubro = :rubro,
+                    direccion_negocio = :direccion,
+                    ingresos_promedio = :ingresos,
                     foto_negocio_1 = :f1, foto_negocio_2 = :f2, foto_negocio_3 = :f3, foto_negocio_4 = :f4, foto_negocio_5 = :f5,
                     doc_permiso_operaciones = :doc
                 WHERE id = :id";
 
         $stmt = $db->prepare($sql);
         $stmt->execute([
-            ':nombre' => $_POST['nombre_negocio'],
-            ':rubro' => $_POST['rubro'],
+            ':nombre' => $nombre,
+            ':rubro' => $rubro,
+            ':direccion' => $direccion,
+            ':ingresos' => $ingresos,
             ':f1' => $updatedFiles['foto_negocio_1'],
             ':f2' => $updatedFiles['foto_negocio_2'],
             ':f3' => $updatedFiles['foto_negocio_3'],

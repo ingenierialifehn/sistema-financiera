@@ -21,7 +21,20 @@ $db = getDB();
 $sql = "SELECT p.*, c.nombre_completo, c.numero_documento, c.direccion, c.id_agencia,
         p.asesor_creditos_id, p.oficial_desembolsos_id,
         u1.username as asesor_nombre,
-        u2.username as oficial_nombre
+        u2.username as oficial_nombre,
+        (
+            SELECT SUM(prev.monto_capital - (
+                SELECT IFNULL(SUM(qc.monto_pagado * (qc.capital_cuota/qc.monto_cuota)), 0)
+                FROM cuotas qc
+                WHERE qc.prestamo_id = prev.id
+                AND qc.estado IN ('pagada', 'parcial')
+                AND qc.monto_cuota > 0
+            ))
+            FROM prestamos prev
+            WHERE prev.id_cliente = p.id_cliente
+            AND prev.id != p.id
+            AND prev.estado IN ('Activo', 'Vencido')
+        ) as saldo_previo_cliente
         FROM prestamos p
         JOIN clientes c ON p.id_cliente = c.id
         LEFT JOIN usuarios u1 ON p.asesor_creditos_id = u1.id_usuario
@@ -212,7 +225,18 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                             formalización.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($prestamos as $row): ?>
+                    <?php foreach ($prestamos as $index => $row): 
+                        // Calculo en vivo del Neto a Entregar para Refinanciamientos
+                        $netoReal = $row['neto_entregar'] ?? $row['monto_capital'];
+                        if (($row['tipo_prestamo'] === 'Refinanciamiento' || $row['tipo_prestamo'] === 'Readecuacion') && isset($row['saldo_previo_cliente'])) {
+                            $saldoPendiente = max(0, floatval($row['saldo_previo_cliente']));
+                            if ($saldoPendiente > 0) {
+                                $netoReal = max(0, floatval($row['monto_capital']) - $saldoPendiente);
+                                // Actualizamos el array para que el JS reciba el valor correcto al abrir el modal
+                                $prestamos[$index]['neto_entregar'] = $netoReal;
+                            }
+                        }
+                    ?>
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4">
                                 <input type="checkbox"
@@ -226,6 +250,11 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                 </div>
                                 <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['numero_documento']); ?>
                                 </div>
+                                <?php if ($row['tipo_prestamo'] === 'Refinanciamiento' || $row['tipo_prestamo'] === 'Readecuacion'): ?>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
+                                        Refinanciamiento
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td class="px-6 py-4">
                                 <div class="text-xs space-y-1">
@@ -249,7 +278,10 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                 L <?php echo number_format($row['monto_capital'], 2); ?>
                             </td>
                             <td class="px-6 py-4 text-sm font-bold text-green-600">
-                                L <?php echo number_format($row['neto_entregar'] ?? $row['monto_capital'], 2); ?>
+                                L <?php echo number_format($netoReal, 2); ?>
+                                <?php if($netoReal < $row['monto_capital']): ?>
+                                    <span class="block text-xs text-gray-400 font-normal line-through">L <?php echo number_format($row['monto_capital'], 2); ?></span>
+                                <?php endif; ?>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-700">
                                 <?php echo $row['plazo_meses']; ?> meses / <?php echo $row['modalidad']; ?>
@@ -264,7 +296,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                         title="Imprimir Documentos">
                                         <i class="fas fa-print"></i>
                                     </button>
-                                    <button onclick='openFormalize(<?php echo json_encode($row); ?>)'
+                                    <button onclick='openFormalize(<?php echo json_encode($prestamos[$index]); ?>)'
                                         class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm shadow flex items-center">
                                         Formalizar <i class="fas fa-arrow-right ml-1"></i>
                                     </button>
@@ -280,9 +312,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
     <!-- Summary Totals -->
     <?php if (!empty($prestamos)):
         $totalMonto = array_sum(array_column($prestamos, 'monto_capital'));
-        $totalNeto = array_sum(array_map(function ($p) {
-            return $p['neto_entregar'] ?? $p['monto_capital'];
-        }, $prestamos));
+        $totalNeto = array_sum(array_column($prestamos, 'neto_entregar')); // Usamos el valor ajustado en el loop
         ?>
         <div class="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg shadow-md p-6 mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -453,7 +483,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             // Check for potential overwrites
             let overwriteCount = 0;
             const fieldDate = type === 'asesor' ? 'data-asesor' : 'data-oficial';
-            
+
             selectedIds.forEach(id => {
                 const cb = document.querySelector(`.loan-checkbox[value="${id}"]`);
                 const currentVal = cb.getAttribute(fieldDate);
@@ -580,11 +610,11 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                         })
                     });
                     const res = await result.json();
-                    if(!res.success) {
+                    if (!res.success) {
                         errorCount++;
                         // Capture unique error messages
                         const msg = `Préstamo #${id}: ${res.message}`;
-                        if(!errorMessages.includes(msg)) errorMessages.push(msg);
+                        if (!errorMessages.includes(msg)) errorMessages.push(msg);
                     }
                 }
 
@@ -686,7 +716,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         window.open(`<?php echo BASE_URL; ?>/public/admin/print_docs.php?type=${type}&id=${id}`, '_blank');
     }
 
-    function openFormalize(loan) {
+    async function openFormalize(loan) {
         currentLoan = loan;
 
         // Reset Modal
@@ -702,21 +732,14 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         // Helper to populate select
         const populateSelect = (select, keywords) => {
             let matches = [];
-
             availableUsers.forEach(user => {
                 // Filtro de Agencia: Debe coincidir con la agencia del préstamo
-                // Excepción: Si el usuario es admin (rol 1) podría ver todo, pero la regla es estricta.
-                // Nota: Los valores vienen como strings o números, mejor usar comparacion laxa (==)
                 if (user.id_agencia && user.id_agencia != currentLoan.id_agencia) {
-                    return; // Saltar usuario de otra agencia
+                    return;
                 }
-
                 const text = `${user.nombre_completo} (${user.puesto_cargo || user.rol_nombre || 'Sin puesto'})`;
-                // Normalizar texto para búsqueda
                 const cleanPuesto = (user.puesto_cargo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const cleanRol = (user.rol_nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-                // Verificar coincidencia estricta con palabras clave
                 const isMatch = keywords.some(k => {
                     const cleanKey = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     return cleanPuesto.includes(cleanKey) || cleanRol.includes(cleanKey);
@@ -726,7 +749,6 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                     matches.push(`<option value="${user.id_usuario}">${text}</option>`);
                 }
             });
-
             if (matches.length > 0) {
                 select.innerHTML += matches.join('');
             } else {
@@ -734,55 +756,111 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             }
         };
 
-        // Keywords for Asesor (solo Asesores de Crédito - Estricto)
-        // Antes: ['asesor', 'cobrador'] -> Ahora: requiere coincidencia más específica
+        // Keywords
         populateSelect(asesorSelect, ['asesor de creditos', 'asesor de crédito']);
-
-        // Keywords for Oficial (solo Oficiales de Desembolso)
-        // Incluimos 'ofic' y 'desembolso' para capturar "Ofic. de desembolsos"
-        // 'caja' se mantiene por si acaso, pero priorizamos el puesto exacto
         populateSelect(oficialSelect, ['ofic. de desembolso', 'desembolsos', 'oficial de desembolso']);
 
         // Pre-select if already assigned
-        if (loan.asesor_creditos_id) {
-            asesorSelect.value = loan.asesor_creditos_id;
-        }
-        if (loan.oficial_desembolsos_id) {
-            oficialSelect.value = loan.oficial_desembolsos_id;
-        }
+        if (loan.asesor_creditos_id) asesorSelect.value = loan.asesor_creditos_id;
+        if (loan.oficial_desembolsos_id) oficialSelect.value = loan.oficial_desembolsos_id;
 
-        // Render Loan Summary instead of missing quotas
-        renderLoanSummary(loan);
-
-        validateChecklist();
         $('#modalFormalize').removeClass('hidden');
+
+        // REFINANCING LOGIC: Fetch & Calculate Logic
+        let saldoRefi = 0;
+        const container = document.getElementById('vistaResumenPrestamo');
+        container.innerHTML = '<div class="flex justify-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i><span class="ml-2 text-gray-500">Calculando saldos...</span></div>';
+
+        if (loan.tipo_prestamo === 'Refinanciamiento' || loan.tipo_prestamo === 'Readecuacion') {
+            try {
+                const res = await fetch('<?php echo BASE_URL; ?>/app/api/clientes/active_loan.php?cliente_id=' + loan.id_cliente);
+                const data = await res.json();
+
+                if (data.success && data.has_active_loan) {
+                    saldoRefi = parseFloat(data.loan.saldo_capital);
+                    const monto = parseFloat(loan.monto_capital);
+                    const nuevoNeto = Math.max(0, monto - saldoRefi);
+
+                    // Silent DB Sync if discrepancy found (> 1 Lempira diff)
+                    const dbNeto = parseFloat(loan.neto_entregar || monto);
+                    if (Math.abs(dbNeto - nuevoNeto) > 1) {
+                        console.log('Syncing correct Net Amount to DB...');
+                        // Call update.php to fix the record
+                        // We send the existing financial data to trigger the recalc logic in update.php
+                        // Note: update.php recalculates based on input params.
+                        await fetch('<?php echo BASE_URL; ?>/app/api/prestamos/update.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: loan.id,
+                                monto_capital: loan.monto_capital, // Trigger recalc
+                                // We don't change other fields, passing just ID and Monto triggers the Refi Logic check in update.php
+                                // But wait, update.php needs Tasa/Plazo to recalc Total Pagar correctly if we pass Monto.
+                                // Actually update.php reads existing if not provided. BUT `recalculateFinancials` flag is set if `monto` is passed.
+                                // So it will use existing params for others.
+                            })
+                        });
+                        // Update local object
+                        loan.neto_entregar = nuevoNeto;
+                    } else {
+                        loan.neto_entregar = nuevoNeto;
+                    }
+                }
+            } catch (e) {
+                console.error("Error checking refinance balance", e);
+            }
+        }
+
+        renderLoanSummary(loan, saldoRefi);
+        validateChecklist();
     }
 
-    function renderLoanSummary(loan) {
+    function renderLoanSummary(loan, saldoRefi = 0) {
         const container = document.getElementById('vistaResumenPrestamo');
 
-        const monto = parseFloat(loan.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 });
-        const neto = parseFloat(loan.neto_entregar || loan.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 });
-        const cuota = parseFloat(loan.valor_cuota).toLocaleString('es-HN', { minimumFractionDigits: 2 });
-        const totalPagar = parseFloat(loan.total_a_pagar || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+        const monto = parseFloat(loan.monto_capital);
+        let neto = parseFloat(loan.neto_entregar || loan.monto_capital);
 
-        // Calculate interest total roughly for display
-        const totalInteres = (parseFloat(loan.total_a_pagar || 0) - parseFloat(loan.neto_entregar || loan.monto_capital));
-        const interesDisplay = totalInteres > 0 ? 'L ' + totalInteres.toLocaleString('es-HN', { minimumFractionDigits: 2 }) : 'N/A';
+        // If Refi calculated, use that for display
+        if (saldoRefi > 0) {
+            neto = Math.max(0, monto - saldoRefi);
+        }
+
+        const fmt = (n) => 'L ' + parseFloat(n).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const montoStr = fmt(monto);
+        const netoStr = fmt(neto);
+        const cuotaStr = fmt(loan.valor_cuota);
+        const totalStr = fmt(loan.total_a_pagar || 0);
+        const saldoRefiStr = fmt(saldoRefi);
+
+        let saldoHtml = '';
+        if (saldoRefi > 0) {
+            saldoHtml = `
+                <div class="p-3 bg-red-50 rounded border border-red-100">
+                    <span class="block text-red-500 text-xs uppercase font-bold">Saldo Ant. a Cancelar</span>
+                    <span class="block text-red-700 font-bold text-lg">${saldoRefiStr}</span>
+                </div>
+            `;
+        }
+
+        // Adjust Grid Columns based on content
+        const gridCols = (saldoRefi > 0) ? 'md:grid-cols-4' : 'md:grid-cols-3';
 
         container.innerHTML = `
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div class="grid grid-cols-2 ${gridCols} gap-4 text-sm">
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <span class="block text-gray-500 text-xs uppercase font-bold">Monto Solicitado</span>
-                    <span class="block text-gray-900 font-bold text-lg">L ${monto}</span>
+                    <span class="block text-gray-900 font-bold text-lg">${montoStr}</span>
                 </div>
-                <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <span class="block text-gray-500 text-xs uppercase font-bold">Neto a Entregar</span>
-                    <span class="block text-green-600 font-bold text-lg">L ${neto}</span>
+                ${saldoHtml}
+                <div class="p-3 bg-green-50 rounded border border-green-100">
+                    <span class="block text-green-600 text-xs uppercase font-bold">Neto a Entregar</span>
+                    <span class="block text-green-700 font-bold text-xl">${netoStr}</span>
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <span class="block text-gray-500 text-xs uppercase font-bold">Valor Cuota</span>
-                    <span class="block text-blue-600 font-bold text-lg">L ${cuota}</span>
+                    <span class="block text-blue-600 font-bold text-lg">${cuotaStr}</span>
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <span class="block text-gray-500 text-xs uppercase font-bold">Modalidad</span>
@@ -794,7 +872,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <span class="block text-gray-500 text-xs uppercase font-bold">Total a Pagar</span>
-                    <span class="block text-gray-800 font-bold">L ${totalPagar}</span>
+                    <span class="block text-gray-800 font-bold">${totalStr}</span>
                 </div>
             </div>
             <div class="mt-3 text-xs text-gray-500 text-center border-t pt-2">

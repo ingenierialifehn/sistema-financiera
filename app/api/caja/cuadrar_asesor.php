@@ -184,7 +184,7 @@ try {
     }
 
     // Obtener detalles de transacciones para el recibo
-    $sqlTransacciones = "SELECT c.id, c.monto_pagado, cl.nombre_completo, DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora
+    $sqlTransacciones = "SELECT c.id, c.monto_pagado, c.capital_pagado, c.interes_pagado, cl.nombre_completo, DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora
                          FROM cuotas c
                          JOIN prestamos p ON c.prestamo_id = p.id
                          JOIN clientes cl ON p.id_cliente = cl.id

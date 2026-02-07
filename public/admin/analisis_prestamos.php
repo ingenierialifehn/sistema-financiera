@@ -279,6 +279,7 @@ $pageTitle = 'Análisis de Préstamos';
                 if (row.estado === 'Solicitado') badgeClass = 'bg-blue-100 text-blue-800';
                 else if (row.estado === 'En Análisis') badgeClass = 'bg-yellow-100 text-yellow-800';
                 else if (row.estado === 'Verificación de Campo') badgeClass = 'bg-purple-100 text-purple-800';
+                else if (row.estado === 'Verificado') badgeClass = 'bg-teal-100 text-teal-800 border border-teal-200';
                 else if (row.estado === 'Pendiente de Operaciones') badgeClass = 'bg-orange-100 text-orange-800';
                 else if (row.estado === 'Aprobado') badgeClass = 'bg-green-100 text-green-800';
 

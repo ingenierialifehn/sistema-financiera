@@ -24,8 +24,12 @@ define('APP_PATH', BASE_PATH . '/app');
 define('PUBLIC_PATH', BASE_PATH . '/public');
 define('API_PATH', APP_PATH . '/api');
 
-// Configuración de URLs (ajustar según tu dominio)
-define('BASE_URL', 'http://localhost/sistema-financiera');
+// Configuración de URLs
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$projectFolder = '/sistema-financiera'; // Hardcodeado para estabilidad, ajustar si cambia el nombre de carpeta
+
+define('BASE_URL', $protocol . '://' . $host . $projectFolder);
 define('API_URL', BASE_URL . '/app/api');
 
 // Función helper para obtener la URL base automáticamente

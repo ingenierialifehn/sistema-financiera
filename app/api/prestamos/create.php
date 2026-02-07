@@ -29,7 +29,8 @@ try {
     $db->beginTransaction();
 
     // 1. Check Active Loan (Unless it's a refinancing request)
-    $esRefinanciamiento = !empty($data['es_refinanciamiento']) && ($data['es_refinanciamiento'] == '1' || $data['es_refinanciamiento'] === 'true');
+    $esRefinanciamiento = (!empty($data['es_refinanciamiento']) && ($data['es_refinanciamiento'] == '1' || $data['es_refinanciamiento'] === 'true'))
+        || (isset($data['tipo_prestamo']) && $data['tipo_prestamo'] === 'Refinanciamiento');
 
     if (!$esRefinanciamiento) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM prestamos WHERE id_cliente = ? AND estado = 'Activo'");
@@ -128,6 +129,36 @@ try {
         }
     }
 
+    // --- CÁLCULO DE NETO A ENTREGAR (REFINANCIAMIENTO) ---
+    $netoEntregar = $monto;
+    $saldoAnterior = 0;
+
+    if ($tipo === 'Refinanciamiento' || $tipo === 'Readecuacion') {
+        if ($tipo === 'Refinanciamiento' || $tipo === 'Readecuacion') {
+            // Buscar préstamos anteriores activos para deducir saldo (Suma de todos)
+            $stmtPrevCalc = $db->prepare("SELECT 
+                                        SUM(p.monto_capital - (
+                                            SELECT IFNULL(SUM(monto_pagado * (capital_cuota/monto_cuota)), 0) 
+                                            FROM cuotas WHERE prestamo_id = p.id AND estado IN ('pagada', 'parcial') AND monto_cuota > 0
+                                        )) as saldo_pendiente_total
+                                      FROM prestamos p 
+                                      WHERE id_cliente = ? 
+                                      AND estado IN ('Activo', 'Vencido')");
+            $stmtPrevCalc->execute([$clienteId]);
+            $prevCalc = $stmtPrevCalc->fetch(PDO::FETCH_ASSOC);
+
+            if ($prevCalc && $prevCalc['saldo_pendiente_total'] !== null) {
+                $saldoAnterior = max(0, floatval($prevCalc['saldo_pendiente_total']));
+                $netoEntregar = max(0, $monto - $saldoAnterior);
+
+                if ($saldoAnterior > 0) {
+                    $observaciones .= " [Refinanciamiento: Se deduce saldo anterior total de L " . number_format($saldoAnterior, 2) . "]";
+                }
+            }
+        }
+    }
+    // -----------------------------------------------------
+
     $sql = "INSERT INTO prestamos (
         id_cliente, asesor_creditos_id, monto_capital, modalidad, plazo_meses, 
         tasa_total, tasa_interes, tasa_gastos, tasa_comision,
@@ -151,7 +182,7 @@ try {
         $tasaComision,
         $valorCuota,
         $totalAPagar,
-        $monto,  // neto_entregar = monto_capital initially
+        $netoEntregar,  // Calculated Net
         $estadoInicial,
         $observaciones,
         $tipo

@@ -24,10 +24,14 @@ try {
     $user = Auth::getCurrentUser();
 
     // Obtener datos según el método
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $input = $_POST;
-    } else {
-        $input = getJsonInput();
+    // Obtener datos según el método o contenido
+    $input = $_POST;
+    if (empty($input)) {
+        $json = file_get_contents('php://input');
+        $decoded = json_decode($json, true);
+        if (is_array($decoded)) {
+            $input = $decoded;
+        }
     }
 
     // Validar ID

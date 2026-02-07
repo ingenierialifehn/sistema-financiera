@@ -163,7 +163,7 @@ try {
     // Nota: Calculamos basado en el estado POST-Update, por lo que ajustamos el disponible restando el monto actual
     $stmtSug = $db->prepare("
         SELECT 
-            IFNULL(SUM(CASE WHEN estado = 'Listo para Entrega' THEN COALESCE(neto_entregar, monto_capital) ELSE 0 END), 0) as por_entregar,
+            IFNULL(SUM(CASE WHEN p.estado = 'Listo para Entrega' THEN COALESCE(neto_entregar, monto_capital) ELSE 0 END), 0) as por_entregar,
             (SELECT IFNULL(saldo_efectivo,0) + IFNULL(saldo_caja_operativa,0) FROM cajas_agencias WHERE id_agencia = ?) as disponible_total_actual
         FROM prestamos p
         JOIN clientes c ON p.id_cliente = c.id

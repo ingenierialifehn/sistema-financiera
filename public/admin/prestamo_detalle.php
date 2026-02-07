@@ -94,6 +94,31 @@ $pageTitle = 'Detalle del Préstamo';
                 <i class="fas fa-spinner fa-spin text-4xl text-blue-600"></i>
             </div>
         </div>
+        <!-- Print Preview Modal -->
+        <div id="printModal"
+            class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="text-xl font-bold text-gray-800">Vista Previa de Impresión (Préstamo)</h3>
+                    <button onclick="closePrintModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div class="flex-grow bg-gray-100 p-4 overflow-hidden">
+                    <iframe id="printFrame" class="w-full h-full border shadow-sm bg-white"></iframe>
+                </div>
+                <div class="p-4 border-t flex justify-end gap-3 bg-gray-50">
+                    <button onclick="closePrintModal()"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 font-medium">
+                        Cerrar
+                    </button>
+                    <button onclick="printFromFrame()"
+                        class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow flex items-center">
+                        <i class="fas fa-print mr-2"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -123,6 +148,9 @@ $pageTitle = 'Detalle del Préstamo';
             const prestamo = data.prestamo;
             const cuotas = data.cuotas;
             const comentarios = data.comentarios;
+
+            // Store for reprint logic
+            window.GLOBAL_CUOTAS = cuotas;
 
             // Calcular Cuotas Pagadas (Lógica Agrupada por ID de Cuota)
             let totalUnique = 0;
@@ -489,6 +517,7 @@ $pageTitle = 'Detalle del Préstamo';
                     <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Pagado</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">Estado</th>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fecha Pago</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -528,6 +557,14 @@ $pageTitle = 'Detalle del Préstamo';
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-700">
                         ${c.fecha_pago_real ? new Date(c.fecha_pago_real).toLocaleString('es-HN') : '-'}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        ${c.monto_pagado > 0 && c.fecha_pago_real ? `
+                        <button onclick="reimprimirRecibo('${c.fecha_pago_real}')" 
+                            class="text-gray-600 hover:text-blue-600 transition" title="Reimprimir Recibo">
+                            <i class="fas fa-print"></i>
+                        </button>
+                        ` : '-'}
                     </td>
                 </tr>
                 `;
@@ -596,6 +633,16 @@ $pageTitle = 'Detalle del Préstamo';
                         })}</span>
                 </div>
             </div>
+            
+            ${c.monto_pagado > 0 && c.fecha_pago_real ? `
+            <div class="mt-3 flex justify-end">
+                 <button onclick="reimprimirRecibo('${c.fecha_pago_real}')" 
+                     class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-1 px-3 rounded border border-gray-300 shadow-sm flex items-center">
+                     <i class="fas fa-print mr-1"></i> Reimprimir
+                 </button>
+            </div>
+            ` : ''}
+
         </div>
         `;
             });
@@ -669,8 +716,42 @@ $pageTitle = 'Detalle del Préstamo';
         `;
         }
 
+        function reimprimirRecibo(fecha) {
+            if (!fecha || !window.GLOBAL_CUOTAS) return;
+
+            // Find all quotas paid at this EXACT timestamp
+            const cuotasIds = window.GLOBAL_CUOTAS
+                .filter(c => c.fecha_pago_real === fecha)
+                .map(c => c.id);
+
+            if (cuotasIds.length === 0) {
+                Swal.fire('Error', 'No se encontraron registros para esta fecha', 'error');
+                return;
+            }
+
+            const idsParam = cuotasIds.join(',');
+            const url = `${BASE_URL}/public/admin/print_docs.php?type=ticket_pago&ids=${idsParam}`;
+
+            // Open popup
+            window.open(url, 'Ticket', 'width=450,height=600,scrollbars=yes');
+        }
+
         function imprimirDetalle() {
-            window.print();
+            const url = BASE_URL + '/public/admin/print_estado_cuenta.php?prestamo_id=' + PRESTAMO_ID;
+            $('#printFrame').attr('src', url);
+            $('#printModal').removeClass('hidden').addClass('flex');
+        }
+
+        function closePrintModal() {
+            $('#printModal').addClass('hidden').removeClass('flex');
+            $('#printFrame').attr('src', '');
+        }
+
+        function printFromFrame() {
+            const iframe = document.getElementById('printFrame');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.print();
+            }
         }
     </script>
 </body>
