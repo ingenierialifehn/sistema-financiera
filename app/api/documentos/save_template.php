@@ -15,8 +15,27 @@ try {
         }
 
         $db = getDB();
-        $stmt = $db->prepare("UPDATE plantillas_documentos SET contenido = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$data['contenido'], $data['id']]);
+
+        $margenTop = $data['margen_top'] ?? 20;
+        $margenBottom = $data['margen_bottom'] ?? 20;
+        $margenLeft = $data['margen_left'] ?? 25;
+        $margenRight = $data['margen_right'] ?? 25;
+        $orientacion = $data['orientacion'] ?? 'portrait';
+        $logoAncho = $data['logo_ancho'] ?? 150;
+        $tamanoPapel = $data['tamano_papel'] ?? 'carta';
+
+        $stmt = $db->prepare("UPDATE plantillas_documentos SET contenido = ?, margen_top = ?, margen_bottom = ?, margen_left = ?, margen_right = ?, orientacion = ?, logo_ancho = ?, tamano_papel = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([
+            $data['contenido'],
+            $margenTop,
+            $margenBottom,
+            $margenLeft,
+            $margenRight,
+            $orientacion,
+            $logoAncho,
+            $tamanoPapel,
+            $data['id']
+        ]);
 
         echo json_encode(['success' => true, 'message' => 'Plantilla guardada correctamente']);
     } else {

@@ -470,7 +470,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
 
             // 1. Keyword Match
             // Define broader keywords mapping based on type
-            let effectiveKeywords = keywords; 
+            let effectiveKeywords = keywords;
             if (type === 'oficial') {
                 effectiveKeywords = ['desembolso', 'operaciones', 'caja', 'tesoreria', 'gerente', 'supervisor'];
             } else if (type === 'asesor') {
@@ -495,7 +495,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                     if (permissions['caja'] === true) isPermissionMatch = true;
                 }
             }
-            
+
             // 3. Admin Override
             if (cleanRol.includes('admin') || cleanRol.includes('gerente')) isPermissionMatch = true;
 
@@ -773,7 +773,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         const populateSelect = (select, keywords, permissionKey) => {
             let matches = [];
             select.innerHTML = '<option value="">Seleccione un usuario...</option>';
-            
+
             availableUsers.forEach(user => {
                 if (user.id_agencia && user.id_agencia != currentLoan.id_agencia) return;
 
@@ -796,13 +796,13 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                 if (permissionKey && permissions) {
                     if (permissions[permissionKey] === true || permissions[permissionKey] == 1) isPermissionMatch = true;
                     else if (permissions[permissionKey] && typeof permissions[permissionKey] === 'object') isPermissionMatch = true;
-                    
+
                     if (permissionKey === 'desembolsos') {
                         if (permissions['operaciones'] === true) isPermissionMatch = true;
                         if (permissions['caja'] === true) isPermissionMatch = true;
                     }
                 }
-                
+
                 if (cleanRol.includes('admin') || cleanRol.includes('gerente')) isPermissionMatch = true;
 
                 if (isKeywordMatch || isPermissionMatch) {
@@ -820,7 +820,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         // Populate selects
         populateSelect(asesorSelect, ['asesor', 'promotor', 'crédito', 'credito', 'oficial de negocios'], 'creditos');
         populateSelect(oficialSelect, ['desembolso', 'operaciones', 'caja', 'tesoreria', 'gerente', 'supervisor'], 'desembolsos');
-        
+
         // Pre-select
         if (loan.asesor_creditos_id) asesorSelect.value = loan.asesor_creditos_id;
         if (loan.oficial_desembolsos_id) oficialSelect.value = loan.oficial_desembolsos_id;
@@ -1024,6 +1024,69 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                 Swal.fire('Error', 'Fallo de conexión', 'error');
             }
         }
+    }
+</script>
+
+<!-- Modal for Document Preview -->
+<div id="documentPreviewModal"
+    class="fixed inset-0 z-50 hidden overflow-y-auto bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3 class="text-xl font-bold text-gray-800" id="previewTitle">Vista Previa del Documento</h3>
+            <button onclick="closePreviewModal()" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <div class="flex-grow bg-gray-100 p-4 overflow-hidden relative">
+            <iframe id="previewFrame" class="w-full h-full border rounded shadow-sm bg-white" src=""></iframe>
+        </div>
+        <div class="p-4 border-t bg-gray-50 flex justify-end gap-3">
+            <button onclick="closePreviewModal()"
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">Cerrar</button>
+            <button onclick="printFromPreview()"
+                class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow flex items-center">
+                <i class="fas fa-print mr-2"></i> Imprimir Ahora
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- PREVIEW MODAL LOGIC ---
+    function openPreviewModal(url, title) {
+        document.getElementById('previewTitle').innerText = title || 'Vista Previa';
+        document.getElementById('previewFrame').src = url;
+        document.getElementById('documentPreviewModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    function closePreviewModal() {
+        document.getElementById('documentPreviewModal').classList.add('hidden');
+        document.getElementById('previewFrame').src = ''; // Stop loading/playing
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    function printFromPreview() {
+        // Access the iframe and call print
+        const iframe = document.getElementById('previewFrame');
+        if (iframe.contentWindow) {
+            iframe.contentWindow.print();
+        }
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function (event) {
+        if (event.key === "Escape") {
+            closePreviewModal();
+        }
+    });
+
+    // --- Override printDocDirect ---
+    function printDocDirect(id, type) {
+        // Use Modal Preview instead of new window
+        const url = `<?php echo BASE_URL; ?>/public/admin/print_docs.php?type=${type}&id=${id}&autoprint=false`;
+        const title = `Vista Previa - ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+        openPreviewModal(url, title);
     }
 </script>
 

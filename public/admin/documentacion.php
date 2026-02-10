@@ -199,25 +199,97 @@ require_once __DIR__ . '/includes/layout.php';
                     <button onclick="insertVar('{{ciudad_agencia}}')"
                         class="w-full text-left p-2 bg-gray-50 hover:bg-indigo-50 rounded border border-gray-200 text-gray-700 text-xs">Ciudad
                         Agencia</button>
+
+                    <!-- EXTRAS -->
+                    <p class="text-xs text-gray-500 uppercase font-semibold mt-4 sticky top-10 bg-white py-1">✍️ Firmas
+                    </p>
+                    <button onclick="insertSignatureBlock()"
+                        class="w-full text-left p-2 bg-yellow-50 hover:bg-yellow-100 rounded border border-yellow-300 text-yellow-800 text-xs font-bold">
+                        <i class="fas fa-pen-nib mr-1"></i> Insertar Bloque de Firmas
+                    </button>
                 </div>
             </div>
 
             <!-- Editor -->
             <div class="w-full md:w-3/4 bg-white rounded-lg shadow p-4">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="flex gap-2">
-                        <select id="templateSelect" onchange="loadTemplate()" class="p-2 border rounded w-64">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex gap-2 flex-grow">
+                        <select id="templateSelect" onchange="loadTemplate()"
+                            class="p-2 border rounded flex-grow max-w-xs">
                             <option value="">Seleccione Plantilla...</option>
                             <!-- Ajax options -->
                         </select>
                         <button onclick="openNewTemplateModal()"
-                            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                            <i class="fas fa-plus mr-2"></i>Nueva
+                            class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm">
+                            <i class="fas fa-plus"></i>
                         </button>
                     </div>
+
+                    <!-- Config Panel Button -->
+                    <button onclick="toggleConfigPanel()"
+                        class="bg-gray-100 text-gray-700 px-3 py-2 rounded hover:bg-gray-200 text-sm border">
+                        <i class="fas fa-cog mr-1"></i> Configuración de Página
+                    </button>
+
                     <button onclick="saveTemplate()"
-                        class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"><i
-                            class="fas fa-save mr-2"></i>Guardar Cambios</button>
+                        class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 text-sm font-bold"><i
+                            class="fas fa-save mr-2"></i>Guardar</button>
+                </div>
+
+                <!-- Page Config Panel (Hidden by default) -->
+                <div id="pageConfigPanel" class="hidden bg-gray-50 p-4 rounded mb-4 border border-gray-200 text-sm">
+                    <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">Configuración de Impresión</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Papel -->
+                        <div>
+                            <label class="block text-gray-600 mb-1">Tamaño Papel</label>
+                            <select id="cfg_paper" class="w-full p-1 border rounded">
+                                <option value="carta">Carta (Letter)</option>
+                                <option value="a4">A4</option>
+                                <option value="oficio">Oficio (Legal)</option>
+                            </select>
+                        </div>
+                        <!-- Orientación -->
+                        <div>
+                            <label class="block text-gray-600 mb-1">Orientación</label>
+                            <select id="cfg_orientation" class="w-full p-1 border rounded">
+                                <option value="portrait">Vertical</option>
+                                <option value="landscape">Horizontal</option>
+                            </select>
+                        </div>
+                        <!-- Logo -->
+                        <div>
+                            <label class="block text-gray-600 mb-1">Ancho Logo (px)</label>
+                            <input type="number" id="cfg_logo_width" class="w-full p-1 border rounded" value="150"
+                                min="50" max="500">
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="block text-gray-600 mb-1">Márgenes (mm)</label>
+                        <div class="grid grid-cols-4 gap-2 text-center">
+                            <div>
+                                <span class="text-xs text-gray-400">Superior</span>
+                                <input type="number" id="cfg_margin_top" class="w-full p-1 border rounded text-center"
+                                    value="20">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400">Derecho</span>
+                                <input type="number" id="cfg_margin_right" class="w-full p-1 border rounded text-center"
+                                    value="25">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400">Inferior</span>
+                                <input type="number" id="cfg_margin_bottom"
+                                    class="w-full p-1 border rounded text-center" value="20">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400">Izquierdo</span>
+                                <input type="number" id="cfg_margin_left" class="w-full p-1 border rounded text-center"
+                                    value="25">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Quill Editor container -->
                 <div id="editor" style="height: 500px;"></div>
@@ -394,7 +466,17 @@ require_once __DIR__ . '/includes/layout.php';
         if (json.success) {
             const tmpl = json.data.find(t => t.tipo === type);
             if (tmpl) {
-                window.open(`print_dynamic.php?loan_id=${loanId}&template_id=${tmpl.id}`, '_blank');
+                // Use the new Modal Preview
+                const url = `print_dynamic.php?loan_id=${loanId}&template_id=${tmpl.id}&autoprint=false`;
+                const title = `Vista Previa - ${tmpl.nombre}`;
+
+                // Call the global function defined at the bottom
+                if (typeof openPreviewModal === 'function') {
+                    openPreviewModal(url, title);
+                } else {
+                    // Fallback just in case
+                    window.open(url, '_blank');
+                }
             } else {
                 alert('No hay plantilla configurada para ' + type);
             }
@@ -403,14 +485,14 @@ require_once __DIR__ . '/includes/layout.php';
 
     async function printAll(e, loanId) {
         e.preventDefault();
-        
+
         const res = await fetch(`<?php echo BASE_URL; ?>/app/api/documentos/get_template.php`);
         const json = await res.json();
 
         if (json.success) {
             const types = ['contrato', 'pagare', 'garantia'];
             let printed = 0;
-            
+
             types.forEach((type, index) => {
                 const tmpl = json.data.find(t => t.tipo === type);
                 if (tmpl) {
@@ -472,7 +554,20 @@ require_once __DIR__ . '/includes/layout.php';
         const json = await res.json();
         if (json.success) {
             quillEditor.root.innerHTML = json.data.contenido;
+
+            // Load Config
+            document.getElementById('cfg_paper').value = json.data.tamano_papel || 'carta';
+            document.getElementById('cfg_orientation').value = json.data.orientacion || 'portrait';
+            document.getElementById('cfg_logo_width').value = json.data.logo_ancho || 150;
+            document.getElementById('cfg_margin_top').value = json.data.margen_top || 20;
+            document.getElementById('cfg_margin_right').value = json.data.margen_right || 25;
+            document.getElementById('cfg_margin_bottom').value = json.data.margen_bottom || 20;
+            document.getElementById('cfg_margin_left').value = json.data.margen_left || 25;
         }
+    }
+
+    function toggleConfigPanel() {
+        document.getElementById('pageConfigPanel').classList.toggle('hidden');
     }
 
     function insertVar(variable) {
@@ -481,6 +576,34 @@ require_once __DIR__ . '/includes/layout.php';
             quillEditor.insertText(range.index, variable);
         } else {
             quillEditor.insertText(quillEditor.getLength(), variable);
+        }
+    }
+
+    function insertSignatureBlock() {
+        const html = `
+        <p><br></p>
+        <table style="width: 100%; margin-top: 40px; border-collapse: collapse; border: none;">
+            <tbody>
+            <tr>
+                <td style="width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 5px; vertical-align: top;">
+                    <p><strong>{{nombre_cliente}}</strong></p>
+                    <p>EL DEUDOR</p>
+                </td>
+                <td style="width: 20%; border: none;"></td>
+                <td style="width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 5px; vertical-align: top;">
+                    <p><strong>SISTEMA FINANCIERA</strong></p>
+                    <p>EL ACREEDOR</p>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p><br></p>`;
+
+        const range = quillEditor.getSelection();
+        if (range) {
+            quillEditor.clipboard.dangerouslyPasteHTML(range.index, html);
+        } else {
+            quillEditor.clipboard.dangerouslyPasteHTML(quillEditor.getLength(), html);
         }
     }
 
@@ -493,10 +616,23 @@ require_once __DIR__ . '/includes/layout.php';
 
         const content = quillEditor.root.innerHTML;
 
+        // Gather config
+        const data = {
+            id: id,
+            contenido: content,
+            tamano_papel: document.getElementById('cfg_paper').value,
+            orientacion: document.getElementById('cfg_orientation').value,
+            logo_ancho: document.getElementById('cfg_logo_width').value,
+            margen_top: document.getElementById('cfg_margin_top').value,
+            margen_right: document.getElementById('cfg_margin_right').value,
+            margen_bottom: document.getElementById('cfg_margin_bottom').value,
+            margen_left: document.getElementById('cfg_margin_left').value
+        };
+
         const res = await fetch(`<?php echo BASE_URL; ?>/app/api/documentos/save_template.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, contenido: content })
+            body: JSON.stringify(data)
         });
         const json = await res.json();
         if (json.success) {
@@ -565,6 +701,61 @@ require_once __DIR__ . '/includes/layout.php';
         }
     }
 
+</script>
+
+<!-- Modal for Document Preview -->
+<div id="documentPreviewModal"
+    class="fixed inset-0 z-50 hidden overflow-y-auto bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3 class="text-xl font-bold text-gray-800" id="previewTitle">Vista Previa del Documento</h3>
+            <button onclick="closePreviewModal()" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <div class="flex-grow bg-gray-100 p-4 overflow-hidden relative">
+            <iframe id="previewFrame" class="w-full h-full border rounded shadow-sm bg-white" src=""></iframe>
+        </div>
+        <div class="p-4 border-t bg-gray-50 flex justify-end gap-3">
+            <button onclick="closePreviewModal()"
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">Cerrar</button>
+            <button onclick="printFromPreview()"
+                class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow flex items-center">
+                <i class="fas fa-print mr-2"></i> Imprimir Ahora
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- PREVIEW MODAL LOGIC ---
+    function openPreviewModal(url, title) {
+        document.getElementById('previewTitle').innerText = title || 'Vista Previa';
+        document.getElementById('previewFrame').src = url;
+        document.getElementById('documentPreviewModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    function closePreviewModal() {
+        document.getElementById('documentPreviewModal').classList.add('hidden');
+        document.getElementById('previewFrame').src = ''; // Stop loading/playing
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    function printFromPreview() {
+        // Access the iframe and call print
+        const iframe = document.getElementById('previewFrame');
+        if (iframe.contentWindow) {
+            iframe.contentWindow.print();
+        }
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function (event) {
+        if (event.key === "Escape") {
+            closePreviewModal();
+        }
+    });
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

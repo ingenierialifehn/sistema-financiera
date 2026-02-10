@@ -1537,29 +1537,56 @@ function imprimirTicketCuadre(data) {
     // Desembolsos Entregados
     let desembolsosHtml = '';
     let totalDesembolsado = 0;
+
+    // Totales específicos para el resumen de lo que realmente salió de caja
+    let totalNetoEntregarSum = 0;
+
     if (data.desembolsos_entregados && data.desembolsos_entregados.length > 0) {
         desembolsosHtml = `
             <div class="section mt-4">
-                <div class="section-title">PRÉSTAMOS ENTREGADOS</div>
+                <div class="section-title">PRÉSTAMOS ENTREGADOS (DESEMBOLSOS)</div>
                 <table class="table-items">
                     <thead>
                         <tr>
-                            <th class="text-left">Cliente</th>
-                            <th class="text-right">Monto</th>
+                            <th class="text-left" style="width: 35%">Cliente / Préstamo</th>
+                            <th class="text-right" style="width: 20%">Monto Nuevo</th>
+                            <th class="text-right" style="width: 20%">Saldo Ant.</th>
+                            <th class="text-right" style="width: 25%">Neto Entregado</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
         data.desembolsos_entregados.forEach(d => {
-            const m = parseFloat(d.monto_capital);
-            totalDesembolsado += m;
+            // Support backward compatibility if fields missing
+            const montoNuevo = parseFloat(d.monto_capital || 0);
+            const netoEntregar = d.neto_entregar !== undefined ? parseFloat(d.neto_entregar) : montoNuevo;
+            // If monto_anterior comes from PHP or calculated: 
+            const saldoAnterior = d.monto_anterior !== undefined ? parseFloat(d.monto_anterior) : (montoNuevo - netoEntregar);
+
+            totalDesembolsado += montoNuevo;
+            totalNetoEntregarSum += netoEntregar;
+
             desembolsosHtml += `
                 <tr>
-                    <td>${d.nombre_completo.substring(0, 30)}</td>
-                    <td class="text-right">L ${m.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td>
+                        <span class="item-title">${d.nombre_completo.substring(0, 30)}</span>
+                        <span class="meta-info">#${d.numero_prestamo || 'N/A'}</span>
+                    </td>
+                    <td class="text-right valign-top">L ${montoNuevo.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right valign-top" style="color:#666;"> - L ${saldoAnterior.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right valign-top font-bold">L ${netoEntregar.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
                 </tr>
              `;
         });
+
+        // Fila de totales
+        desembolsosHtml += `
+            <tr class="totals-row">
+                <td class="text-right label-total" colspan="3">TOTAL NETO ENTREGADO:</td>
+                <td class="text-right value-total">L ${totalNetoEntregarSum.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+            </tr>
+        `;
+
         desembolsosHtml += `</tbody></table></div>`;
     }
 
@@ -1570,51 +1597,55 @@ function imprimirTicketCuadre(data) {
                         <title>Recibo de Cuadre</title>
                         <style>
                             @page {
-                                margin: 10mm;
+                                margin: 5mm;
                                 size: auto;
+                            }
+                            * {
+                                box-sizing: border-box;
                             }
                             body {
                                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                                font-size: 14px;
-                                line-height: 1.4;
+                                font-size: 12px;
+                                line-height: 1.3;
                                 margin: 0;
-                                padding: 20px;
+                                padding: 0;
                                 color: #000;
                                 background: #fff;
                             }
                             
                             .container {
                                 width: 100%;
-                                max-width: 800px;
+                                max-width: 100%;
                                 margin: 0 auto;
                                 padding: 10px;
                             }
 
-                            .header { text-align: center; margin-bottom: 25px; padding-bottom: 10px; border-bottom: 2px solid #000; }
-                            .header h2 { margin: 0 0 5px 0; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-                            .header p { margin: 2px 0; font-size: 14px; color: #333; }
-                            .header .bold { font-weight: bold; font-size: 16px; margin-top: 5px; display: block; }
+                            .header { text-align: center; margin-bottom: 20px; padding-bottom: 5px; border-bottom: 2px solid #000; }
+                            .header h2 { margin: 0 0 5px 0; font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+                            .header p { margin: 2px 0; font-size: 12px; color: #333; }
+                            .header .bold { font-weight: bold; font-size: 14px; margin-top: 5px; display: block; }
                             
-                            .section { margin-bottom: 20px; }
+                            .section { margin-bottom: 15px; }
                             .section-title { 
                                 font-weight: bold; 
-                                font-size: 14px; 
+                                font-size: 13px; 
                                 background: #f0f0f0; 
-                                padding: 5px 10px; 
+                                padding: 4px 8px; 
                                 border-left: 4px solid #333;
-                                margin-bottom: 10px;
+                                margin-bottom: 8px;
                                 text-transform: uppercase;
                             }
 
-                            .table-items { width: 100%; border-collapse: collapse; font-size: 13px; }
+                            .table-items { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
                             .table-items th { 
                                 border-bottom: 2px solid #000; 
-                                padding: 8px 5px; 
+                                padding: 5px 2px; 
                                 font-weight: bold; 
                                 text-transform: uppercase;
-                                font-size: 12px;
+                                font-size: 11px;
+                                overflow: hidden;
                             }
-                            .table-items td { padding: 8px 5px; border-bottom: 1px solid #ddd; vertical-align: top; }
+                            .table-items td { padding: 5px 2px; border-bottom: 1px solid #ddd; vertical-align: top; overflow: hidden; }
                             
                             .table-items tr:last-child td { border-bottom: none; }
 
@@ -1624,47 +1655,46 @@ function imprimirTicketCuadre(data) {
                             .italic { font-style: italic; }
                             .bold { font-weight: bold; }
                             
-                            .item-title { font-weight: 600; color: #000; display: block; }
-                            .meta-info { font-size: 11px; color: #555; }
+                            .item-title { font-weight: 600; color: #000; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                            .meta-info { font-size: 10px; color: #555; }
 
                             .totals-row td {
                                 border-top: 2px solid #000 !important;
                                 border-bottom: 2px solid #000 !important;
-                                padding: 10px 5px;
+                                padding: 8px 2px;
                                 background-color: #f9f9f9;
                             }
-                            .label-total { font-size: 14px; font-weight: bold; }
-                            .value-total { font-size: 14px; font-weight: bold; }
+                            .label-total { font-size: 13px; font-weight: bold; }
+                            .value-total { font-size: 13px; font-weight: bold; }
 
                             .summary-box {
                                 border: 2px solid #000;
-                                padding: 15px;
-                                margin-top: 20px;
+                                padding: 10px;
+                                margin-top: 15px;
                                 break-inside: avoid;
                             }
                             .summary-row {
                                 display: flex;
                                 justify-content: space-between;
-                                margin-bottom: 5px;
-                                font-size: 14px;
+                                margin-bottom: 4px;
+                                font-size: 13px;
                             }
                             .summary-row.total-final {
                                 border-top: 1px dashed #999;
-                                margin-top: 10px;
-                                padding-top: 10px;
-                                font-size: 18px;
+                                margin-top: 8px;
+                                padding-top: 8px;
+                                font-size: 16px;
                                 font-weight: bold;
                             }
 
-                            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; border-top: 1px dotted #ccc; padding-top: 10px;}
+                            .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #666; border-top: 1px dotted #ccc; padding-top: 10px;}
                             
-                            .mt-4 { margin-top: 1.5rem; }
-                            .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                            .mt-4 { margin-top: 1rem; }
+                            .my-4 { margin-top: 0.5rem; margin-bottom: 0.5rem; }
 
                             @media print {
-                                body { padding: 0; }
-                                .no-print { display: none; }
-                                .container { width: 100%; max-width: 100%; }
+                                body { padding: 0; margin: 0; }
+                                .container { width: 100%; max-width: 100%; padding: 0 5mm; }
                             }
                         </style>
                     </head>
@@ -1694,8 +1724,8 @@ function imprimirTicketCuadre(data) {
                                 </div>
                                 ${totalDesembolsado > 0 ? `
                                 <div class="summary-row">
-                                    <span>Total Desembolsado:</span>
-                                    <span class="bold" style="color:red">- L ${totalDesembolsado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                                    <span>Total Neto Entregado (Desembolsos):</span>
+                                    <span class="bold" style="color:red">- L ${totalNetoEntregarSum.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
                                 </div>` : ''}
                                 
                                 <div class="summary-row total-final">

@@ -235,7 +235,12 @@ try {
             'detectar_desembolsos' => true,
             'desembolsos_entregados' => (function () use ($db, $idAsesor, $fechaHoy) {
                 $stmt = $db->prepare("
-                    SELECT cl.nombre_completo, p.monto_capital
+                    SELECT 
+                        cl.nombre_completo, 
+                        p.monto_capital, 
+                        p.numero_prestamo,
+                        p.neto_entregar,
+                        (p.monto_capital - p.neto_entregar) as monto_anterior
                     FROM prestamos p
                     JOIN clientes cl ON p.id_cliente = cl.id
                     WHERE p.oficial_desembolsos_id = ?

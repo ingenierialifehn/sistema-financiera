@@ -52,7 +52,7 @@ try {
                   OR
                   EXISTS (
                       SELECT 1 FROM movimientos_internos_agencia mia
-                      WHERE mia.usuario_origen_id = u.id_usuario
+                      WHERE mia.id_usuario_operador = u.id_usuario
                       AND DATE(mia.fecha_movimiento) = ?
                   )
               )

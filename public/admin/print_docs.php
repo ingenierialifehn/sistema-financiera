@@ -188,9 +188,12 @@ if ($type !== 'ticket_pago') {
 </head>
 
 <body>
-    <div class="no-print" style="margin-bottom: 20px; text-align: right;">
-        <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px;">Imprimir</button>
-    </div>
+    <!-- Botón de impresión solo visible si no se imprime automáticamente -->
+    <?php if (!isset($_GET['autoprint']) || $_GET['autoprint'] !== 'false'): ?>
+        <div class="no-print" style="margin-bottom: 20px; text-align: right;">
+            <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px;">Imprimir</button>
+        </div>
+    <?php endif; ?>
 
     <?php if ($type === 'contrato'): ?>
         <div class="header">CONTRATO DE PRÉSTAMO MERCANTIL</div>

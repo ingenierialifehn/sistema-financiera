@@ -39,6 +39,7 @@ if (!$data)
 
 // 3. Prepare Variables
 $vars = [];
+$months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 // Contract/Loan Identification
 $vars['{{numero_contrato}}'] = str_pad($data['id'], 6, '0', STR_PAD_LEFT); // 000013
@@ -205,11 +206,80 @@ foreach ($vars as $key => $val) {
         <?php echo htmlspecialchars($template['nombre']); ?>
     </title>
     <style>
+        <?php
+        // Parámetros de Configuración
+        $mTop = ($template['margen_top'] ?? 20) . 'mm';
+        $mRight = ($template['margen_right'] ?? 25) . 'mm';
+        $mBottom = ($template['margen_bottom'] ?? 20) . 'mm';
+        $mLeft = ($template['margen_left'] ?? 25) . 'mm';
+
+        $pSize = 'Letter';
+        $tp = strtolower($template['tamano_papel'] ?? 'carta');
+        if ($tp == 'a4')
+            $pSize = 'A4';
+        if ($tp == 'oficio' || $tp == 'legal')
+            $pSize = 'Legal';
+
+        $orient = $template['orientacion'] ?? 'portrait';
+        $logoW = ($template['logo_ancho'] ?? 150) . 'px';
+        ?>
+
         body {
             font-family: 'Times New Roman', serif;
             font-size: 12pt;
-            line-height: 1.5;
-            padding: 40px;
+            line-height: 1.15;
+            color: #000;
+            background: white;
+            /* Simulación de márgenes en pantalla */
+            padding-top:
+                <?php echo $mTop; ?>
+            ;
+            padding-right:
+                <?php echo $mRight; ?>
+            ;
+            padding-bottom:
+                <?php echo $mBottom; ?>
+            ;
+            padding-left:
+                <?php echo $mLeft; ?>
+            ;
+            width: 100%;
+            max-width: 216mm;
+            /* Ancho carta aprox */
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        html {
+            background: #eee;
+            padding: 20px 0;
+            min-height: 100%;
+        }
+
+        /* Reset básico */
+        p {
+            margin: 0 0 0.5em 0;
+            padding: 0;
+        }
+
+        ul,
+        ol {
+            margin: 0 0 0.5em 2em;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 0.2em;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            margin: 0.5em 0;
+            font-weight: bold;
         }
 
         .header {
@@ -218,7 +288,36 @@ foreach ($vars as $key => $val) {
         }
 
         .logo {
-            max-height: 80px;
+            width:
+                <?php echo $logoW; ?>
+            ;
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Clases de alineación de Quill */
+        .ql-align-center {
+            text-align: center;
+        }
+
+        .ql-align-right {
+            text-align: right;
+        }
+
+        .ql-align-justify {
+            text-align: justify;
+        }
+
+        .ql-indent-1 {
+            padding-left: 3em;
+        }
+
+        .ql-indent-2 {
+            padding-left: 6em;
+        }
+
+        .ql-indent-3 {
+            padding-left: 9em;
         }
 
         @media print {
@@ -226,18 +325,42 @@ foreach ($vars as $key => $val) {
                 display: none;
             }
 
+            html,
             body {
-                padding: 0;
+                width: 100%;
+                height: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: none;
+            }
+
+            @page {
+                size:
+                    <?php echo $pSize . ' ' . $orient; ?>
+                ;
+                margin:
+                    <?php echo "$mTop $mRight $mBottom $mLeft"; ?>
+                    !important;
+            }
+
+            .header,
+            .content {
+                width: 100%;
             }
         }
     </style>
 </head>
 
-<body onload="window.print()">
-    <div class="no-print" style="margin-bottom: 20px; text-align: center; background: #eee; padding: 10px;">
-        <button onclick="window.print()" style="font-size: 16px; padding: 10px 20px; cursor: pointer;">Imprimir
-            Documento</button>
-    </div>
+<body>
+    <!-- Botón de impresión solo visible si no se imprime automáticamente -->
+    <?php if (!isset($_GET['autoprint']) || $_GET['autoprint'] !== 'true'): ?>
+        <div class="no-print" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+            <button onclick="window.print()"
+                style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <span style="margin-right: 5px;">🖨️</span> Imprimir
+            </button>
+        </div>
+    <?php endif; ?>
 
     <div class="header">
         <img src="<?php echo $logoPath; ?>" alt="Logo" class="logo" onerror="this.style.display='none'">
@@ -246,4 +369,6 @@ foreach ($vars as $key => $val) {
     <div class="content">
         <?php echo $content; ?>
     </div>
-</body></html>
+</body>
+
+</html>
