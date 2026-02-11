@@ -19,6 +19,7 @@ try {
             c.email,
             c.id_agencia,
             r.nombre_rol as rol_nombre,
+            r.permisos,
             COALESCE(c.nombre_completo, u.username) as nombre_completo,
             COALESCE(c.puesto_cargo, r.nombre_rol, 'Sin Puesto') as puesto_cargo
             FROM usuarios u

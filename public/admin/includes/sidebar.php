@@ -171,6 +171,15 @@ $parentDir = basename(dirname($_SERVER['PHP_SELF'])); // Para saber si estamos e
                 </a>
             <?php endif; ?>
 
+            <!-- Documentación -->
+            <?php if (Auth::hasPermission('documentacion.view')): ?>
+                <a href="documentacion.php"
+                    class="flex items-center space-x-3 rounded-lg px-3 py-2 transition hover:bg-gray-700 <?php echo $currentPage === 'documentacion.php' ? 'bg-indigo-600' : ''; ?>">
+                    <i class="fas fa-file-contract w-5"></i>
+                    <span>Documentación</span>
+                </a>
+            <?php endif; ?>
+
             <!-- Seguridad y Roles -->
             <?php if (Auth::hasPermission('seguridad.view')): ?>
                 <div class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">

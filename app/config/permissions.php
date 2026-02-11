@@ -281,4 +281,16 @@ return [
             'dashboard_view_global' => 'Dashboard: Ver Datos Globales',
         ]
     ],
+    // =================================================================================
+    // 11. DOCUMENTACIÓN Y LEGAL
+    // =================================================================================
+    'documentacion' => [
+        'label' => 'Centro de Documentación Legal',
+        'permissions' => [
+            'view' => 'Ver Módulo de Documentación',
+            'reprint' => 'Reimprimir Documentos Históricos',
+            'edit_templates' => 'Editar Plantillas de Contratos',
+            'config_logo' => 'Cambiar Logo Institucional',
+        ]
+    ],
 ];

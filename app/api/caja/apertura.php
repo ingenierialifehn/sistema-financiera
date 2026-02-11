@@ -56,6 +56,41 @@ try {
         Response::error('Ya existe una caja abierta para hoy', 400);
     }
 
+    $montoRetiroBoveda = $data['monto_retiro_boveda'] ?? 0;
+
+    // Iniciar Transacción
+    $db->beginTransaction();
+
+    // 1. Si hay retiro de bóveda, procesarlo primero
+    if ($montoRetiroBoveda > 0) {
+        // Verificar saldo bóveda y bloquear fila
+        $stmtCaja = $db->prepare("SELECT saldo_efectivo, saldo_caja_operativa FROM cajas_agencias WHERE id_agencia = ? FOR UPDATE");
+        $stmtCaja->execute([$idAgencia]);
+        $caja = $stmtCaja->fetch(PDO::FETCH_ASSOC);
+
+        if (!$caja || $caja['saldo_efectivo'] < $montoRetiroBoveda) {
+            $db->rollBack();
+            Response::error("Saldo insuficiente en bóveda para el retiro inicial (Disponible: L. " . number_format($caja['saldo_efectivo'] ?? 0, 2) . ")", 400);
+        }
+
+        // Actualizar saldos
+        $nuevoSaldoBoveda = $caja['saldo_efectivo'] - $montoRetiroBoveda;
+        $nuevoSaldoOperativo = $caja['saldo_caja_operativa'] + $montoRetiroBoveda;
+
+        $stmtUpd = $db->prepare("UPDATE cajas_agencias SET saldo_efectivo = ?, saldo_caja_operativa = ?, ultima_actualizacion = NOW() WHERE id_agencia = ?");
+        $stmtUpd->execute([$nuevoSaldoBoveda, $nuevoSaldoOperativo, $idAgencia]);
+
+        // Registrar movimiento (Intentamos hacerlo en tabla de auditoría si existe, si no, al menos queda en el log del cierre/apertura)
+        // Asumimos movimientos_boveda o similar. Si no, al menos actualizar saldo_apertura_sistema.
+
+        // Ajustamos el saldo sistema de apertura para que refleje el dinero que YA entró
+        // Si saldoAperturaSistema venia en 0, ahora es 0 + retiro.
+        $saldoAperturaSistema += $montoRetiroBoveda;
+
+        // Agregar observación automática
+        $observaciones .= " [Retiro Inicial Bóveda: L. " . number_format($montoRetiroBoveda, 2) . "]";
+    }
+
     // Insertar apertura
     $stmt = $db->prepare("
         INSERT INTO control_caja_diaria (
@@ -73,13 +108,16 @@ try {
         $idAgencia,
         $idUsuario,
         $saldoAperturaSistema,
-        $saldoAperturaFisico,
+        $saldoAperturaFisico, // Este ya incluye el dinero físico contado (que incluye lo de la bóveda)
         $observaciones
     ]);
 
+    $idControl = $db->lastInsertId();
+    $db->commit();
+
     Response::success([
         'message' => 'Caja abierta exitosamente',
-        'id_control' => $db->lastInsertId()
+        'id_control' => $idControl
     ]);
 
 } catch (Exception $e) {

@@ -32,10 +32,23 @@ try {
     $where = [];
     $params = [];
 
-    // Si es cobrador, solo mostrar préstamos de sus clientes
-    if ($user['rol_nombre'] === 'cobrador') {
-        $where[] = "c.cobrador_id = :cobrador_id";
-        $params['cobrador_id'] = $user['id_usuario'];
+    // Determinar ALCANCE DE DATOS (Scope)
+    $canViewGlobal = Auth::hasPermission('special_scopes.prestamos_view_global');
+    $canViewAgency = Auth::hasPermission('special_scopes.prestamos_view_agency') || Auth::hasPermission('prestamos.view_agency'); // Support legacy/alt naming
+
+    if ($canViewGlobal) {
+        // Acceso Global: Ver todo
+    } elseif ($canViewAgency) {
+        // Acceso Agencia
+        if (!empty($user['id_agencia'])) {
+            $where[] = "c.id_agencia = :current_user_scope_agency";
+            $params['current_user_scope_agency'] = $user['id_agencia'];
+        }
+    } else {
+        // Acceso Propio (Default): Solo ver préstamos de clientes asignados a él
+        // Asumimos que la relación es vía cliente.cobrador_id
+        $where[] = "c.cobrador_id = :current_user_id";
+        $params['current_user_id'] = $user['id_usuario'];
     }
 
     // Si es cliente, solo mostrar sus préstamos

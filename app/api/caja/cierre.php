@@ -154,6 +154,8 @@ try {
             cl.nombre_completo as cliente,
             c.numero_cuota,
             c.monto_pagado,
+            LEAST(c.monto_pagado, c.capital_cuota) as capital_pagado,
+            (c.monto_pagado - LEAST(c.monto_pagado, c.capital_cuota)) as interes_pagado,
             DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora,
             COALESCE(col_cobro.nombre_completo, u_cobro.username) as cobrador
         FROM cuotas c

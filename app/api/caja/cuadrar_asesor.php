@@ -184,7 +184,7 @@ try {
     }
 
     // Obtener detalles de transacciones para el recibo
-    $sqlTransacciones = "SELECT c.id, c.monto_pagado, c.capital_pagado, c.interes_pagado, cl.nombre_completo, DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora
+    $sqlTransacciones = "SELECT c.id, c.monto_pagado, IFNULL(c.capital_cuota, 0) as capital_pagado, (c.monto_pagado - IFNULL(c.capital_cuota, 0)) as interes_pagado, cl.nombre_completo, DATE_FORMAT(c.fecha_pago_real, '%H:%i') as hora
                          FROM cuotas c
                          JOIN prestamos p ON c.prestamo_id = p.id
                          JOIN clientes cl ON p.id_cliente = cl.id
@@ -219,28 +219,36 @@ try {
             'fecha' => date('d/m/Y H:i:s'),
             'total_efectivo_dia' => $entregadoEfvoPrevio + $montoEfectivo,
             'total_banco_dia' => $entregadoBancoPrevio + $montoBanco,
-            'detalle_bancos' => $db->query("
-                SELECT b.nombre_banco, SUM(mb.monto) as total
-                FROM movimientos_bancarios mb
-                JOIN bancos b ON mb.banco_id = b.id
-                WHERE mb.tipo_transaccion = 'ingreso'
-                AND (mb.descripcion LIKE '$searchTag' OR mb.descripcion LIKE '$searchName')
-                AND DATE(mb.fecha_hora) = '$fechaHoy'
-                GROUP BY b.nombre_banco
-            ")->fetchAll(PDO::FETCH_ASSOC),
+            'detalle_bancos' => (function () use ($db, $searchTag, $searchName, $fechaHoy) {
+                $stmt = $db->prepare("
+                    SELECT b.nombre_banco, SUM(mb.monto) as total
+                    FROM movimientos_bancarios mb
+                    JOIN bancos b ON mb.banco_id = b.id
+                    WHERE mb.tipo_transaccion = 'ingreso'
+                    AND (mb.descripcion LIKE ? OR mb.descripcion LIKE ?)
+                    AND DATE(mb.fecha_hora) = ?
+                    GROUP BY b.nombre_banco
+                ");
+                $stmt->execute([$searchTag, $searchName, $fechaHoy]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            })(),
             'detectar_desembolsos' => true,
-            'desembolsos_entregados' => $db->query("
-                SELECT cl.nombre_completo, p.monto_capital
-                FROM prestamos p
-                JOIN clientes cl ON p.id_cliente = cl.id
-                WHERE p.oficial_desembolsos_id = $idAsesor
-                AND DATE(p.fecha_desembolso) = '$fechaHoy'
-                AND p.estado = 'Activo'
-            ")->fetchAll(PDO::FETCH_ASSOC)
+            'desembolsos_entregados' => (function () use ($db, $idAsesor, $fechaHoy) {
+                $stmt = $db->prepare("
+                    SELECT cl.nombre_completo, p.monto_capital
+                    FROM prestamos p
+                    JOIN clientes cl ON p.id_cliente = cl.id
+                    WHERE p.oficial_desembolsos_id = ?
+                    AND DATE(p.fecha_desembolso) = ?
+                    AND p.estado = 'Activo'
+                ");
+                $stmt->execute([$idAsesor, $fechaHoy]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            })()
         ]
     ]);
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
     }

@@ -22,7 +22,8 @@ try {
         Response::error('Usuario no tiene agencia asignada', 400);
     }
 
-    // Obtener saldo de cajas_agencias (saldo_caja_operativa es el de la caja diaria)
+    // Obtener saldo de cajas_agencias (saldo_caja_operativa es el de la caja diaria de la agencia)
+    // Esto es independiente del usuario que consulta, siempre que pertenezca a la agencia.
     $stmt = $db->prepare("SELECT saldo_caja_operativa as saldo, saldo_efectivo as saldo_boveda FROM cajas_agencias WHERE id_agencia = ?");
     $stmt->execute([$idAgencia]);
     $caja = $stmt->fetch(PDO::FETCH_ASSOC);

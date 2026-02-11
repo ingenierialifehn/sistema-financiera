@@ -225,7 +225,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                             formalización.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($prestamos as $index => $row): 
+                    <?php foreach ($prestamos as $index => $row):
                         // Calculo en vivo del Neto a Entregar para Refinanciamientos
                         $netoReal = $row['neto_entregar'] ?? $row['monto_capital'];
                         if (($row['tipo_prestamo'] === 'Refinanciamiento' || $row['tipo_prestamo'] === 'Readecuacion') && isset($row['saldo_previo_cliente'])) {
@@ -236,7 +236,7 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                 $prestamos[$index]['neto_entregar'] = $netoReal;
                             }
                         }
-                    ?>
+                        ?>
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4">
                                 <input type="checkbox"
@@ -251,7 +251,8 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['numero_documento']); ?>
                                 </div>
                                 <?php if ($row['tipo_prestamo'] === 'Refinanciamiento' || $row['tipo_prestamo'] === 'Readecuacion'): ?>
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
+                                    <span
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
                                         Refinanciamiento
                                     </span>
                                 <?php endif; ?>
@@ -279,8 +280,9 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
                             </td>
                             <td class="px-6 py-4 text-sm font-bold text-green-600">
                                 L <?php echo number_format($netoReal, 2); ?>
-                                <?php if($netoReal < $row['monto_capital']): ?>
-                                    <span class="block text-xs text-gray-400 font-normal line-through">L <?php echo number_format($row['monto_capital'], 2); ?></span>
+                                <?php if ($netoReal < $row['monto_capital']): ?>
+                                    <span class="block text-xs text-gray-400 font-normal line-through">L
+                                        <?php echo number_format($row['monto_capital'], 2); ?></span>
                                 <?php endif; ?>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-700">
@@ -451,16 +453,54 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
             : ['ofic. de desembolso', 'desembolsos', 'oficial de desembolso'];
 
         availableUsers.forEach(user => {
-            // Simplified filter: just match keywords, agency check is implied but weak for bulk (assuming same agency context)
+            // Check Agency: must match current session agency (php variable)
+            if (user.id_agencia && user.id_agencia != <?php echo $idAgencia; ?>) {
+                return;
+            }
+
+            let permissions = {};
+            try {
+                if (typeof user.permisos === 'string') permissions = JSON.parse(user.permisos);
+                else if (typeof user.permisos === 'object') permissions = user.permisos;
+            } catch (e) { }
+
+            const text = `${user.nombre_completo} (${user.puesto_cargo || user.rol_nombre || 'Sin puesto'})`;
             const cleanPuesto = (user.puesto_cargo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const cleanRol = (user.rol_nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const isMatch = keywords.some(k => {
+
+            // 1. Keyword Match
+            // Define broader keywords mapping based on type
+            let effectiveKeywords = keywords; 
+            if (type === 'oficial') {
+                effectiveKeywords = ['desembolso', 'operaciones', 'caja', 'tesoreria', 'gerente', 'supervisor'];
+            } else if (type === 'asesor') {
+                effectiveKeywords = ['asesor', 'promotor', 'crédito', 'credito', 'oficial de negocios'];
+            }
+
+            const isKeywordMatch = effectiveKeywords.some(k => {
                 const cleanKey = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 return cleanPuesto.includes(cleanKey) || cleanRol.includes(cleanKey);
             });
 
-            if (isMatch && (!user.id_agencia || user.id_agencia == <?php echo $idAgencia; ?>)) {
-                options += `<option value="${user.id_usuario}">${user.nombre_completo}</option>`;
+            // 2. Permission Match
+            let isPermissionMatch = false;
+            let permissionKey = type === 'asesor' ? 'creditos' : 'desembolsos';
+
+            if (permissionKey && permissions) {
+                if (permissions[permissionKey] === true || permissions[permissionKey] == 1) isPermissionMatch = true;
+                else if (permissions[permissionKey] && typeof permissions[permissionKey] === 'object') isPermissionMatch = true;
+
+                if (permissionKey === 'desembolsos') {
+                    if (permissions['operaciones'] === true) isPermissionMatch = true;
+                    if (permissions['caja'] === true) isPermissionMatch = true;
+                }
+            }
+            
+            // 3. Admin Override
+            if (cleanRol.includes('admin') || cleanRol.includes('gerente')) isPermissionMatch = true;
+
+            if (isKeywordMatch || isPermissionMatch) {
+                options += `<option value="${user.id_usuario}">${text}</option>`;
             }
         });
 
@@ -730,37 +770,58 @@ $prestamosRuta = $stmtRuta->fetchAll(PDO::FETCH_ASSOC);
         oficialSelect.innerHTML = '<option value="">Seleccione un oficial...</option>';
 
         // Helper to populate select
-        const populateSelect = (select, keywords) => {
+        const populateSelect = (select, keywords, permissionKey) => {
             let matches = [];
+            select.innerHTML = '<option value="">Seleccione un usuario...</option>';
+            
             availableUsers.forEach(user => {
-                // Filtro de Agencia: Debe coincidir con la agencia del préstamo
-                if (user.id_agencia && user.id_agencia != currentLoan.id_agencia) {
-                    return;
-                }
+                if (user.id_agencia && user.id_agencia != currentLoan.id_agencia) return;
+
+                let permissions = {};
+                try {
+                    if (typeof user.permisos === 'string') permissions = JSON.parse(user.permisos);
+                    else if (typeof user.permisos === 'object') permissions = user.permisos;
+                } catch (e) { }
+
                 const text = `${user.nombre_completo} (${user.puesto_cargo || user.rol_nombre || 'Sin puesto'})`;
                 const cleanPuesto = (user.puesto_cargo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const cleanRol = (user.rol_nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                const isMatch = keywords.some(k => {
+
+                const isKeywordMatch = keywords.some(k => {
                     const cleanKey = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     return cleanPuesto.includes(cleanKey) || cleanRol.includes(cleanKey);
                 });
 
-                if (isMatch) {
+                let isPermissionMatch = false;
+                if (permissionKey && permissions) {
+                    if (permissions[permissionKey] === true || permissions[permissionKey] == 1) isPermissionMatch = true;
+                    else if (permissions[permissionKey] && typeof permissions[permissionKey] === 'object') isPermissionMatch = true;
+                    
+                    if (permissionKey === 'desembolsos') {
+                        if (permissions['operaciones'] === true) isPermissionMatch = true;
+                        if (permissions['caja'] === true) isPermissionMatch = true;
+                    }
+                }
+                
+                if (cleanRol.includes('admin') || cleanRol.includes('gerente')) isPermissionMatch = true;
+
+                if (isKeywordMatch || isPermissionMatch) {
                     matches.push(`<option value="${user.id_usuario}">${text}</option>`);
                 }
             });
+
             if (matches.length > 0) {
                 select.innerHTML += matches.join('');
             } else {
-                select.innerHTML += '<option value="" disabled>No se encontraron usuarios en esta agencia con este perfil</option>';
+                select.innerHTML += '<option value="" disabled>No se encontraron usuarios disponibles</option>';
             }
         };
 
-        // Keywords
-        populateSelect(asesorSelect, ['asesor de creditos', 'asesor de crédito']);
-        populateSelect(oficialSelect, ['ofic. de desembolso', 'desembolsos', 'oficial de desembolso']);
-
-        // Pre-select if already assigned
+        // Populate selects
+        populateSelect(asesorSelect, ['asesor', 'promotor', 'crédito', 'credito', 'oficial de negocios'], 'creditos');
+        populateSelect(oficialSelect, ['desembolso', 'operaciones', 'caja', 'tesoreria', 'gerente', 'supervisor'], 'desembolsos');
+        
+        // Pre-select
         if (loan.asesor_creditos_id) asesorSelect.value = loan.asesor_creditos_id;
         if (loan.oficial_desembolsos_id) oficialSelect.value = loan.oficial_desembolsos_id;
 

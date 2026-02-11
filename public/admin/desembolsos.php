@@ -27,7 +27,7 @@ $params = [];
 $isAdmin = (stripos($userRole, 'Administrador') !== false ||
     stripos($userRole, 'Gerente') !== false);
 
-// If not Admin, filter by assignee
+// If not Admin/Gerente, filter by assigned disburser
 if (!$isAdmin) {
     // Privacy: Only show loans from my agency
     $sessionAgencia = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? 0;
@@ -35,12 +35,19 @@ if (!$isAdmin) {
         $sql .= " AND c.id_agencia = ?";
         $params[] = $sessionAgencia;
     }
-}
 
-// FIX: Always filter by assigned disburser (oficial_desembolsos_id) as per workflow requirements.
-// "debera cargar los creditos que fueron cargados a ese desembolsador, comparandolos con el usuario que ingreso"
-$sql .= " AND p.oficial_desembolsos_id = ?";
-$params[] = $userId;
+    // Regular users: Only see what is assigned to ME
+    $sql .= " AND p.oficial_desembolsos_id = ?";
+    $params[] = $userId;
+} else {
+    // Admins/Gerentes: See ALL in their agency (if agency is set)
+    $sessionAgencia = $_SESSION['id_agencia'] ?? $user['id_agencia'] ?? 0;
+    if ($sessionAgencia > 0) {
+        $sql .= " AND c.id_agencia = ?";
+        $params[] = $sessionAgencia;
+    }
+    // No id filter for admins -> they see everyone's work
+}
 
 $sql .= " ORDER BY p.updated_at DESC";
 
@@ -82,6 +89,9 @@ require_once __DIR__ . '/includes/layout.php';
             <table class="hidden md:table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº
+                            Préstamo
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto a
@@ -95,6 +105,11 @@ require_once __DIR__ . '/includes/layout.php';
                 <tbody class="bg-white divide-y divide-gray-200">
                     <?php foreach ($prestamos as $loan): ?>
                         <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <div class="text-sm font-bold text-indigo-600">
+                                    #<?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?>
+                                </div>
+                            </td>
                             <td class="px-6 py-4">
                                 <div class="text-sm font-bold text-gray-900">
                                     <?php echo htmlspecialchars($loan['nombre_completo']); ?>
@@ -141,6 +156,11 @@ require_once __DIR__ . '/includes/layout.php';
                         <!-- Cliente Info -->
                         <div class="flex items-start justify-between mb-3">
                             <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-bold text-white bg-indigo-600 px-2 py-1 rounded">
+                                        #<?php echo str_pad($loan['id'], 6, '0', STR_PAD_LEFT); ?>
+                                    </span>
+                                </div>
                                 <h3 class="text-base font-bold text-gray-900">
                                     <?php echo htmlspecialchars($loan['nombre_completo']); ?>
                                 </h3>
@@ -207,6 +227,10 @@ require_once __DIR__ . '/includes/layout.php';
 
         <!-- Info Principal -->
         <div class="bg-gray-50 p-4 rounded-lg mb-6 text-center">
+            <div class="mb-2">
+                <span class="text-xs font-bold text-white bg-indigo-600 px-3 py-1 rounded"
+                    id="deliveryLoanNumber">#000000</span>
+            </div>
             <p class="text-gray-500 text-sm uppercase tracking-wide font-bold">Monto Efectivo a Entregar</p>
             <p class="text-4xl font-extrabold text-green-600 my-2" id="deliveryAmount">L 0.00</p>
             <p class="text-gray-600 font-medium" id="deliveryClient">Cliente</p>
@@ -250,10 +274,13 @@ require_once __DIR__ . '/includes/layout.php';
 
     function openDelivery(loan) {
         currentLoan = loan;
-
-        // Populate Data
-        document.getElementById('deliveryClient').textContent = loan.nombre_completo;
         const monto = parseFloat(loan.neto_entregar || loan.monto_capital);
+
+        // Format loan number with leading zeros
+        const loanNumber = String(loan.id).padStart(6, '0');
+        document.getElementById('deliveryLoanNumber').textContent = '#' + loanNumber;
+
+        document.getElementById('deliveryClient').textContent = loan.nombre_completo;
         document.getElementById('deliveryAmount').textContent = 'L ' + monto.toLocaleString('es-HN', { minimumFractionDigits: 2 });
 
         // Reset Buttons

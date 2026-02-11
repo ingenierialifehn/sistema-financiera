@@ -43,11 +43,23 @@ try {
                           (p.estado = 'Rechazado en Ruta')
                       )
                   )
+                  OR 
+                  EXISTS (
+                      SELECT 1 FROM cuotas qc 
+                      WHERE qc.usuario_cobro_id = u.id_usuario 
+                      AND DATE(qc.fecha_pago_real) = ?
+                  )
+                  OR
+                  EXISTS (
+                      SELECT 1 FROM movimientos_internos_agencia mia
+                      WHERE mia.usuario_origen_id = u.id_usuario
+                      AND DATE(mia.fecha_movimiento) = ?
+                  )
               )
             ORDER BY nombre_completo ASC";
 
     $stmt = $db->prepare($sql);
-    $stmt->execute([$agenciaId, $fecha]);
+    $stmt->execute([$agenciaId, $fecha, $fecha, $fecha]);
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
