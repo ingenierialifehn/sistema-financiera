@@ -1287,13 +1287,24 @@ $('#btnCerrarModalCuadre, #btnCancelarCuadre').on('click', function () {
     $('#modalCuadreAsesores').removeClass('flex').addClass('hidden');
 });
 
+// Flag for processing state
+let isProcessingCuadre = false;
+
 $('#cuadreAsesoresForm').on('submit', function (e) {
     e.preventDefault();
+
+    if (isProcessingCuadre) return;
 
     const asesorId = $('#asesorIdCuadre').val();
 
     if (!asesorId) { Swal.fire('Error', 'Seleccione un asesor', 'error'); return; }
     if (itemsCuadre.length === 0) { Swal.fire('Error', 'Agregue al menos un monto a la lista', 'error'); return; }
+
+    isProcessingCuadre = true;
+    const $btnSubmit = $(this).find('button[type="submit"]');
+    const originalText = $btnSubmit.html();
+    $btnSubmit.html('<i class="fas fa-spinner fa-spin"></i> Procesando...').prop('disabled', true);
+    $('#btnCuadrarAsesor').prop('disabled', true);
 
     const payload = {
         asesor_id: asesorId,
@@ -1327,12 +1338,19 @@ $('#cuadreAsesoresForm').on('submit', function (e) {
                 Swal.fire('Error', res.message, 'error');
             }
         },
-        error: function () { Swal.fire('Error', 'Error de conexión', 'error'); }
+        error: function () { Swal.fire('Error', 'Error de conexión', 'error'); },
+        complete: function() {
+            isProcessingCuadre = false;
+            $btnSubmit.html(originalText).prop('disabled', false);
+            $('#btnCuadrarAsesor').prop('disabled', false);
+        }
     });
 });
 
 // Botón "Cuadrar Asesor" - Bloquea al asesor para cobros
 $('#btnCuadrarAsesor').on('click', function () {
+    if (isProcessingCuadre) return;
+
     const asesorId = $('#asesorIdCuadre').val();
 
     let isListaVacia = itemsCuadre.length === 0;
@@ -1392,6 +1410,13 @@ $('#btnCuadrarAsesor').on('click', function () {
         cancelButtonText: 'Cancelar'
     }).then((result) => {
         if (result.isConfirmed) {
+            
+            isProcessingCuadre = true;
+            const $btn = $('#btnCuadrarAsesor');
+            const originalText = $btn.html();
+            $btn.html('<i class="fas fa-spinner fa-spin"></i> Procesando...').prop('disabled', true);
+            $('#cuadreAsesoresForm button[type="submit"]').prop('disabled', true);
+
             const payload = {
                 id_asesor: asesorId,
                 monto_efectivo: montoEfectivo,
@@ -1436,6 +1461,11 @@ $('#btnCuadrarAsesor').on('click', function () {
                 },
                 error: function (xhr) {
                     Swal.fire('Error', xhr.responseJSON?.message || 'Error de conexión', 'error');
+                },
+                complete: function() {
+                    isProcessingCuadre = false;
+                    $btn.html(originalText).prop('disabled', false);
+                    $('#cuadreAsesoresForm button[type="submit"]').prop('disabled', false);
                 }
             });
         }

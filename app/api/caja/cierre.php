@@ -132,16 +132,31 @@ try {
             saldo_cierre_fisico = ?,
             diferencia_cierre = ?,
             observaciones = CONCAT(IFNULL(observaciones, ''), '\n--- CIERRE ---\n', ?),
+            saldo_boveda_cierre = ?,
             estado = 'Cerrado'
         WHERE id_control = ?
     ");
 
+    // Recalculate current vault balance at closing
+    $stmtBovedaCierre = $db->prepare("SELECT saldo_efectivo FROM cajas_agencias WHERE id_agencia = ?");
+    $stmtBovedaCierre->execute([$idAgencia]);
+    $saldoBovedaCierre = $stmtBovedaCierre->fetchColumn();
+
+    // Logic Adjustment: The user counts the VAULT (Bóveda).
+    // So distinct from the operational drawer (which must be 0), we compare the physical count against the vault balance.
+    // If saldoCierreFisico > 0 (meaning they counted the vault), the difference is against the vault.
+    // Otherwise difference is 0 (assuming perfect if 0 entered, or handle as error? usually they enter the count).
+
+    // Calculate difference based on Vault Balance
+    $diferenciaCierre = $saldoCierreFisico - floatval($saldoBovedaCierre);
+
     $stmt->execute([
         $idUsuario,
-        $saldoCierreSistema,
-        $saldoCierreFisico,
-        $diferenciaCierre,
+        $saldoCierreSistema, // Should be 0 based on validation
+        $saldoCierreFisico,  // User's Vault Count
+        $diferenciaCierre,   // Calculated against Vault
         $observaciones,
+        $saldoBovedaCierre,
         $idControl
     ]);
 

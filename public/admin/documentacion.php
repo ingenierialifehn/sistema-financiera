@@ -13,6 +13,10 @@ require_once __DIR__ . '/includes/layout.php';
             class="py-2 px-4 text-indigo-600 border-b-2 border-indigo-600 font-medium focus:outline-none tab-btn">
             Reimpresión
         </button>
+        <button onclick="switchTab('cuadres')" id="tab-cuadres"
+            class="py-2 px-4 text-gray-500 hover:text-indigo-600 font-medium focus:outline-none tab-btn">
+            Cuadres de Caja
+        </button>
         <button onclick="switchTab('templates')" id="tab-templates"
             class="py-2 px-4 text-gray-500 hover:text-indigo-600 font-medium focus:outline-none tab-btn">
             Editor de Plantillas
@@ -21,6 +25,68 @@ require_once __DIR__ . '/includes/layout.php';
             class="py-2 px-4 text-gray-500 hover:text-indigo-600 font-medium focus:outline-none tab-btn">
             Configuración (Logo)
         </button>
+    </div>
+
+    <!-- CUADRES SECTION -->
+    <div id="cuadres-section" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Historial de Cuadres</h2>
+
+            <!-- Filtros -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Reporte</label>
+                    <select id="tipoCuadre" onchange="toggleCuadreFilters()"
+                        class="w-full p-2 border rounded font-semibold text-indigo-700">
+                        <option value="asesor">Cuadres de Asesor</option>
+                        <option value="agencia">Cierres de Agencia</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
+                    <input type="date" id="cuadreFechaInicio" class="w-full p-2 border rounded"
+                        value="<?php echo date('Y-m-d'); ?>">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
+                    <input type="date" id="cuadreFechaFin" class="w-full p-2 border rounded"
+                        value="<?php echo date('Y-m-d'); ?>">
+                </div>
+                <div class="md:col-span-1" id="filterAsesorContainer">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Asesor</label>
+                    <select id="cuadreAsesor" class="w-full p-2 border rounded">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="md:col-span-1 hidden" id="filterAgenciaContainer"> <!-- Added Agency Filter -->
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Agencia</label>
+                    <select id="cuadreAgencia" class="w-full p-2 border rounded">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="searchCuadres()"
+                        class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 w-full">
+                        <i class="fas fa-search mr-2"></i> Buscar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" id="cuadresTable">
+                    <thead class="bg-gray-50" id="cuadresTableHead">
+                        <!-- Dynamic Headers -->
+                    </thead>
+                    <tbody id="cuadresTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">Seleccione filtros y busque...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- REPRINT SECTION -->
@@ -375,7 +441,598 @@ require_once __DIR__ . '/includes/layout.php';
         if (tabId === 'templates') {
             initEditor();
             loadTemplatesList();
+        } else if (tabId === 'cuadres') {
+            loadAsesoresForFilter();
+            loadAgenciasForFilter(); // NEW: Load agencies
+            toggleCuadreFilters(); // Init headers
+            searchCuadres(); // Auto search today
         }
+    }
+
+    // --- CUADRES LOGIC ---
+    function toggleCuadreFilters() {
+        const tipo = document.getElementById('tipoCuadre').value;
+        const divAsesor = document.getElementById('filterAsesorContainer');
+        const divAgencia = document.getElementById('filterAgenciaContainer');
+        const thead = document.getElementById('cuadresTableHead');
+
+        if (tipo === 'asesor') {
+            divAsesor.style.display = 'block';
+            divAgencia.style.display = 'none'; // Hide Agency filter for Advisor reports (or maybe keep it? Let's hide as per request)
+            
+            thead.innerHTML = `
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Asesor</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Recaudado</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Entregado</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+            `;
+        } else {
+            divAsesor.style.display = 'none';
+            divAgencia.style.display = 'block'; // Show Agency filter for Agency Reports
+
+            thead.innerHTML = `
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Control</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Apertura</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario Cierre</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Recaudado (Día)</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cierre Físico</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Diferencia</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+            `;
+        }
+        // Create empty state
+        document.getElementById('cuadresTableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Haga clic en buscar...</td></tr>';
+    }
+
+    async function loadAsesoresForFilter() {
+        if (document.getElementById('cuadreAsesor').options.length > 1) return; // Already loaded
+
+        try {
+            const res = await fetch('<?php echo BASE_URL; ?>/app/api/usuarios/list.php');
+            const json = await res.json();
+            if (json.success) {
+                const sel = document.getElementById('cuadreAsesor');
+                // Filter users relevant for collection (asesor, cobrador)
+                const asesores = json.data.filter(u => {
+                    const rol = (u.rol_nombre || '').toLowerCase();
+                    const cargo = (u.puesto_cargo || '').toLowerCase();
+                    return rol.includes('asesor') || rol.includes('cobrador') || cargo.includes('asesor') || cargo.includes('cobrador');
+                });
+
+                asesores.forEach(a => {
+                    sel.innerHTML += `<option value="${a.id_usuario}">${a.nombre_completo || a.username}</option>`;
+                });
+            }
+        } catch (e) {
+            console.error('Error loading advisors', e);
+        }
+    }
+
+    async function loadAgenciasForFilter() {
+        if (document.getElementById('cuadreAgencia').options.length > 1) return;
+
+        try {
+            const res = await fetch('<?php echo BASE_URL; ?>/app/api/agencias/list.php');
+            const json = await res.json();
+            if (json.success) {
+                const sel = document.getElementById('cuadreAgencia');
+                json.data.forEach(a => {
+                    sel.innerHTML += `<option value="${a.id_agencia}">${a.nombre_agencia}</option>`;
+                });
+            }
+        } catch (e) {
+            console.error('Error loading agencies', e);
+        }
+    }
+
+    async function searchCuadres() {
+        const tipo = document.getElementById('tipoCuadre').value;
+        const fInicio = document.getElementById('cuadreFechaInicio').value;
+        const fFin = document.getElementById('cuadreFechaFin').value;
+        const tableBody = document.getElementById('cuadresTableBody');
+
+        tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
+
+        try {
+            if (tipo === 'asesor') {
+                const asesorId = document.getElementById('cuadreAsesor').value;
+                let url = `<?php echo BASE_URL; ?>/app/api/caja/list_cuadres.php?fecha_inicio=${fInicio}&fecha_fin=${fFin}`;
+                if (asesorId) url += `&asesor_id=${asesorId}`;
+
+                const res = await fetch(url);
+                const json = await res.json();
+
+                if (json.success) {
+                    if (json.data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No se encontraron cuadres en este rango.</td></tr>';
+                        return;
+                    }
+
+                    tableBody.innerHTML = '';
+                    json.data.forEach(c => {
+                        const recaudado = parseFloat(c.monto_recaudado || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+                        const entregado = parseFloat(c.monto_entregado || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+
+                        tableBody.innerHTML += `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm text-gray-500">#${c.id}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">${new Date(c.fecha_registro).toLocaleString('es-HN')}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900 font-medium">${c.nombre_completo || c.username}</td>
+                                <td class="px-6 py-4 text-right text-sm text-green-600 font-semibold">L. ${recaudado}</td>
+                                <td class="px-6 py-4 text-right text-sm text-blue-600 font-semibold">L. ${entregado}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <button onclick="printCuadreTicket(${c.id})" class="text-indigo-600 hover:text-indigo-900 font-bold px-3 py-1 rounded hover:bg-indigo-50 transition">
+                                        <i class="fas fa-print mr-1"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Error: ${json.message}</td></tr>`;
+                }
+
+            } else { // AGENCIA
+                const agenciaId = document.getElementById('cuadreAgencia').value;
+                let url = `<?php echo BASE_URL; ?>/app/api/caja/list_cierres.php?fecha_inicio=${fInicio}&fecha_fin=${fFin}`;
+                if (agenciaId) url += `&agencia_id=${agenciaId}`;
+
+                const res = await fetch(url);
+                const json = await res.json();
+
+                if (json.success) {
+                    if (json.data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No se encontraron cierres en este rango.</td></tr>';
+                        return;
+                    }
+
+                    tableBody.innerHTML = '';
+                    json.data.forEach(c => {
+                        const sSistema = parseFloat(c.saldo_cierre_sistema || 0);
+                        const sFisico = parseFloat(c.saldo_cierre_fisico || 0);
+                        const dif = parseFloat(c.diferencia_cierre || 0);
+
+                        const difClass = dif < 0 ? 'text-red-500' : (dif > 0 ? 'text-green-500' : 'text-gray-500');
+
+                        tableBody.innerHTML += `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm text-gray-500">#${c.id_control}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900">${c.fecha_apertura}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900 font-medium">${c.nombre_usuario_cierre || c.usuario_cierre || 'N/A'}</td>
+                                <td class="px-6 py-4 text-right text-sm font-medium text-green-700">L. ${parseFloat(c.total_recaudado_dia || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                                <td class="px-6 py-4 text-right text-sm font-medium">L. ${sFisico.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                                <td class="px-6 py-4 text-center text-sm font-bold ${difClass}">L. ${dif.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <button onclick="printCierreTicket(${c.id_control})" class="text-indigo-600 hover:text-indigo-900 font-bold px-3 py-1 rounded hover:bg-indigo-50 transition">
+                                        <i class="fas fa-print mr-1"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Error: ${json.message}</td></tr>`;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Error de conexión</td></tr>';
+        }
+    }
+
+    async function printCuadreTicket(id) {
+        try {
+            const res = await fetch(`<?php echo BASE_URL; ?>/app/api/caja/get_cuadre_details.php?id=${id}`);
+            const json = await res.json();
+
+            if (json.success) {
+                generateReceiptHtml(json.data);
+            } else {
+                alert('Error al obtener imagen del cuadre: ' + json.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error de conexión al imprimir');
+        }
+    }
+
+    async function printCierreTicket(idControl) {
+        try {
+            const res = await fetch(`<?php echo BASE_URL; ?>/app/api/caja/get_cierre_details.php?id_control=${idControl}`);
+            const json = await res.json();
+
+            if (json.success) {
+                generateCierreReportHtml(json.data);
+            } else {
+                alert('Error al obtener datos del cierre: ' + json.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error de conexión al imprimir');
+        }
+    }
+
+    function generateCierreReportHtml(data) {
+        const ventana = window.open('', '_blank', 'width=900,height=700');
+
+        let filas = '';
+        let totalRecaudado = 0;
+        let totalCapital = 0;
+        let totalInteres = 0;
+
+        if (data.transacciones && data.transacciones.length > 0) {
+            data.transacciones.forEach(t => {
+                const monto = parseFloat(t.monto_pagado || 0);
+                const capital = parseFloat(t.capital_pagado || 0);
+                const interes = parseFloat(t.interes_pagado || 0);
+
+                totalRecaudado += monto;
+                totalCapital += capital;
+                totalInteres += interes;
+
+                filas += `
+                    <tr>
+                        <td>${t.hora}</td>
+                        <td>${t.numero_cuota || '-'}</td>
+                        <td>${t.cliente}</td>
+                        <td>${t.cobrador}</td>
+                        <td class="text-right">L. ${capital.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right">L. ${interes.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right font-bold">L. ${monto.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            filas = '<tr><td colspan="7" class="text-center">No hay transacciones registradas este día</td></tr>';
+        }
+
+        const html = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Reporte de Cierre - ${data.nombre_agencia}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; margin: 40px; color: #333; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #444; padding-bottom: 10px; }
+                    h1 { margin: 0; font-size: 20px; text-transform: uppercase; color: #000; }
+                    h2 { margin: 5px 0 0; font-size: 14px; font-weight: normal; color: #666; }
+                    .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; background: #f9f9f9; padding: 15px; border-radius: 5px; }
+                    .info-item label { display: block; font-weight: bold; font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 3px; }
+                    .info-item span { font-size: 14px; font-weight: 600; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                    th { background: #eee; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #ccc; }
+                    td { padding: 8px; border-bottom: 1px solid #eee; }
+                    .text-right { text-align: right; }
+                    .text-center { text-align: center; }
+                    .total-row td { border-top: 2px solid #000; font-weight: bold; font-size: 14px; padding-top: 10px; }
+                    .signatures { margin-top: 100px; display: flex; justify-content: space-between; padding: 0 50px; }
+                    .sig-box { width: 250px; text-align: center; border-top: 1px solid #000; padding-top: 10px; }
+                    .sig-name { font-weight: bold; margin-bottom: 3px; text-transform: uppercase; }
+                    .sig-role { font-size: 11px; color: #666; }
+                    .badge-reimpresion { position:absolute; top: 10px; right: 10px; border: 1px solid #000; padding: 5px; font-weight: bold; }
+                </style>
+            </head>
+            <body onload="window.print();">
+                <div class="badge-reimpresion">REIMPRESIÓN POR ${data.usuario_imprime}</div>
+                <div class="header">
+                    <h1>${data.nombre_agencia}</h1>
+                    <h2>Reporte de Cierre de Agencia | ${data.fecha}</h2>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Oficial Responsable</label>
+                        <span>${data.nombre_oficial}</span>
+                    </div>
+                </div>
+
+                <div class="info-grid" style="background:#fff; border: 1px solid #ccc;">
+                     <div class="info-item">
+                        <label>${data.label_boveda || 'Saldo en Bóveda'}</label>
+                        <span style="font-size: 16px;">L. ${parseFloat(data.saldo_boveda || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                     ${parseFloat(data.saldo_cierre_sistema) > 0 ? `
+                     <div class="info-item">
+                        <label>Saldo Sistema (Caja)</label>
+                        <span>L. ${parseFloat(data.saldo_cierre_sistema).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>` : ''}
+                    ${parseFloat(data.saldo_cierre_fisico) > 0 ? `
+                    <div class="info-item">
+                        <label>Saldo Físico (Caja)</label>
+                        <span>L. ${parseFloat(data.saldo_cierre_fisico).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>` : ''}
+                     <div class="info-item">
+                        <label>Diferencia</label>
+                        <span style="color: ${data.diferencia != 0 ? 'red' : 'green'}">L. ${parseFloat(data.diferencia).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                </div>
+
+                <h3 style="border-left: 4px solid #000; padding-left: 10px;">Detalle de Transacciones del Día</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Hora</th>
+                            <th>Ref</th>
+                            <th>Cliente</th>
+                            <th>Cobrado Por</th>
+                            <th class="text-right">Capital</th>
+                            <th class="text-right">Interés</th>
+                            <th class="text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filas}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="4" class="text-right">TOTALES DEL DÍA:</td>
+                            <td class="text-right">L. ${totalCapital.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                            <td class="text-right">L. ${totalInteres.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                            <td class="text-right">L. ${totalRecaudado.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="signatures">
+                    <div class="sig-box">
+                        <div class="sig-name">${data.nombre_supervisor}</div>
+                        <div class="sig-role">Supervisor de Agencia</div>
+                    </div>
+                    <div class="sig-box">
+                        <div class="sig-name">${data.nombre_oficial}</div>
+                        <div class="sig-role">Oficial de Operaciones</div>
+                    </div>
+                </div>
+            </body>
+        </html>
+        `;
+
+        ventana.document.write(html);
+        ventana.document.close();
+    }
+
+    // --- RECEIPT GENERATION (Ported from control_caja.js) ---
+    function generateReceiptHtml(data) {
+        const ventana = window.open('', '_blank', 'width=900,height=800');
+
+        // Header
+        const fechaImpresion = new Date().toLocaleString('es-HN');
+
+        // Transacciones
+        let listaHtml = '';
+        let sumCapital = 0;
+        let sumInteres = 0;
+        let sumTotal = 0;
+
+        if (data.transacciones && data.transacciones.length > 0) {
+            listaHtml = `
+                <table class="table-items">
+                    <thead>
+                        <tr>
+                            <th class="text-left" style="width: 35%">Cliente</th>
+                            <th class="text-right" style="width: 20%">Capital</th>
+                            <th class="text-right" style="width: 20%">Interés</th>
+                            <th class="text-right" style="width: 25%">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            data.transacciones.forEach(t => {
+                const cap = parseFloat(t.capital_pagado || 0);
+                const int = parseFloat(t.interes_pagado || 0);
+                const tot = parseFloat(t.monto_pagado || 0);
+
+                sumCapital += cap;
+                sumInteres += int;
+                sumTotal += tot;
+
+                listaHtml += `
+                    <tr>
+                        <td>
+                            <span class="item-title">${t.nombre_completo.substring(0, 25)}</span>
+                            <span class="meta-info">${t.hora || ''}</span>
+                        </td>
+                        <td class="text-right valign-top">${cap.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right valign-top">${int.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right valign-top font-bold">${tot.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                `;
+            });
+
+            // Add Totals Row
+            listaHtml += `
+                <tr class="totals-row">
+                    <td class="text-right label-total">TOTALES:</td>
+                    <td class="text-right value-total">${sumCapital.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right value-total">${sumInteres.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right value-total">${sumTotal.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `;
+
+            listaHtml += `</tbody></table>`;
+        } else {
+            listaHtml = '<p class="text-center italic my-4">- Sin transacciones registradas -</p>';
+        }
+
+        // Bancos
+        let bancosHtml = '';
+        if (data.detalle_bancos && data.detalle_bancos.length > 0) {
+            bancosHtml = `
+                <div class="section mt-4">
+                    <div class="section-title">DETALLE DEPÓSITOS BANCARIOS</div>
+                    <table class="table-items">
+                        <thead>
+                            <tr>
+                                <th class="text-left">Banco / Cuenta</th>
+                                <th class="text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            data.detalle_bancos.forEach(b => {
+                const ref = b.referencia ? `Ref: ${b.referencia}` : '';
+                bancosHtml += `
+                    <tr>
+                        <td>
+                            <span class="item-title">${b.nombre_banco}</span><br>
+                            <span class="meta-info">${ref}</span>
+                        </td>
+                        <td class="text-right valign-top">L ${parseFloat(b.total || b.monto).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                `;
+            });
+            bancosHtml += `</tbody></table></div>`;
+        }
+
+        // Desembolsos Entregados
+        let desembolsosHtml = '';
+        let totalDesembolsado = 0;
+        let totalNetoEntregarSum = 0;
+
+        if (data.desembolsos_entregados && data.desembolsos_entregados.length > 0) {
+            desembolsosHtml = `
+                <div class="section mt-4">
+                    <div class="section-title">PRÉSTAMOS ENTREGADOS (DESEMBOLSOS)</div>
+                    <table class="table-items">
+                        <thead>
+                            <tr>
+                                <th class="text-left" style="width: 35%">Cliente / Préstamo</th>
+                                <th class="text-right" style="width: 20%">Monto Nuevo</th>
+                                <th class="text-right" style="width: 20%">Saldo Ant.</th>
+                                <th class="text-right" style="width: 25%">Neto Entregado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            data.desembolsos_entregados.forEach(d => {
+                const montoNuevo = parseFloat(d.monto_capital || 0);
+                const netoEntregar = d.neto_entregar !== undefined ? parseFloat(d.neto_entregar) : montoNuevo;
+                const saldoAnterior = d.monto_anterior !== undefined ? parseFloat(d.monto_anterior) : (montoNuevo - netoEntregar);
+
+                totalDesembolsado += montoNuevo;
+                totalNetoEntregarSum += netoEntregar;
+
+                desembolsosHtml += `
+                    <tr>
+                        <td>
+                            <span class="item-title">${d.nombre_completo.substring(0, 30)}</span>
+                            <span class="meta-info">#${d.numero_prestamo || 'N/A'}</span>
+                        </td>
+                        <td class="text-right valign-top">L ${montoNuevo.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right valign-top" style="color:#666;"> - L ${saldoAnterior.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                        <td class="text-right valign-top font-bold">L ${netoEntregar.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                `;
+            });
+
+            // Fila de totales
+            desembolsosHtml += `
+                <tr class="totals-row">
+                    <td class="text-right label-total" colspan="3">TOTAL NETO ENTREGADO:</td>
+                    <td class="text-right value-total">L ${totalNetoEntregarSum.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `;
+
+            desembolsosHtml += `</tbody></table></div>`;
+        }
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Reimpresión Recibo de Cuadre</title>
+                <style>
+                    @page { margin: 5mm; }
+                    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; margin: 0; padding: 10px; color: #000; }
+                    .header { text-align: center; margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+                    .header h2 { margin: 5px 0; font-size: 16px; }
+                    .info-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .section { margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px; }
+                    .section-title { font-weight: bold; margin-bottom: 10px; text-decoration: underline; }
+                    .table-items { width: 100%; border-collapse: collapse; }
+                    .table-items th { text-align: left; border-bottom: 1px solid #000; padding-bottom: 5px; font-size: 11px; }
+                    .table-items td { padding: 4px 0; vertical-align: top; }
+                    .totals-row td { border-top: 1px solid #000; padding-top: 5px; font-weight: bold; }
+                    .text-right { text-align: right; }
+                    .text-center { text-align: center; }
+                    .meta-info { display: block; font-size: 10px; color: #555; }
+                    .summary { margin-top: 20px; border: 1px solid #000; padding: 10px; background: #fdfdfd; }
+                    .summary-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+                    .total-final { font-weight: bold; font-size: 16px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+                    .footer { margin-top: 30px; text-align: center; font-size: 10px; }
+                    .reprint-mark { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
+                </style>
+            </head>
+            <body>
+                <div class="reprint-mark">*** REIMPRESIÓN ***</div>
+                <div class="header">
+                    <h2>RECIBO DE CUADRE DE ASESOR</h2>
+                    <p>Fecha Original: ${data.fecha}</p>
+                    <p>Reimpresión: ${fechaImpresion}</p>
+                </div>
+
+                <div class="info-row">
+                    <span><strong>Asesor:</strong></span>
+                    <span>${data.asesor_nombre}</span>
+                </div>
+                 <div class="info-row">
+                    <span><strong>ID Cuadre:</strong></span>
+                    <span>#${data.id_cuadre}</span>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">DETALLE DE COBRANZA (INGRESOS)</div>
+                    ${listaHtml}
+                </div>
+
+                ${bancosHtml}
+
+                ${desembolsosHtml}
+
+                <div class="summary">
+                    <div class="section-title text-center">RESUMEN DEL DÍA</div>
+                    
+                    <div class="summary-row">
+                        <span>(+) Total Recaudado:</span>
+                        <span>L. ${parseFloat(data.monto_recaudado).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    
+                    <!-- Entregado logic: Bank + Cash -->
+                    <div class="summary-row">
+                        <span>(-) Entregado Banco:</span>
+                        <span>L. ${parseFloat(data.total_banco_dia || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    
+                    <div class="summary-row">
+                         <span>(-) Entregado Bóveda/Caja:</span>
+                         <span>L. ${parseFloat(data.total_efectivo_dia || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+
+                    <div class="summary-row total-final">
+                        <span>(=) DIFERENCIA:</span>
+                        <span>L. ${parseFloat(data.diferencia).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p>_____________________________________</p>
+                    <p>Firma Conforme</p>
+                    <p>${data.asesor_nombre}</p>
+                    <br>
+                    <p style="font-size:10px;">Impreso por: ${data.usuario_imprime || 'Sistema'} | Transacción #${data.id_cuadre || 'N/A'}</p>
+                </div>
+                
+                <script>
+                    window.onload = function() { window.print(); };
+                <\/script>
+            </body>
+            </html>
+        `;
+
+        ventana.document.write(html);
+        ventana.document.close();
     }
 
     // --- REPRINT LOGIC ---

@@ -42,18 +42,29 @@ try {
         Response::error('Saldos de apertura son requeridos', 400);
     }
 
-    // Verificar que no haya una caja abierta
-    $stmt = $db->prepare("
+    // 1. Verificar si hay ALGUNA caja abierta (de cualquier fecha)
+    $stmtAbs = $db->prepare("
+        SELECT id_control, fecha_dia 
+        FROM control_caja_diaria 
+        WHERE id_agencia = ? 
+        AND estado = 'Abierto'
+    ");
+    $stmtAbs->execute([$idAgencia]);
+    if ($abierta = $stmtAbs->fetch(PDO::FETCH_ASSOC)) {
+        Response::error('Ya existe una caja abierta del día ' . $abierta['fecha_dia'] . '. Debe cerrarla primero.', 400);
+    }
+
+    // 2. Verificar si ya hubo caja hoy (Abierta o Cerrada) - Si se permite múltiples turnos, quitar esto.
+    // Asumimos una caja por día.
+    $stmtHoy = $db->prepare("
         SELECT id_control 
         FROM control_caja_diaria 
         WHERE id_agencia = ? 
-        AND fecha_dia = CURDATE() 
-        AND estado = 'Abierto'
+        AND fecha_dia = CURDATE()
     ");
-    $stmt->execute([$idAgencia]);
-
-    if ($stmt->fetch()) {
-        Response::error('Ya existe una caja abierta para hoy', 400);
+    $stmtHoy->execute([$idAgencia]);
+    if ($stmtHoy->fetch()) {
+        Response::error('Ya se registró una apertura de caja para el día de hoy.', 400);
     }
 
     $montoRetiroBoveda = $data['monto_retiro_boveda'] ?? 0;
@@ -91,6 +102,11 @@ try {
         $observaciones .= " [Retiro Inicial Bóveda: L. " . number_format($montoRetiroBoveda, 2) . "]";
     }
 
+    // Obtener saldo de bóveda para registro
+    $stmtBovedaAp = $db->prepare("SELECT saldo_efectivo FROM cajas_agencias WHERE id_agencia = ?");
+    $stmtBovedaAp->execute([$idAgencia]);
+    $saldoBovedaApertura = $stmtBovedaAp->fetchColumn();
+
     // Insertar apertura
     $stmt = $db->prepare("
         INSERT INTO control_caja_diaria (
@@ -99,9 +115,10 @@ try {
             fecha_dia,
             saldo_apertura_sistema,
             saldo_apertura_fisico,
+            saldo_boveda_apertura,
             observaciones,
             estado
-        ) VALUES (?, ?, CURDATE(), ?, ?, ?, 'Abierto')
+        ) VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 'Abierto')
     ");
 
     $stmt->execute([
@@ -109,6 +126,7 @@ try {
         $idUsuario,
         $saldoAperturaSistema,
         $saldoAperturaFisico, // Este ya incluye el dinero físico contado (que incluye lo de la bóveda)
+        $saldoBovedaApertura,
         $observaciones
     ]);
 

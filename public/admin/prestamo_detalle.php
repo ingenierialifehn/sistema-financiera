@@ -209,9 +209,9 @@ $pageTitle = 'Detalle del Préstamo';
                                 <p class="text-2xl font-bold text-blue-800">L ${parseFloat(prestamo.capital_restante).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                                 <p class="text-xs text-blue-500 mt-1">Orig: L ${parseFloat(prestamo.monto_capital).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
-                            <div class="bg-green-50 p-4 rounded-lg">
-                                <p class="text-xs text-green-600 font-semibold uppercase mb-1">Neto Entregado</p>
-                                <p class="text-2xl font-bold text-green-800">L ${parseFloat(prestamo.neto_entregar).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                            <div class="bg-red-50 p-4 rounded-lg">
+                                <p class="text-xs text-red-600 font-semibold uppercase mb-1">Saldo Vencido</p>
+                                <p class="text-2xl font-bold text-red-800">L ${parseFloat(prestamo.monto_mora_total).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-purple-50 p-4 rounded-lg">
                                 <p class="text-xs text-purple-600 font-semibold uppercase mb-1">Total a Pagar</p>

@@ -522,9 +522,9 @@ $pageTitle = 'Ficha del Cliente';
                                 <p class="text-xs text-blue-600 font-semibold uppercase">Monto Capital</p>
                                 <p class="text-lg font-bold text-blue-800">L ${p.monto_capital.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
-                            <div class="bg-green-50 p-3 rounded">
-                                <p class="text-xs text-green-600 font-semibold uppercase">Neto Entregado</p>
-                                <p class="text-lg font-bold text-green-800">L ${p.neto_entregar.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
+                            <div class="bg-red-50 p-3 rounded">
+                                <p class="text-xs text-red-600 font-semibold uppercase">Saldo Vencido</p>
+                                <p class="text-lg font-bold text-red-800">L ${p.monto_mora_total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div class="bg-purple-50 p-3 rounded">
                                 <p class="text-xs text-purple-600 font-semibold uppercase">Total a Pagar</p>

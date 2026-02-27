@@ -65,6 +65,13 @@ try {
                 AND estado IN ('pendiente', 'parcial')
                 AND fecha_vencimiento < CURDATE()) as dias_mora,
             
+            -- Monto total vencido
+            (SELECT SUM(monto_cuota - IFNULL(monto_pagado, 0))
+                FROM cuotas 
+                WHERE prestamo_id = p.id 
+                AND estado IN ('pendiente', 'parcial')
+                AND fecha_vencimiento < CURDATE()) as monto_mora_total,
+            
             -- Próxima cuota
             (SELECT MIN(fecha_vencimiento) 
                 FROM cuotas 
@@ -96,6 +103,7 @@ try {
         $prestamo['capital_restante'] = floatval($prestamo['capital_restante'] ?? 0);
         $prestamo['balance_pendiente'] = floatval($prestamo['balance_pendiente'] ?? 0);
         $prestamo['dias_mora'] = intval($prestamo['dias_mora'] ?? 0);
+        $prestamo['monto_mora_total'] = floatval($prestamo['monto_mora_total'] ?? 0);
         $prestamo['proxima_cuota_monto'] = floatval($prestamo['proxima_cuota_monto'] ?? 0);
 
         // Calcular progreso

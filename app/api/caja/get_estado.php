@@ -22,7 +22,7 @@ try {
         Response::error('Usuario no tiene agencia asignada', 400);
     }
 
-    // Buscar caja del día actual
+    // 1. Buscar si hay ALGUNA caja ABIERTA (Prioridad: Bloquear nueva apertura si hay una pendiente)
     $stmt = $db->prepare("
         SELECT 
             c.*,
@@ -31,12 +31,31 @@ try {
         FROM control_caja_diaria c
         LEFT JOIN cajas_agencias ca ON c.id_agencia = ca.id_agencia
         WHERE c.id_agencia = ? 
-        AND c.fecha_dia = CURDATE()
-        ORDER BY c.id_control DESC
+        AND c.estado = 'Abierto'
+        ORDER BY c.fecha_dia ASC -- Traer la más antigua abierta primero (o la única)
         LIMIT 1
     ");
     $stmt->execute([$idAgencia]);
     $caja = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // 2. Si no hay abierta, buscar si hubo una CERRADA hoy (para mostrar info del día)
+    if (!$caja) {
+        $stmtCerrada = $db->prepare("
+            SELECT 
+                c.*,
+                COALESCE(ca.saldo_efectivo, 0) as saldo_boveda,
+                COALESCE(ca.saldo_caja_operativa, 0) as saldo_caja
+            FROM control_caja_diaria c
+            LEFT JOIN cajas_agencias ca ON c.id_agencia = ca.id_agencia
+            WHERE c.id_agencia = ? 
+            AND c.fecha_dia = CURDATE()
+            AND c.estado = 'Cerrado'
+            ORDER BY c.id_control DESC
+            LIMIT 1
+        ");
+        $stmtCerrada->execute([$idAgencia]);
+        $caja = $stmtCerrada->fetch(PDO::FETCH_ASSOC);
+    }
 
     if ($caja) {
         Response::success($caja);
